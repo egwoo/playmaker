@@ -158,6 +158,16 @@ export function initApp() {
     saveDraftPlay(play);
   }
 
+  function collapsePanelsForMobile() {
+    if (!window.matchMedia('(max-width: 900px)').matches) {
+      return;
+    }
+    const panels = document.querySelectorAll<HTMLDetailsElement>('details.collapsible');
+    panels.forEach((panel) => {
+      panel.open = false;
+    });
+  }
+
   function setStatus(message: string) {
     statusText.textContent = message;
   }
@@ -1628,6 +1638,7 @@ export function initApp() {
   updateHistoryUI();
   updateSelectedPanel();
   updateTimelineUI();
+  collapsePanelsForMobile();
   renderSavedPlaysSelect();
   render();
 }

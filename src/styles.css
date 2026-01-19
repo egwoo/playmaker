@@ -115,6 +115,50 @@ h1 {
   font-size: 1.1rem;
 }
 
+.panel-block.collapsible {
+  gap: 10px;
+}
+
+.panel-block.collapsible summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 1.05rem;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+}
+
+.panel-block.collapsible summary::-webkit-details-marker {
+  display: none;
+}
+
+.panel-block.collapsible summary::marker {
+  content: '';
+}
+
+.panel-block.collapsible summary::after {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 0.2s ease;
+  margin-left: auto;
+}
+
+.panel-block.collapsible[open] summary::after {
+  transform: rotate(225deg);
+}
+
+.panel-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .hint {
   margin: 0;
   color: var(--muted);
@@ -559,7 +603,7 @@ button {
 
 @media (max-width: 900px) {
   #app {
-    padding: 18px;
+    padding: 12px;
   }
 
   .layout-header {
@@ -569,6 +613,21 @@ button {
 
   .layout {
     grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .panel {
+    padding: 16px;
+    border-radius: 18px;
+    gap: 16px;
+  }
+
+  .panel-block {
+    gap: 8px;
+  }
+
+  .panel-content {
+    gap: 10px;
   }
 
   .play-actions {
@@ -585,6 +644,13 @@ button {
   }
 
   .field-surface {
-    min-height: 320px;
+    min-height: 260px;
+    border-radius: 14px;
+  }
+
+  .field-overlay {
+    left: 12px;
+    bottom: 12px;
+    font-size: 0.78rem;
   }
 }
