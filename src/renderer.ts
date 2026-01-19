@@ -14,6 +14,7 @@ export interface RenderState {
   playTime: number;
   selectedPlayerId: string | null;
   ball: BallState;
+  showWaypointMarkers: boolean;
 }
 
 interface FieldMetrics {
@@ -171,12 +172,14 @@ export function createRenderer(canvas: HTMLCanvasElement) {
       }
       ctx.setLineDash([]);
 
-      ctx.fillStyle = style.route;
-      for (const leg of route) {
-        const end = worldToCanvas(leg.to);
-        ctx.beginPath();
-        ctx.arc(end.x, end.y, getWaypointRadius(), 0, Math.PI * 2);
-        ctx.fill();
+      if (state.showWaypointMarkers || player.id === state.selectedPlayerId) {
+        ctx.fillStyle = style.route;
+        for (const leg of route) {
+          const end = worldToCanvas(leg.to);
+          ctx.beginPath();
+          ctx.arc(end.x, end.y, getWaypointRadius(), 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
 
       ctx.restore();

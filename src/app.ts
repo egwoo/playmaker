@@ -20,6 +20,7 @@ const DEFAULT_DEFENSE_SPEED = 6;
 const DEFAULT_ZONE_RADIUS_X = 10;
 const DEFAULT_ZONE_RADIUS_Y = 5;
 const MIN_ZONE_RADIUS = 1;
+const SETTINGS_KEY = 'playmaker.settings.v1';
 
 type DragState = {
   playerId: string;
@@ -50,6 +51,10 @@ type PlayerDragState = {
   initialSelectedId: string | null;
 };
 
+type Settings = {
+  showWaypointMarkers: boolean;
+};
+
 export function initApp() {
   const canvas = document.getElementById('field-canvas') as HTMLCanvasElement | null;
   const statusText = document.getElementById('status-text');
@@ -67,6 +72,9 @@ export function initApp() {
   const saveMenu = document.getElementById('save-menu');
   const saveAsNewButton = document.getElementById('save-as-new') as HTMLButtonElement | null;
   const sharePlayButton = document.getElementById('share-play') as HTMLButtonElement | null;
+  const showWaypointsToggle = document.getElementById('show-waypoints-toggle') as
+    | HTMLInputElement
+    | null;
   const savedPlaysSelect = document.getElementById('saved-plays-select') as HTMLSelectElement | null;
   const renamePlayButton = document.getElementById('rename-play') as HTMLButtonElement | null;
   const deletePlayButton = document.getElementById('delete-play') as HTMLButtonElement | null;
@@ -112,6 +120,7 @@ export function initApp() {
     !savedPlaysSelect ||
     !renamePlayButton ||
     !deletePlayButton ||
+    !showWaypointsToggle ||
     !playerSelect ||
     !playerActions ||
     !waypointSection ||
@@ -140,6 +149,7 @@ export function initApp() {
   const savedPlay = loadDraftPlay();
   let savedPlays: SavedPlay[] = loadSavedPlays();
   let selectedSavedPlayId: string | null = null;
+  let settings = loadSettings();
 
   let play = sharedPlay ?? savedPlay ?? createEmptyPlay();
   let selectedPlayerId: string | null = null;
@@ -175,6 +185,30 @@ export function initApp() {
     panelWrapper.classList.toggle('controls-collapsed', isMobile && !controlsPanel.open);
     if (fieldOverlay) {
       fieldOverlay.classList.toggle('is-hidden', isMobile);
+    }
+  }
+
+  function loadSettings(): Settings {
+    try {
+      const raw = localStorage.getItem(SETTINGS_KEY);
+      if (!raw) {
+        return { showWaypointMarkers: true };
+      }
+      const parsed = JSON.parse(raw) as Partial<Settings>;
+      return {
+        showWaypointMarkers: parsed.showWaypointMarkers !== false
+      };
+    } catch {
+      return { showWaypointMarkers: true };
+    }
+  }
+
+  function saveSettings(next: Settings) {
+    settings = next;
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    } catch {
+      // Ignore persistence errors.
     }
   }
 
@@ -756,7 +790,8 @@ export function initApp() {
       play,
       playTime,
       selectedPlayerId,
-      ball: ballState
+      ball: ballState,
+      showWaypointMarkers: settings.showWaypointMarkers
     });
     updateTimelineUI();
   }
@@ -1652,6 +1687,11 @@ export function initApp() {
   window.addEventListener('resize', syncControlsCollapse);
   collapsePanelsForMobile();
   syncControlsCollapse();
+  showWaypointsToggle.checked = settings.showWaypointMarkers;
+  showWaypointsToggle.addEventListener('change', () => {
+    saveSettings({ ...settings, showWaypointMarkers: showWaypointsToggle.checked });
+    render();
+  });
   renderSavedPlaysSelect();
   render();
 }
