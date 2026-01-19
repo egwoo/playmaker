@@ -679,4 +679,8 @@ button {
     bottom: 12px;
     font-size: 0.78rem;
   }
+
+  .field-overlay {
+    display: none;
+  }
 }
