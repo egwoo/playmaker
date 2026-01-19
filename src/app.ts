@@ -162,10 +162,10 @@ export function initApp() {
     if (!window.matchMedia('(max-width: 900px)').matches) {
       return;
     }
-    const panels = document.querySelectorAll<HTMLDetailsElement>('details.collapsible');
-    panels.forEach((panel) => {
-      panel.open = false;
-    });
+    const playPanel = document.querySelector<HTMLDetailsElement>('details[data-panel="play"]');
+    if (playPanel) {
+      playPanel.open = false;
+    }
   }
 
   function setStatus(message: string) {

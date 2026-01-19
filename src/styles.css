@@ -617,13 +617,23 @@ button {
   }
 
   .panel {
-    padding: 16px;
+    padding: 14px;
     border-radius: 18px;
-    gap: 16px;
+    gap: 14px;
   }
 
   .panel-block {
     gap: 8px;
+  }
+
+  .panel-block.collapsible summary {
+    font-size: 0.95rem;
+    padding: 4px 0;
+  }
+
+  .panel-block.collapsible summary::after {
+    width: 8px;
+    height: 8px;
   }
 
   .panel-content {
@@ -644,7 +654,7 @@ button {
   }
 
   .field-surface {
-    min-height: 260px;
+    min-height: 0;
     border-radius: 14px;
   }
 
