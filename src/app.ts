@@ -162,9 +162,9 @@ export function initApp() {
     if (!window.matchMedia('(max-width: 900px)').matches) {
       return;
     }
-    const playPanel = document.querySelector<HTMLDetailsElement>('details[data-panel="play"]');
-    if (playPanel) {
-      playPanel.open = false;
+    const controlsPanel = document.querySelector<HTMLDetailsElement>('details[data-panel="controls"]');
+    if (controlsPanel) {
+      controlsPanel.open = false;
     }
   }
 

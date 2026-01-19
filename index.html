@@ -65,174 +65,211 @@
 
         <div class="layout">
           <section class="panel" aria-label="Controls">
-          <details class="panel-block collapsible" data-panel="play" open>
-            <summary>Play</summary>
-            <div class="panel-content">
-              <div class="saved-play-row">
-                <select id="saved-plays-select" aria-label="Saved plays"></select>
-                <button
-                  type="button"
-                  id="rename-play"
-                  class="secondary icon-button"
-                  aria-label="Rename play"
-                  title="Rename"
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path
-                      d="M4 20h4l10-10-4-4L4 16v4Z"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linejoin="round"
-                    />
-                    <path d="M14 6l4 4" fill="none" stroke="currentColor" stroke-width="2" />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  id="delete-play"
-                  class="secondary icon-button"
-                  aria-label="Delete play"
-                  title="Delete"
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M3 6h18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-                    <path
-                      d="M8 6l1-2h6l1 2"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                    <rect
-                      x="6"
-                      y="6"
-                      width="12"
-                      height="14"
-                      rx="2"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      fill="none"
-                    />
-                    <path
-                      d="M10 11v6M14 11v6"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                    />
-                  </svg>
-                </button>
-              </div>
-              <div class="play-actions">
-                <button type="button" id="new-play" class="secondary">New</button>
-                <button type="button" id="flip-play" class="secondary">Flip</button>
-                <div class="split-button" id="save-split">
-                  <button type="button" id="save-play" class="secondary">Save</button>
-                  <button
-                    type="button"
-                    id="save-menu-toggle"
-                    class="secondary icon-button"
-                    aria-label="Save options"
-                    aria-haspopup="true"
-                    aria-expanded="false"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path
-                        d="M7 10l5 5 5-5"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      />
-                    </svg>
-                  </button>
-                  <div class="split-menu is-hidden" id="save-menu" role="menu">
-                    <button type="button" id="save-as-new" class="split-menu-item" role="menuitem">
-                      Save as new
+            <details class="panel-block collapsible controls-collapsible" data-panel="controls" open>
+              <summary>Controls</summary>
+              <div class="panel-content controls-content">
+                <details class="panel-block collapsible" data-panel="play" open>
+                  <summary>Play</summary>
+                  <div class="panel-content">
+                    <div class="saved-play-row">
+                      <select id="saved-plays-select" aria-label="Saved plays"></select>
+                      <button
+                        type="button"
+                        id="rename-play"
+                        class="secondary icon-button"
+                        aria-label="Rename play"
+                        title="Rename"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path
+                            d="M4 20h4l10-10-4-4L4 16v4Z"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linejoin="round"
+                          />
+                          <path d="M14 6l4 4" fill="none" stroke="currentColor" stroke-width="2" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        id="delete-play"
+                        class="secondary icon-button"
+                        aria-label="Delete play"
+                        title="Delete"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path
+                            d="M3 6h18"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                          />
+                          <path
+                            d="M8 6l1-2h6l1 2"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          />
+                          <rect
+                            x="6"
+                            y="6"
+                            width="12"
+                            height="14"
+                            rx="2"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            fill="none"
+                          />
+                          <path
+                            d="M10 11v6M14 11v6"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                    <div class="play-actions">
+                      <button type="button" id="new-play" class="secondary">New</button>
+                      <button type="button" id="flip-play" class="secondary">Flip</button>
+                      <div class="split-button" id="save-split">
+                        <button type="button" id="save-play" class="secondary">Save</button>
+                        <button
+                          type="button"
+                          id="save-menu-toggle"
+                          class="secondary icon-button"
+                          aria-label="Save options"
+                          aria-haspopup="true"
+                          aria-expanded="false"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path
+                              d="M7 10l5 5 5-5"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                            />
+                          </svg>
+                        </button>
+                        <div class="split-menu is-hidden" id="save-menu" role="menu">
+                          <button
+                            type="button"
+                            id="save-as-new"
+                            class="split-menu-item"
+                            role="menuitem"
+                          >
+                            Save as new
+                          </button>
+                          <button
+                            type="button"
+                            id="share-play"
+                            class="split-menu-item"
+                            role="menuitem"
+                          >
+                            Copy share link
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </details>
+                <div class="panel-block">
+                  <p class="hint">Click on the field to place a player.</p>
+                  <div class="segmented" role="group" aria-label="Team selection">
+                    <button type="button" data-team="offense" class="segmented-button active">
+                      Offense
                     </button>
-                    <button type="button" id="share-play" class="split-menu-item" role="menuitem">
-                      Copy share link
+                    <button type="button" data-team="defense" class="segmented-button">
+                      Defense
                     </button>
                   </div>
                 </div>
-              </div>
-            </div>
-          </details>
-          <div class="panel-block">
-            <p class="hint">Click on the field to place a player.</p>
-            <div class="segmented" role="group" aria-label="Team selection">
-              <button type="button" data-team="offense" class="segmented-button active">
-                Offense
-              </button>
-              <button type="button" data-team="defense" class="segmented-button">
-                Defense
-              </button>
-            </div>
-          </div>
 
-          <details class="panel-block collapsible" data-panel="selected-player" open>
-            <summary>Selected Player</summary>
-            <div class="panel-content">
-              <label class="field-label">
-                Player
-                <select id="selected-player-select" class="player-select"></select>
-              </label>
-              <label class="field-label player-name">
-                Player name
-                <input id="player-name-input" type="text" maxlength="20" value="" />
-              </label>
-              <label class="field-label start-action">
-                Start action (time 0)
-                <select id="start-action-select"></select>
-              </label>
-              <div id="coverage-panel" class="coverage-panel">
-                <label class="field-label">
-                  Coverage type
-                  <select id="coverage-type-select"></select>
-                </label>
-                <div class="coverage-man">
-                  <label class="field-label">
-                    Coverage assignment
-                    <select id="coverage-target-select"></select>
-                  </label>
-                  <label class="field-label">
-                    Defender speed (yd/s)
-                    <input id="coverage-speed-input" type="number" min="0.1" step="0.1" value="6" />
-                  </label>
-                </div>
-                <div class="coverage-zone">
-                  <label class="field-label">
-                    Zone horizontal (yd)
-                    <input id="zone-radius-x-input" type="number" min="0.5" step="0.5" value="10" />
-                  </label>
-                  <label class="field-label">
-                    Zone vertical (yd)
-                    <input id="zone-radius-y-input" type="number" min="0.5" step="0.5" value="5" />
-                  </label>
-                  <label class="field-label">
-                    Defender speed (yd/s)
-                    <input id="zone-speed-input" type="number" min="0.1" step="0.1" value="6" />
-                  </label>
-                </div>
+                <details class="panel-block collapsible" data-panel="selected-player" open>
+                  <summary>Selected Player</summary>
+                  <div class="panel-content">
+                    <label class="field-label">
+                      Player
+                      <select id="selected-player-select" class="player-select"></select>
+                    </label>
+                    <label class="field-label player-name">
+                      Player name
+                      <input id="player-name-input" type="text" maxlength="20" value="" />
+                    </label>
+                    <label class="field-label start-action">
+                      Start action (time 0)
+                      <select id="start-action-select"></select>
+                    </label>
+                    <div id="coverage-panel" class="coverage-panel">
+                      <label class="field-label">
+                        Coverage type
+                        <select id="coverage-type-select"></select>
+                      </label>
+                      <div class="coverage-man">
+                        <label class="field-label">
+                          Coverage assignment
+                          <select id="coverage-target-select"></select>
+                        </label>
+                        <label class="field-label">
+                          Defender speed (yd/s)
+                          <input
+                            id="coverage-speed-input"
+                            type="number"
+                            min="0.1"
+                            step="0.1"
+                            value="6"
+                          />
+                        </label>
+                      </div>
+                      <div class="coverage-zone">
+                        <label class="field-label">
+                          Zone horizontal (yd)
+                          <input
+                            id="zone-radius-x-input"
+                            type="number"
+                            min="0.5"
+                            step="0.5"
+                            value="10"
+                          />
+                        </label>
+                        <label class="field-label">
+                          Zone vertical (yd)
+                          <input
+                            id="zone-radius-y-input"
+                            type="number"
+                            min="0.5"
+                            step="0.5"
+                            value="5"
+                          />
+                        </label>
+                        <label class="field-label">
+                          Defender speed (yd/s)
+                          <input id="zone-speed-input" type="number" min="0.1" step="0.1" value="6" />
+                        </label>
+                      </div>
+                    </div>
+                    <div class="button-row player-actions" id="player-actions">
+                      <button type="button" id="deselect-player" class="secondary" disabled>
+                        Deselect
+                      </button>
+                      <button type="button" id="delete-player" class="secondary" disabled>Delete</button>
+                    </div>
+                    <div class="waypoint-section">
+                      <div class="waypoint-header">
+                        <span>Waypoints</span>
+                        <span class="hint">Tap field to add</span>
+                      </div>
+                      <div id="waypoint-list" class="waypoint-list"></div>
+                    </div>
+                  </div>
+                </details>
               </div>
-              <div class="button-row player-actions" id="player-actions">
-                <button type="button" id="deselect-player" class="secondary" disabled>
-                  Deselect
-                </button>
-                <button type="button" id="delete-player" class="secondary" disabled>Delete</button>
-              </div>
-              <div class="waypoint-section">
-                <div class="waypoint-header">
-                  <span>Waypoints</span>
-                  <span class="hint">Tap field to add</span>
-                </div>
-                <div id="waypoint-list" class="waypoint-list"></div>
-              </div>
-            </div>
-          </details>
-
-        </section>
+            </details>
+          </section>
 
         <section class="field" aria-label="Field canvas">
           <div class="field-surface">

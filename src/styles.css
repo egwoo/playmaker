@@ -119,6 +119,10 @@ h1 {
   gap: 10px;
 }
 
+.panel-block.controls-collapsible summary {
+  font-size: 1.15rem;
+}
+
 .panel-block.collapsible summary {
   list-style: none;
   display: flex;
@@ -157,6 +161,10 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.controls-content {
+  gap: 16px;
 }
 
 .hint {
@@ -629,6 +637,14 @@ button {
   .panel-block.collapsible summary {
     font-size: 0.95rem;
     padding: 4px 0;
+  }
+
+  .panel-block.controls-collapsible summary {
+    font-size: 1.02rem;
+  }
+
+  .controls-content {
+    gap: 12px;
   }
 
   .panel-block.collapsible summary::after {
