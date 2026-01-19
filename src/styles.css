@@ -134,6 +134,10 @@ h1 {
   user-select: none;
 }
 
+.panel-block.collapsible:not([open]) summary {
+  margin-bottom: 0;
+}
+
 .panel-block.collapsible summary::-webkit-details-marker {
   display: none;
 }
@@ -645,6 +649,15 @@ button {
 
   .controls-content {
     gap: 12px;
+  }
+
+  .panel.controls-collapsed {
+    gap: 0;
+    padding-bottom: 12px;
+  }
+
+  .panel.controls-collapsed .controls-content {
+    display: none;
   }
 
   .panel-block.collapsible summary::after {

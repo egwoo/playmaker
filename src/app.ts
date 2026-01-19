@@ -70,6 +70,9 @@ export function initApp() {
   const savedPlaysSelect = document.getElementById('saved-plays-select') as HTMLSelectElement | null;
   const renamePlayButton = document.getElementById('rename-play') as HTMLButtonElement | null;
   const deletePlayButton = document.getElementById('delete-play') as HTMLButtonElement | null;
+  const controlsPanel = document.querySelector<HTMLDetailsElement>('details[data-panel="controls"]');
+  const panelWrapper = document.querySelector<HTMLElement>('section.panel');
+  const fieldOverlay = document.getElementById('field-overlay');
   const playerSelect = document.getElementById('selected-player-select') as HTMLSelectElement | null;
   const playerActions = document.getElementById('player-actions');
   const waypointSection = document.querySelector<HTMLElement>('.waypoint-section');
@@ -125,7 +128,9 @@ export function initApp() {
     !coverageSpeedInput ||
     !zoneRadiusXInput ||
     !zoneRadiusYInput ||
-    !zoneSpeedInput
+    !zoneSpeedInput ||
+    !controlsPanel ||
+    !panelWrapper
   ) {
     throw new Error('Missing required UI elements.');
   }
@@ -162,9 +167,14 @@ export function initApp() {
     if (!window.matchMedia('(max-width: 900px)').matches) {
       return;
     }
-    const controlsPanel = document.querySelector<HTMLDetailsElement>('details[data-panel="controls"]');
-    if (controlsPanel) {
-      controlsPanel.open = false;
+    controlsPanel.open = false;
+  }
+
+  function syncControlsCollapse() {
+    const isMobile = window.matchMedia('(max-width: 900px)').matches;
+    panelWrapper.classList.toggle('controls-collapsed', isMobile && !controlsPanel.open);
+    if (fieldOverlay) {
+      fieldOverlay.classList.toggle('is-hidden', isMobile);
     }
   }
 
@@ -1638,7 +1648,10 @@ export function initApp() {
   updateHistoryUI();
   updateSelectedPanel();
   updateTimelineUI();
+  controlsPanel.addEventListener('toggle', syncControlsCollapse);
+  window.addEventListener('resize', syncControlsCollapse);
   collapsePanelsForMobile();
+  syncControlsCollapse();
   renderSavedPlaysSelect();
   render();
 }
