@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Playmaker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <script type="module" crossorigin src="./assets/index-BvUH7kie.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-BCvjXwel.css">
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Flag Football Lab</p>
+          <h1>Playmaker</h1>
+          <p class="subtitle">Sketch a play, set timing, and watch it move.</p>
+        </div>
+        <div class="status" id="status-text">Ready.</div>
+      </header>
+
+      <main class="layout">
+        <section class="panel" aria-label="Controls">
+          <div class="panel-block">
+            <h2>Roster</h2>
+            <p class="hint">Click on the field to place a player.</p>
+            <div class="segmented" role="group" aria-label="Team selection">
+              <button type="button" data-team="offense" class="segmented-button active">
+                Offense
+              </button>
+              <button type="button" data-team="defense" class="segmented-button">
+                Defense
+              </button>
+            </div>
+            <button type="button" class="secondary" id="clear-play">Clear play</button>
+          </div>
+
+          <div class="panel-block">
+            <h2>Selected Player</h2>
+            <div id="player-card" class="player-card empty">Select a player</div>
+            <label class="field-label route-speed">
+              New leg speed (yd/s)
+              <input id="speed-input" type="number" min="0.1" step="0.1" value="6" />
+            </label>
+            <label class="field-label player-name">
+              Player name
+              <input id="player-name-input" type="text" maxlength="20" value="" />
+            </label>
+            <label class="field-label start-action">
+              Start action (time 0)
+              <select id="start-action-select"></select>
+            </label>
+            <div id="coverage-panel" class="coverage-panel">
+              <label class="field-label">
+                Coverage type
+                <select id="coverage-type-select"></select>
+              </label>
+              <div class="coverage-man">
+                <label class="field-label">
+                  Coverage assignment
+                  <select id="coverage-target-select"></select>
+                </label>
+                <label class="field-label">
+                  Defender speed (yd/s)
+                  <input id="coverage-speed-input" type="number" min="0.1" step="0.1" value="6" />
+                </label>
+              </div>
+              <div class="coverage-zone">
+                <label class="field-label">
+                  Zone horizontal (yd)
+                  <input id="zone-radius-x-input" type="number" min="0.5" step="0.5" value="10" />
+                </label>
+                <label class="field-label">
+                  Zone vertical (yd)
+                  <input id="zone-radius-y-input" type="number" min="0.5" step="0.5" value="5" />
+                </label>
+                <label class="field-label">
+                  Defender speed (yd/s)
+                  <input id="zone-speed-input" type="number" min="0.1" step="0.1" value="6" />
+                </label>
+              </div>
+            </div>
+            <div class="button-row">
+              <button type="button" id="deselect-player" class="secondary" disabled>Deselect</button>
+              <button type="button" id="delete-player" class="secondary" disabled>Delete</button>
+            </div>
+            <div class="waypoint-section">
+              <div class="waypoint-header">
+                <span>Waypoints</span>
+                <span class="hint">Tap field to add</span>
+              </div>
+              <div id="waypoint-list" class="waypoint-list"></div>
+            </div>
+          </div>
+
+          <div class="panel-block">
+            <h2>Playback</h2>
+            <div class="playback-controls">
+              <button type="button" id="play-toggle" class="primary">Play</button>
+              <label class="field-label">
+                Timeline
+                <input id="scrubber" type="range" min="0" max="0" step="0.01" value="0" />
+              </label>
+              <div class="time-readout" id="time-readout">0.0s / 0.0s</div>
+              <div class="ball-status" id="ball-status">No ball carrier yet.</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="field" aria-label="Field canvas">
+          <div class="field-toolbar">
+            <button type="button" id="undo-action" class="secondary" disabled>Undo</button>
+            <button type="button" id="redo-action" class="secondary" disabled>Redo</button>
+          </div>
+          <div class="field-surface">
+            <canvas id="field-canvas"></canvas>
+            <div class="field-overlay" id="field-overlay">
+              Tap to add players. Select a player, then tap to add waypoints.
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+  </body>
+</html>
