@@ -671,6 +671,16 @@ button {
   .layout {
     grid-template-columns: 1fr;
     gap: 16px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .field {
+    order: -1;
+  }
+
+  .panel {
+    order: 1;
   }
 
   .panel {
@@ -743,6 +753,29 @@ button {
   .status {
     width: 100%;
     text-align: center;
+  }
+
+  .field-toolbar {
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+
+  .toolbar-group {
+    gap: 6px;
+  }
+
+  .toolbar-playback {
+    min-width: 0;
+  }
+
+  .toolbar-scrubber {
+    min-width: 0;
+  }
+
+  .primary,
+  .secondary,
+  .tertiary {
+    padding: 8px 10px;
   }
 
   .field-surface {
