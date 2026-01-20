@@ -501,7 +501,7 @@ export function initApp() {
     if (candidates.length === 0) {
       const emptyOption = document.createElement('option');
       emptyOption.value = '';
-      emptyOption.textContent = 'Add an offensive player to pass/hand off to';
+      emptyOption.textContent = 'Add an offensive player to target';
       emptyOption.disabled = true;
       emptyOption.selected = true;
       startActionSelect.append(emptyOption);
@@ -515,19 +515,14 @@ export function initApp() {
     startActionSelect.append(actionNone);
 
     for (const candidate of candidates) {
-      const handoffOption = document.createElement('option');
-      handoffOption.value = `handoff:${candidate.id}`;
-      handoffOption.textContent = `Handoff → ${candidate.label}`;
-      startActionSelect.append(handoffOption);
-
-      const passOption = document.createElement('option');
-      passOption.value = `pass:${candidate.id}`;
-      passOption.textContent = `Pass → ${candidate.label}`;
-      startActionSelect.append(passOption);
+      const option = document.createElement('option');
+      option.value = candidate.id;
+      option.textContent = `${player.label} → ${candidate.label}`;
+      startActionSelect.append(option);
     }
 
     if (player.startAction && candidates.some((candidate) => candidate.id === player.startAction?.targetId)) {
-      startActionSelect.value = `${player.startAction.type}:${player.startAction.targetId}`;
+      startActionSelect.value = player.startAction.targetId;
     } else {
       startActionSelect.value = '';
     }
@@ -665,7 +660,7 @@ export function initApp() {
       if (candidates.length === 0) {
         const emptyOption = document.createElement('option');
         emptyOption.value = '';
-        emptyOption.textContent = 'Add an offensive player to pass/hand off to';
+        emptyOption.textContent = 'Add an offensive player to target';
         emptyOption.disabled = true;
         emptyOption.selected = true;
         actionSelect.append(emptyOption);
@@ -677,19 +672,14 @@ export function initApp() {
         actionSelect.append(actionNone);
 
         for (const candidate of candidates) {
-          const handoffOption = document.createElement('option');
-          handoffOption.value = `handoff:${candidate.id}`;
-          handoffOption.textContent = `Handoff → ${candidate.label}`;
-          actionSelect.append(handoffOption);
-
-          const passOption = document.createElement('option');
-          passOption.value = `pass:${candidate.id}`;
-          passOption.textContent = `Pass → ${candidate.label}`;
-          actionSelect.append(passOption);
+          const option = document.createElement('option');
+          option.value = candidate.id;
+          option.textContent = `${player.label} → ${candidate.label}`;
+          actionSelect.append(option);
         }
 
         if (leg.action && candidates.some((candidate) => candidate.id === leg.action?.targetId)) {
-          actionSelect.value = `${leg.action.type}:${leg.action.targetId}`;
+          actionSelect.value = leg.action.targetId;
         } else {
           actionSelect.value = '';
         }
@@ -711,11 +701,7 @@ export function initApp() {
             target.route[index].action = undefined;
             return;
           }
-          const [type, targetId] = value.split(':');
-          if (type !== 'pass' && type !== 'handoff') {
-            return;
-          }
-          target.route[index].action = { type, targetId };
+          target.route[index].action = { type: 'pass', targetId: value };
         });
       });
 
@@ -1326,11 +1312,7 @@ export function initApp() {
         target.startAction = undefined;
         return;
       }
-      const [type, targetId] = value.split(':');
-      if (type !== 'pass' && type !== 'handoff') {
-        return;
-      }
-      target.startAction = { type, targetId };
+      target.startAction = { type: 'pass', targetId: value };
     });
   });
 
