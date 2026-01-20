@@ -162,6 +162,7 @@ export function initApp() {
   let playTime = 0;
   let isPlaying = false;
   let lastTimestamp = 0;
+  let scrubberTouched = false;
   let dragState: DragState | null = null;
   let zoneDragState: ZoneDragState | null = null;
   let playerDragState: PlayerDragState | null = null;
@@ -764,15 +765,34 @@ export function initApp() {
   }
 
   function updateTimelineUI() {
-    const duration = getPlaybackDuration();
+    const { start, end } = getPlaybackRange();
+    const duration = Math.max(0, end - start);
+    if (start < 0 && !scrubberTouched && playTime === 0) {
+      playTime = start;
+    }
+    scrubber.min = '0';
     scrubber.max = duration.toString();
-    playTime = Math.min(playTime, duration);
-    scrubber.value = playTime.toString();
+    playTime = clampRange(playTime, start, end);
+    scrubber.value = (playTime - start).toString();
     playToggle.disabled = duration <= 0;
   }
 
-  function getPlaybackDuration() {
-    return Math.max(getPlayDuration(play), getBallEndTime(play, DEFAULT_BALL_SPEED_YPS));
+  function getPlaybackRange() {
+    const start = getPlaybackStartTime();
+    const end = Math.max(getPlayDuration(play), getBallEndTime(play, DEFAULT_BALL_SPEED_YPS));
+    return { start, end };
+  }
+
+  function getPlaybackStartTime(): number {
+    const offense = play.players.filter((player) => player.team === 'offense');
+    let minStart = 0;
+    for (const player of offense) {
+      const delay = player.startDelay ?? 0;
+      if (delay < minStart) {
+        minStart = delay;
+      }
+    }
+    return minStart;
   }
 
   function render() {
@@ -830,7 +850,8 @@ export function initApp() {
   }
 
   function setPlayTime(nextTime: number) {
-    playTime = Math.max(0, nextTime);
+    const { start, end } = getPlaybackRange();
+    playTime = clampRange(nextTime, start, end);
     updateTimelineUI();
     render();
   }
@@ -841,12 +862,15 @@ export function initApp() {
   }
 
   function startPlayback() {
-    const duration = getPlaybackDuration();
-    if (duration <= 0) {
+    const { start, end } = getPlaybackRange();
+    if (end <= start) {
       return;
     }
-    if (playTime >= duration) {
-      playTime = 0;
+    if (start < 0 && !scrubberTouched && playTime === 0) {
+      playTime = start;
+    }
+    if (playTime >= end || playTime < start) {
+      playTime = start;
     }
     isPlaying = true;
     lastTimestamp = 0;
@@ -872,10 +896,10 @@ export function initApp() {
     const delta = (timestamp - lastTimestamp) / 1000;
     lastTimestamp = timestamp;
 
-    const duration = getPlaybackDuration();
-    playTime = Math.min(playTime + delta, duration);
+    const { end } = getPlaybackRange();
+    playTime = Math.min(playTime + delta, end);
 
-    if (playTime >= duration) {
+    if (playTime >= end) {
       stopPlayback();
     }
 
@@ -1278,7 +1302,9 @@ export function initApp() {
     stopPlayback();
     const value = Number(scrubber.value);
     if (Number.isFinite(value)) {
-      setPlayTime(value);
+      scrubberTouched = true;
+      const { start } = getPlaybackRange();
+      setPlayTime(start + value);
     }
   });
 
@@ -1293,7 +1319,8 @@ export function initApp() {
 
   resetTimeButton.addEventListener('click', () => {
     stopPlayback();
-    setPlayTime(0);
+    setPlayTime(getPlaybackStartTime());
+    scrubberTouched = false;
     setStatus('Playback reset.');
   });
 
@@ -1505,6 +1532,7 @@ export function initApp() {
     resetPlayState();
     selectedSavedPlayId = null;
     renderSavedPlaysSelect();
+    scrubberTouched = false;
     setStatus('Started a new play.');
   });
 
@@ -1599,6 +1627,7 @@ export function initApp() {
       deletePlayButton.disabled = false;
       play = clonePlay(selectedEntry.play);
       playTime = 0;
+      scrubberTouched = false;
       historyPast = [];
       historyFuture = [];
       updateHistoryUI();
@@ -1739,6 +1768,16 @@ function clamp01(value: number): number {
   }
   if (value > 1) {
     return 1;
+  }
+  return value;
+}
+
+function clampRange(value: number, min: number, max: number): number {
+  if (value < min) {
+    return min;
+  }
+  if (value > max) {
+    return max;
   }
   return value;
 }
