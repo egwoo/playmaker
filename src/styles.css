@@ -518,10 +518,24 @@ button {
   justify-content: center;
 }
 
-.icon-button svg {
+.icon-button svg,
+.icon-button .icon {
   width: 18px;
   height: 18px;
   display: block;
+}
+
+.icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.icon-only {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
 }
 
 .waypoint-row .icon-button {

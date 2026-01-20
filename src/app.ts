@@ -14,6 +14,7 @@ import {
 import { DEFAULT_BALL_SPEED_YPS, getBallEndTime, getBallState } from './ball';
 import { createRenderer } from './renderer';
 import { loadDraftPlay, loadSavedPlays, saveDraftPlay, saveSavedPlays, type SavedPlay } from './storage';
+import { renderIcons } from './icons';
 
 const DEFAULT_SPEED = 6;
 const DEFAULT_DEFENSE_SPEED = 6;
@@ -715,29 +716,7 @@ export function initApp() {
       deleteButton.className = 'tertiary icon-button';
       deleteButton.setAttribute('aria-label', 'Remove waypoint');
       deleteButton.title = 'Remove waypoint';
-      deleteButton.innerHTML = `
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M3 6h18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-          <path
-            d="M8 6l1-2h6l1 2"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-          <rect
-            x="6"
-            y="6"
-            width="12"
-            height="14"
-            rx="2"
-            stroke="currentColor"
-            stroke-width="2"
-            fill="none"
-          />
-          <path d="M10 11v6M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-        </svg>
-      `;
+      deleteButton.innerHTML = '<span data-lucide="trash-2" aria-hidden="true"></span>';
       deleteButton.addEventListener('click', () => {
         applyMutation(() => {
           const target = getSelectedPlayer();
@@ -761,6 +740,8 @@ export function initApp() {
       row.append(label, speedField, actionField, deleteButton);
       waypointList.append(row);
     });
+
+    renderIcons(waypointList);
   }
 
   function updateTimelineUI() {
@@ -837,7 +818,7 @@ export function initApp() {
 
   function stopPlayback() {
     isPlaying = false;
-    playToggle.textContent = 'Play';
+    setPlayToggleState('play');
   }
 
   function startPlayback() {
@@ -850,8 +831,14 @@ export function initApp() {
     }
     isPlaying = true;
     lastTimestamp = 0;
-    playToggle.textContent = 'Pause';
+    setPlayToggleState('pause');
     requestAnimationFrame(tickPlayback);
+  }
+
+  function setPlayToggleState(state: 'play' | 'pause') {
+    playToggle.setAttribute('aria-label', state === 'play' ? 'Play' : 'Pause');
+    playToggle.innerHTML = `<span data-lucide="${state}" aria-hidden="true"></span>`;
+    renderIcons(playToggle);
   }
 
   function tickPlayback(timestamp: number) {
@@ -1679,6 +1666,7 @@ export function initApp() {
   updateHistoryUI();
   updateSelectedPanel();
   updateTimelineUI();
+  setPlayToggleState(isPlaying ? 'pause' : 'play');
   controlsPanel.addEventListener('toggle', syncControlsCollapse);
   window.addEventListener('resize', syncControlsCollapse);
   collapsePanelsForMobile();
