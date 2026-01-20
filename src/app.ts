@@ -170,6 +170,12 @@ export function initApp() {
   });
   resizeObserver.observe(canvas);
   renderer.resize();
+  if (document.fonts?.ready) {
+    document.fonts.ready.then(() => {
+      renderer.resize();
+      render();
+    });
+  }
   if (sharedPlay) {
     saveDraftPlay(play);
   }
