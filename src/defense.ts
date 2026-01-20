@@ -15,6 +15,7 @@ export interface DefenseOptions {
   radiusYards?: number;
   defaultSpeed?: number;
   stepSeconds?: number;
+  minSeparationYards?: number;
 }
 
 export function getPlayerPositionWithDefense(
@@ -32,10 +33,25 @@ export function getPlayerPositionWithDefense(
   }
 
   if (player.assignment.type === 'man') {
-    return getManCoveragePosition(play, player, timeSeconds, options);
+    return applyOffenseSeparation(
+      play,
+      timeSeconds,
+      getManCoveragePosition(play, player, timeSeconds, options),
+      options.minSeparationYards
+    );
   }
 
-  return getZoneCoveragePosition(play, player, timeSeconds, options);
+  return applyOffenseSeparation(
+    play,
+    timeSeconds,
+    getZoneCoveragePosition(play, player, timeSeconds, options),
+    options.minSeparationYards,
+    {
+      center: player.start,
+      radiusX: player.assignment.radiusX,
+      radiusY: player.assignment.radiusY
+    }
+  );
 }
 
 function getManCoveragePosition(
@@ -101,6 +117,66 @@ function getZoneCoveragePosition(
   }
 
   return position;
+}
+
+function applyOffenseSeparation(
+  play: Play,
+  timeSeconds: number,
+  defender: Vec2,
+  minSeparationYards?: number,
+  zone?: { center: Vec2; radiusX: number; radiusY: number }
+): Vec2 {
+  const separation = minSeparationYards ?? 0;
+  if (separation <= 0) {
+    return defender;
+  }
+  const offenses = play.players.filter((player) => player.team === 'offense');
+  if (offenses.length === 0) {
+    return defender;
+  }
+
+  const defenderYards = toYards(defender);
+  let closest = toYards(getPlayerPositionAtTime(offenses[0], timeSeconds));
+  let closestDistance = Math.hypot(defenderYards.x - closest.x, defenderYards.y - closest.y);
+
+  for (let i = 1; i < offenses.length; i += 1) {
+    const offensePos = toYards(getPlayerPositionAtTime(offenses[i], timeSeconds));
+    const distance = Math.hypot(defenderYards.x - offensePos.x, defenderYards.y - offensePos.y);
+    if (distance < closestDistance) {
+      closestDistance = distance;
+      closest = offensePos;
+    }
+  }
+
+  if (closestDistance >= separation) {
+    return defender;
+  }
+
+  let dx = defenderYards.x - closest.x;
+  let dy = defenderYards.y - closest.y;
+  let distance = Math.hypot(dx, dy);
+  if (distance < 1e-6) {
+    dx = 1;
+    dy = 0;
+    distance = 1;
+  }
+
+  const scale = separation / distance;
+  const nextYards = {
+    x: closest.x + dx * scale,
+    y: closest.y + dy * scale
+  };
+
+  const bounded = fromYards({
+    x: clamp(nextYards.x, 0, FIELD_WIDTH_YARDS),
+    y: clamp(nextYards.y, 0, FIELD_LENGTH_YARDS)
+  });
+
+  if (zone) {
+    return clampPointToEllipse(bounded, zone.center, zone.radiusX, zone.radiusY);
+  }
+
+  return bounded;
 }
 
 function pickZoneTarget(
@@ -245,4 +321,14 @@ function distanceYards(a: Vec2, b: Vec2): number {
   const aYards = toYards(a);
   const bYards = toYards(b);
   return Math.hypot(aYards.x - bYards.x, aYards.y - bYards.y);
+}
+
+function clamp(value: number, min: number, max: number): number {
+  if (value < min) {
+    return min;
+  }
+  if (value > max) {
+    return max;
+  }
+  return value;
 }
