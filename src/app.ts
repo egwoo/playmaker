@@ -650,26 +650,19 @@ export function initApp() {
       return;
     }
 
-    const playbackStart = getPlaybackStartTime();
     let from = player.start;
     let elapsed = player.startDelay ?? 0;
 
     route.forEach((leg, index) => {
       const duration = getLegDuration(from, leg);
       elapsed += duration;
-      const arrival = Math.max(0, elapsed - playbackStart);
 
       const row = document.createElement('div');
       row.className = 'waypoint-row';
 
       const label = document.createElement('div');
       label.className = 'waypoint-label';
-      const labelTitle = document.createElement('div');
-      labelTitle.textContent = `Leg ${index + 1}`;
-      const labelTime = document.createElement('div');
-      labelTime.className = 'waypoint-time';
-      labelTime.textContent = `@ ${arrival.toFixed(1)}s`;
-      label.append(labelTitle, labelTime);
+      label.textContent = `Leg ${index + 1} @ ${elapsed.toFixed(1)}s`;
 
       const speed = document.createElement('input');
       speed.type = 'number';
