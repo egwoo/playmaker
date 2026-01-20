@@ -36,6 +36,7 @@ const TEAM_STYLES: Record<Team, { fill: string; stroke: string; route: string }>
     route: 'rgba(118, 209, 255, 0.65)'
   }
 };
+const DEFENSE_HALO_PX = 2;
 
 export function createRenderer(canvas: HTMLCanvasElement) {
   const context = canvas.getContext('2d');
@@ -239,10 +240,12 @@ export function createRenderer(canvas: HTMLCanvasElement) {
 
   function drawPlayers(ctx: CanvasRenderingContext2D, state: RenderState) {
     const radius = getPlayerRadius();
+    const renderPositions = getRenderPositions(state.play, state.playTime);
 
     for (const player of state.play.players) {
-      const position = getPlayerPositionWithDefense(state.play, player, state.playTime);
-      const point = worldToCanvas(position);
+      const point =
+        renderPositions.get(player.id) ??
+        worldToCanvas(getPlayerPositionWithDefense(state.play, player, state.playTime));
       const style = TEAM_STYLES[player.team];
 
       ctx.save();
@@ -393,12 +396,79 @@ export function createRenderer(canvas: HTMLCanvasElement) {
     return Math.max(6, Math.min(field.width, field.height) * 0.015);
   }
 
-  function hitTest(canvasPoint: Vec2, play: Play, playTime: number): string | null {
-    const radius = getPlayerRadius();
-    for (let i = play.players.length - 1; i >= 0; i -= 1) {
-      const player = play.players[i];
+  function getRenderPositions(play: Play, playTime: number): Map<string, Vec2> {
+    const positions = new Map<string, Vec2>();
+    const offenses: Vec2[] = [];
+    for (const player of play.players) {
       const position = getPlayerPositionWithDefense(play, player, playTime);
       const point = worldToCanvas(position);
+      positions.set(player.id, point);
+      if (player.team === 'offense') {
+        offenses.push(point);
+      }
+    }
+
+    if (offenses.length === 0) {
+      return positions;
+    }
+
+    const radius = getPlayerRadius();
+    const minDistance = radius * 2 + DEFENSE_HALO_PX;
+    const minX = field.x + radius;
+    const maxX = field.x + field.width - radius;
+    const minY = field.y + radius;
+    const maxY = field.y + field.height - radius;
+
+    for (const player of play.players) {
+      if (player.team !== 'defense') {
+        continue;
+      }
+      const point = positions.get(player.id);
+      if (!point) {
+        continue;
+      }
+
+      let closest = offenses[0];
+      let closestDistance = Math.hypot(point.x - closest.x, point.y - closest.y);
+      for (let i = 1; i < offenses.length; i += 1) {
+        const candidate = offenses[i];
+        const distance = Math.hypot(point.x - candidate.x, point.y - candidate.y);
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closest = candidate;
+        }
+      }
+
+      if (closestDistance >= minDistance) {
+        continue;
+      }
+
+      let dx = point.x - closest.x;
+      let dy = point.y - closest.y;
+      let distance = Math.hypot(dx, dy);
+      if (distance < 1e-3) {
+        dx = 1;
+        dy = 0;
+        distance = 1;
+      }
+      const scale = minDistance / distance;
+      const next = {
+        x: clamp(point.x + dx * (scale - 1), minX, maxX),
+        y: clamp(point.y + dy * (scale - 1), minY, maxY)
+      };
+      positions.set(player.id, next);
+    }
+
+    return positions;
+  }
+
+  function hitTest(canvasPoint: Vec2, play: Play, playTime: number): string | null {
+    const radius = getPlayerRadius();
+    const renderPositions = getRenderPositions(play, playTime);
+    for (let i = play.players.length - 1; i >= 0; i -= 1) {
+      const player = play.players[i];
+      const point =
+        renderPositions.get(player.id) ?? worldToCanvas(getPlayerPositionWithDefense(play, player, playTime));
       const distance = Math.hypot(canvasPoint.x - point.x, canvasPoint.y - point.y);
       if (distance <= radius + 4) {
         return player.id;
@@ -473,4 +543,14 @@ export function createRenderer(canvas: HTMLCanvasElement) {
     hitTestZoneHandle,
     getFieldBounds: () => field
   };
+}
+
+function clamp(value: number, min: number, max: number): number {
+  if (value < min) {
+    return min;
+  }
+  if (value > max) {
+    return max;
+  }
+  return value;
 }
