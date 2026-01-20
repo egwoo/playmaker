@@ -192,15 +192,15 @@ export function initApp() {
     try {
       const raw = localStorage.getItem(SETTINGS_KEY);
       if (!raw) {
-        return { showWaypointMarkers: true };
-      }
-      const parsed = JSON.parse(raw) as Partial<Settings>;
-      return {
-        showWaypointMarkers: parsed.showWaypointMarkers !== false
-      };
-    } catch {
-      return { showWaypointMarkers: true };
+      return { showWaypointMarkers: false };
     }
+    const parsed = JSON.parse(raw) as Partial<Settings>;
+    return {
+      showWaypointMarkers: parsed.showWaypointMarkers !== false
+    };
+  } catch {
+    return { showWaypointMarkers: false };
+  }
   }
 
   function saveSettings(next: Settings) {
