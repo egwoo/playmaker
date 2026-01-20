@@ -1,12 +1,24 @@
-import { ChevronDown, Pause, PencilLine, Play, RotateCcw, Trash2, createIcons } from 'lucide';
+import {
+  ChevronDown,
+  Pause,
+  PencilLine,
+  Play,
+  Redo,
+  RotateCcw,
+  Trash2,
+  Undo,
+  createIcons
+} from 'lucide';
 
 const ICONS = {
   ChevronDown,
   Pause,
   PencilLine,
   Play,
+  Redo,
   RotateCcw,
-  Trash2
+  Trash2,
+  Undo
 };
 
 export function renderIcons(root: ParentNode = document) {

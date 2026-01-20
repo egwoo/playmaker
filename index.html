@@ -21,8 +21,26 @@
           <div class="layout-toolbar">
             <div class="field-toolbar">
               <div class="toolbar-group">
-                <button type="button" id="undo-action" class="secondary" disabled>Undo</button>
-                <button type="button" id="redo-action" class="secondary" disabled>Redo</button>
+                <button
+                  type="button"
+                  id="undo-action"
+                  class="secondary icon-button"
+                  aria-label="Undo"
+                  title="Undo"
+                  disabled
+                >
+                  <span data-lucide="undo" aria-hidden="true"></span>
+                </button>
+                <button
+                  type="button"
+                  id="redo-action"
+                  class="secondary icon-button"
+                  aria-label="Redo"
+                  title="Redo"
+                  disabled
+                >
+                  <span data-lucide="redo" aria-hidden="true"></span>
+                </button>
               </div>
               <div class="toolbar-group toolbar-playback">
                 <button type="button" id="play-toggle" class="primary icon-only" aria-label="Play">
