@@ -677,10 +677,12 @@ button {
 
   .field {
     order: -1;
+    width: 100%;
   }
 
   .panel {
     order: 1;
+    width: 100%;
   }
 
   .panel {
