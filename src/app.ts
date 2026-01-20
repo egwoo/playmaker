@@ -88,6 +88,8 @@ export function initApp() {
   const waypointList = document.getElementById('waypoint-list');
   const playerNameField = document.querySelector<HTMLElement>('.player-name');
   const playerNameInput = document.getElementById('player-name-input') as HTMLInputElement | null;
+  const startDelayField = document.querySelector<HTMLElement>('.start-delay');
+  const startDelayInput = document.getElementById('start-delay-input') as HTMLInputElement | null;
   const startActionField = document.querySelector<HTMLElement>('.start-action');
   const startActionSelect = document.getElementById('start-action-select') as HTMLSelectElement | null;
   const coveragePanel = document.getElementById('coverage-panel');
@@ -128,6 +130,8 @@ export function initApp() {
     !waypointList ||
     !playerNameField ||
     !playerNameInput ||
+    !startDelayField ||
+    !startDelayInput ||
     !startActionField ||
     !startActionSelect ||
     !coveragePanel ||
@@ -267,6 +271,8 @@ export function initApp() {
       setSectionHidden(waypointSection, true);
       setSectionHidden(playerNameField, true);
       playerNameInput.disabled = true;
+      setSectionHidden(startDelayField, true);
+      startDelayInput.disabled = true;
       startActionSelect.replaceChildren();
       startActionSelect.disabled = true;
       setSectionHidden(startActionField, true);
@@ -287,6 +293,13 @@ export function initApp() {
       playerNameInput.value = player.label;
     } else {
       playerNameInput.value = '';
+    }
+    setSectionHidden(startDelayField, player.team !== 'offense');
+    startDelayInput.disabled = player.team !== 'offense';
+    if (player.team === 'offense') {
+      startDelayInput.value = (player.startDelay ?? 0).toString();
+    } else {
+      startDelayInput.value = '0';
     }
     setSectionHidden(startActionField, player.team !== 'offense');
     setSectionHidden(waypointSection, player.team === 'defense');
@@ -884,6 +897,7 @@ export function initApp() {
 
     if (activeTeam === 'offense') {
       player.route = [];
+      player.startDelay = 0;
     }
 
     if (activeTeam === 'defense') {
@@ -1629,6 +1643,25 @@ export function initApp() {
         return;
       }
       selected.label = nextLabel;
+    });
+  });
+
+  startDelayInput.addEventListener('change', () => {
+    const target = getSelectedPlayer();
+    if (!target || target.team !== 'offense') {
+      return;
+    }
+    const parsed = Number(startDelayInput.value);
+    const nextDelay = Number.isFinite(parsed) ? parsed : 0;
+    if (nextDelay === (target.startDelay ?? 0)) {
+      return;
+    }
+    applyMutation(() => {
+      const selected = getSelectedPlayer();
+      if (!selected || selected.team !== 'offense') {
+        return;
+      }
+      selected.startDelay = nextDelay;
     });
   });
 

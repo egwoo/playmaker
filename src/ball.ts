@@ -164,6 +164,7 @@ function collectBallEvents(play: Play): BallEvent[] {
       continue;
     }
     const route = player.route ?? [];
+    const delay = player.startDelay ?? 0;
     if (player.startAction) {
       events.push({
         time: 0,
@@ -183,7 +184,7 @@ function collectBallEvents(play: Play): BallEvent[] {
         continue;
       }
       events.push({
-        time: currentTime,
+        time: Math.max(0, delay + currentTime),
         passerId: player.id,
         targetId: leg.action.targetId,
         type: leg.action.type,

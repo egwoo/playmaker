@@ -40,6 +40,7 @@ export interface Player {
   label: string;
   team: Team;
   start: Vec2;
+  startDelay?: number;
   route?: RouteLeg[];
   startAction?: RouteAction;
   assignment?: DefenseAssignment;
@@ -71,12 +72,16 @@ export function getPlayerPositionAtTime(player: Player, timeSeconds: number): Ve
   if (player.team === 'defense') {
     return { ...player.start };
   }
+  const startDelay = player.startDelay ?? 0;
+  if (timeSeconds < startDelay) {
+    return { ...player.start };
+  }
   const route = player.route ?? [];
   if (route.length === 0) {
     return { ...player.start };
   }
 
-  let remaining = Math.max(timeSeconds, 0);
+  let remaining = Math.max(timeSeconds - startDelay, 0);
   let from = player.start;
 
   for (const leg of route) {
@@ -179,8 +184,15 @@ function parsePlayer(value: unknown): Player | null {
   }
 
   let route: RouteLeg[] | undefined;
+  let startDelay: number | undefined;
   let startAction: RouteAction | undefined;
   if (team === 'offense') {
+    if ('startDelay' in value && value.startDelay !== undefined) {
+      if (!isNumber(value.startDelay)) {
+        return null;
+      }
+      startDelay = value.startDelay;
+    }
     if ('route' in value && value.route !== undefined) {
       if (!isRoute(value.route)) {
         return null;
@@ -204,13 +216,14 @@ function parsePlayer(value: unknown): Player | null {
     assignment = value.assignment;
   }
 
-  return { id, label, team, start, route, startAction, assignment };
+  return { id, label, team, start, startDelay, route, startAction, assignment };
 }
 
 export function getRouteDuration(player: Player): number {
   if (player.team === 'defense') {
     return 0;
   }
+  const startDelay = Math.max(0, player.startDelay ?? 0);
   const route = player.route ?? [];
   let total = 0;
   let from = player.start;
@@ -218,7 +231,7 @@ export function getRouteDuration(player: Player): number {
     total += getLegDuration(from, leg);
     from = leg.to;
   }
-  return total;
+  return startDelay + total;
 }
 
 export function getLegDuration(from: Vec2, leg: RouteLeg): number {
