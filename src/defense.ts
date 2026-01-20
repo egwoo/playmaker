@@ -33,25 +33,10 @@ export function getPlayerPositionWithDefense(
   }
 
   if (player.assignment.type === 'man') {
-    return applyOffenseSeparation(
-      play,
-      timeSeconds,
-      getManCoveragePosition(play, player, timeSeconds, options),
-      options.minSeparationYards
-    );
+    return getManCoveragePosition(play, player, timeSeconds, options);
   }
 
-  return applyOffenseSeparation(
-    play,
-    timeSeconds,
-    getZoneCoveragePosition(play, player, timeSeconds, options),
-    options.minSeparationYards,
-    {
-      center: player.start,
-      radiusX: player.assignment.radiusX,
-      radiusY: player.assignment.radiusY
-    }
-  );
+  return getZoneCoveragePosition(play, player, timeSeconds, options);
 }
 
 function getManCoveragePosition(
@@ -73,6 +58,7 @@ function getManCoveragePosition(
   const radius = options.radiusYards ?? DEFAULT_COVERAGE_RADIUS_YARDS;
   const speed = defender.assignment.speed ?? options.defaultSpeed ?? DEFAULT_DEFENSE_SPEED_YPS;
   const stepSeconds = options.stepSeconds ?? DEFAULT_STEP_SECONDS;
+  const separation = options.minSeparationYards ?? 0;
 
   let position = defender.start;
   let currentTime = 0;
@@ -80,7 +66,15 @@ function getManCoveragePosition(
   while (currentTime < timeSeconds) {
     const dt = Math.min(stepSeconds, timeSeconds - currentTime);
     const offensePos = getPlayerPositionAtTime(target, currentTime + dt);
-    position = stepTowardCoverage(position, offensePos, radius, speed, dt);
+    const desired = stepTowardCoverage(position, offensePos, radius, speed, dt);
+    position = applySeparationStep(
+      play,
+      currentTime + dt,
+      position,
+      desired,
+      speed * dt,
+      separation
+    );
     currentTime += dt;
   }
 
@@ -101,6 +95,7 @@ function getZoneCoveragePosition(
   const radiusY = defender.assignment.radiusY;
   const speed = defender.assignment.speed ?? options.defaultSpeed ?? DEFAULT_DEFENSE_SPEED_YPS;
   const stepSeconds = options.stepSeconds ?? DEFAULT_STEP_SECONDS;
+  const separation = options.minSeparationYards ?? 0;
   const center = defender.start;
 
   let position = defender.start;
@@ -112,71 +107,99 @@ function getZoneCoveragePosition(
     const desired = offenseTarget
       ? clampPointToEllipse(offenseTarget, center, radiusX, radiusY)
       : center;
-    position = stepTowardZone(position, desired, center, radiusX, radiusY, speed, dt);
+    const stepped = stepTowardZone(position, desired, center, radiusX, radiusY, speed, dt);
+    position = applySeparationStep(
+      play,
+      currentTime + dt,
+      position,
+      stepped,
+      speed * dt,
+      separation,
+      { center, radiusX, radiusY }
+    );
     currentTime += dt;
   }
 
   return position;
 }
 
-function applyOffenseSeparation(
+function applySeparationStep(
   play: Play,
   timeSeconds: number,
-  defender: Vec2,
-  minSeparationYards?: number,
+  previous: Vec2,
+  desired: Vec2,
+  maxStep: number,
+  minSeparationYards: number,
   zone?: { center: Vec2; radiusX: number; radiusY: number }
 ): Vec2 {
-  const separation = minSeparationYards ?? 0;
-  if (separation <= 0) {
-    return defender;
+  if (minSeparationYards <= 0) {
+    return desired;
   }
   const offenses = play.players.filter((player) => player.team === 'offense');
   if (offenses.length === 0) {
-    return defender;
+    return desired;
   }
 
-  const defenderYards = toYards(defender);
+  const desiredYards = toYards(desired);
+  const previousYards = toYards(previous);
   let closest = toYards(getPlayerPositionAtTime(offenses[0], timeSeconds));
-  let closestDistance = Math.hypot(defenderYards.x - closest.x, defenderYards.y - closest.y);
+  let closestDistance = Math.hypot(desiredYards.x - closest.x, desiredYards.y - closest.y);
 
   for (let i = 1; i < offenses.length; i += 1) {
     const offensePos = toYards(getPlayerPositionAtTime(offenses[i], timeSeconds));
-    const distance = Math.hypot(defenderYards.x - offensePos.x, defenderYards.y - offensePos.y);
+    const distance = Math.hypot(desiredYards.x - offensePos.x, desiredYards.y - offensePos.y);
     if (distance < closestDistance) {
       closestDistance = distance;
       closest = offensePos;
     }
   }
 
-  if (closestDistance >= separation) {
-    return defender;
+  if (closestDistance >= minSeparationYards) {
+    return desired;
   }
 
-  let dx = defenderYards.x - closest.x;
-  let dy = defenderYards.y - closest.y;
+  let dx = desiredYards.x - closest.x;
+  let dy = desiredYards.y - closest.y;
   let distance = Math.hypot(dx, dy);
+  if (distance < 1e-6) {
+    dx = previousYards.x - closest.x;
+    dy = previousYards.y - closest.y;
+    distance = Math.hypot(dx, dy);
+  }
   if (distance < 1e-6) {
     dx = 1;
     dy = 0;
     distance = 1;
   }
 
-  const scale = separation / distance;
-  const nextYards = {
+  const scale = minSeparationYards / distance;
+  const adjustedYards = {
     x: closest.x + dx * scale,
     y: closest.y + dy * scale
   };
 
-  const bounded = fromYards({
-    x: clamp(nextYards.x, 0, FIELD_WIDTH_YARDS),
-    y: clamp(nextYards.y, 0, FIELD_LENGTH_YARDS)
+  let adjusted = fromYards({
+    x: clamp(adjustedYards.x, 0, FIELD_WIDTH_YARDS),
+    y: clamp(adjustedYards.y, 0, FIELD_LENGTH_YARDS)
   });
 
   if (zone) {
-    return clampPointToEllipse(bounded, zone.center, zone.radiusX, zone.radiusY);
+    adjusted = clampPointToEllipse(adjusted, zone.center, zone.radiusX, zone.radiusY);
   }
 
-  return bounded;
+  const adjustedYardsFinal = toYards(adjusted);
+  const stepVec = subtractVec(adjustedYardsFinal, previousYards);
+  const stepDistance = Math.hypot(stepVec.x, stepVec.y);
+
+  if (stepDistance <= maxStep || maxStep <= 0) {
+    return adjusted;
+  }
+
+  const scaleStep = maxStep / stepDistance;
+  return fromYards({
+    x: previousYards.x + stepVec.x * scaleStep,
+    y: previousYards.y + stepVec.y * scaleStep
+  });
 }
 
 function pickZoneTarget(
