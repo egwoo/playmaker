@@ -368,12 +368,17 @@ export function initApp() {
       deletePlayButton.disabled = true;
     }
 
+    updateSaveButtonLabel();
     savedPlaysSelect.disabled = false;
   }
 
   function updateSavedPlaysStorage() {
     saveSavedPlays(savedPlays);
     renderSavedPlaysSelect();
+  }
+
+  function updateSaveButtonLabel() {
+    savePlayButton.textContent = selectedSavedPlayId ? 'Update' : 'Save';
   }
 
   function getCurrentPlayName(): string {
@@ -1475,6 +1480,13 @@ export function initApp() {
   }
 
   savePlayButton.addEventListener('click', () => {
+    if (selectedSavedPlayId) {
+      const entry = savedPlays.find((item) => item.id === selectedSavedPlayId);
+      if (entry) {
+        updateSelectedPlay(entry.name);
+        return;
+      }
+    }
     const name = promptForPlayName(getCurrentPlayName());
     if (!name) {
       return;
@@ -1570,6 +1582,7 @@ export function initApp() {
       selectedSavedPlayId = null;
       renamePlayButton.disabled = true;
       deletePlayButton.disabled = true;
+      updateSaveButtonLabel();
       return;
     }
     selectedSavedPlayId = value;
@@ -1587,6 +1600,7 @@ export function initApp() {
       persist();
       setStatus(`Loaded ${selectedEntry.name}.`);
     }
+    updateSaveButtonLabel();
   });
 
   playerSelect.addEventListener('change', () => {
