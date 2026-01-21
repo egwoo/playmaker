@@ -91,11 +91,11 @@ export function initApp() {
   const saveMenu = document.getElementById('save-menu');
   const saveAsNewButton = document.getElementById('save-as-new') as HTMLButtonElement | null;
   const sharePlayButton = document.getElementById('share-play') as HTMLButtonElement | null;
-  const authSignedOut = document.getElementById('auth-signed-out');
-  const authSignedIn = document.getElementById('auth-signed-in');
-  const authEmailInput = document.getElementById('auth-email') as HTMLInputElement | null;
-  const authEmailButton = document.getElementById('auth-email-button') as HTMLButtonElement | null;
-  const authGoogleButton = document.getElementById('auth-google-button') as HTMLButtonElement | null;
+  const authTrigger = document.getElementById('auth-trigger') as HTMLButtonElement | null;
+  const authAvatar = document.getElementById('auth-avatar') as HTMLButtonElement | null;
+  const authAvatarImg = document.getElementById('auth-avatar-img') as HTMLImageElement | null;
+  const authAvatarFallback = document.getElementById('auth-avatar-fallback');
+  const authMenu = document.getElementById('auth-menu');
   const authUserEmail = document.getElementById('auth-user-email');
   const authSignOut = document.getElementById('auth-signout') as HTMLButtonElement | null;
   const playbookSelect = document.getElementById('playbook-select') as HTMLSelectElement | null;
@@ -146,11 +146,11 @@ export function initApp() {
     !saveMenu ||
     !saveAsNewButton ||
     !sharePlayButton ||
-    !authSignedOut ||
-    !authSignedIn ||
-    !authEmailInput ||
-    !authEmailButton ||
-    !authGoogleButton ||
+    !authTrigger ||
+    !authAvatar ||
+    !authAvatarImg ||
+    !authAvatarFallback ||
+    !authMenu ||
     !authUserEmail ||
     !authSignOut ||
     !playbookSelect ||
@@ -196,6 +196,8 @@ export function initApp() {
   let currentNotes = '';
   let currentTags: string[] = [];
   let currentUserId: string | null = null;
+  let currentAvatarUrl: string | null = null;
+  let lastAuthEmail = '';
   let canEdit = true;
   let selectedPlayerId: string | null = null;
   let activeTeam: Team = 'offense';
@@ -388,10 +390,21 @@ export function initApp() {
     return name ? name : 'Untitled play';
   }
 
-  function setAuthUI(isSignedIn: boolean, email?: string | null) {
-    authSignedOut.classList.toggle('is-hidden', isSignedIn);
-    authSignedIn.classList.toggle('is-hidden', !isSignedIn);
+  function setAuthUI(isSignedIn: boolean, email?: string | null, avatarUrl?: string | null) {
+    authTrigger.classList.toggle('is-hidden', isSignedIn);
+    authAvatar.classList.toggle('is-hidden', !isSignedIn);
+    authMenu.classList.add('is-hidden');
     authUserEmail.textContent = email ?? '';
+    currentAvatarUrl = avatarUrl ?? null;
+    if (currentAvatarUrl) {
+      authAvatarImg.src = currentAvatarUrl;
+      authAvatarImg.classList.remove('is-hidden');
+      authAvatarFallback.classList.add('is-hidden');
+    } else {
+      authAvatarImg.removeAttribute('src');
+      authAvatarImg.classList.add('is-hidden');
+      authAvatarFallback.classList.remove('is-hidden');
+    }
   }
 
   function setEditorMode(allowEdit: boolean) {
@@ -2118,9 +2131,124 @@ export function initApp() {
     });
   }
 
-  async function handleSession(session: { user: { id: string; email?: string | null } } | null) {
+  function closeAuthMenu() {
+    authMenu.classList.add('is-hidden');
+  }
+
+  function openAuthModal() {
+    if (document.querySelector('.auth-modal')) {
+      return;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'auth-modal';
+    overlay.innerHTML = `
+      <div class="auth-modal-card" role="dialog" aria-modal="true" aria-label="Sign in">
+        <div class="auth-modal-header">
+          <div>
+            <p class="auth-modal-title">Sign in</p>
+            <p class="auth-modal-subtitle">Access your playbooks anywhere.</p>
+          </div>
+          <button type="button" class="icon-button" data-auth-close aria-label="Close">
+            <span data-lucide="x" aria-hidden="true"></span>
+          </button>
+        </div>
+        <div class="auth-provider-buttons">
+          <button type="button" class="secondary" data-auth-google>
+            Continue with Google
+          </button>
+          <div class="auth-divider">or</div>
+          <div class="auth-email-row">
+            <label class="field-label">
+              Email
+              <input type="email" data-auth-email placeholder="you@example.com" />
+            </label>
+            <button type="button" class="primary" data-auth-email-submit>
+              Send magic link
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.append(overlay);
+    renderIcons(overlay);
+
+    const close = () => {
+      overlay.remove();
+      document.removeEventListener('keydown', onKey);
+    };
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        close();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+
+    const closeButton = overlay.querySelector('[data-auth-close]') as HTMLButtonElement | null;
+    const googleButton = overlay.querySelector('[data-auth-google]') as HTMLButtonElement | null;
+    const emailInput = overlay.querySelector('[data-auth-email]') as HTMLInputElement | null;
+    const emailSubmit = overlay.querySelector('[data-auth-email-submit]') as HTMLButtonElement | null;
+
+    if (emailInput) {
+      emailInput.value = lastAuthEmail;
+      window.setTimeout(() => emailInput.focus(), 0);
+    }
+
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) {
+        close();
+      }
+    });
+
+    closeButton?.addEventListener('click', close);
+
+    emailSubmit?.addEventListener('click', async () => {
+      const email = emailInput?.value.trim() ?? '';
+      if (!email) {
+        setStatus('Enter an email to receive a magic link.');
+        return;
+      }
+      lastAuthEmail = email;
+      const redirectTo = `${window.location.origin}${window.location.pathname}`;
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: redirectTo }
+      });
+      if (error) {
+        console.error('Magic link error', error);
+        setStatus('Unable to send magic link.');
+        return;
+      }
+      setStatus('Magic link sent. Check your email.');
+      close();
+    });
+
+    googleButton?.addEventListener('click', async () => {
+      const redirectTo = `${window.location.origin}${window.location.pathname}`;
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo }
+      });
+      if (error) {
+        console.error('Google auth error', error);
+        setStatus('Unable to sign in with Google.');
+        return;
+      }
+      close();
+    });
+  }
+
+  async function handleSession(
+    session: { user: { id: string; email?: string | null; user_metadata?: { avatar_url?: string | null } } } | null
+  ) {
     currentUserId = session?.user.id ?? null;
-    setAuthUI(!!session, session?.user.email);
+    const avatar =
+      session?.user.user_metadata?.avatar_url ??
+      session?.user.user_metadata?.picture ??
+      null;
+    setAuthUI(!!session, session?.user.email, avatar);
     if (!session) {
       playbooks = [];
       selectedPlaybookId = null;
@@ -2135,38 +2263,26 @@ export function initApp() {
       updateSelectedPanel();
       return;
     }
+    renderPlaybookSelect();
+    renderSavedPlaysSelect();
     await loadPlaybooks();
   }
 
-  authEmailButton.addEventListener('click', async () => {
-    const email = authEmailInput.value.trim();
-    if (!email) {
-      setStatus('Enter an email to receive a magic link.');
-      return;
-    }
-    const redirectTo = `${window.location.origin}${window.location.pathname}`;
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: redirectTo }
-    });
-    if (error) {
-      console.error('Magic link error', error);
-      setStatus('Unable to send magic link.');
-      return;
-    }
-    setStatus('Magic link sent. Check your email.');
+  authTrigger.addEventListener('click', openAuthModal);
+
+  authAvatar.addEventListener('click', (event) => {
+    event.stopPropagation();
+    authMenu.classList.toggle('is-hidden');
   });
 
-  authGoogleButton.addEventListener('click', async () => {
-    const redirectTo = `${window.location.origin}${window.location.pathname}`;
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo }
-    });
-    if (error) {
-      console.error('Google auth error', error);
-      setStatus('Unable to sign in with Google.');
+  document.addEventListener('click', (event) => {
+    if (authMenu.classList.contains('is-hidden')) {
+      return;
     }
+    if (authMenu.contains(event.target as Node) || authAvatar.contains(event.target as Node)) {
+      return;
+    }
+    closeAuthMenu();
   });
 
   authSignOut.addEventListener('click', async () => {

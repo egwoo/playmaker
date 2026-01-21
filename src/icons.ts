@@ -3,10 +3,12 @@ import {
   Pause,
   PencilLine,
   Play,
+  X,
   Redo,
   RotateCcw,
   Trash2,
   Undo,
+  User,
   createIcons
 } from 'lucide';
 
@@ -15,10 +17,12 @@ const ICONS = {
   Pause,
   PencilLine,
   Play,
+  X,
   Redo,
   RotateCcw,
   Trash2,
-  Undo
+  Undo,
+  User
 };
 
 export function renderIcons(root: ParentNode = document) {

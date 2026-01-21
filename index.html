@@ -64,6 +64,25 @@
             </div>
             <div class="status is-hidden" id="status-text">Ready.</div>
           </div>
+          <div class="layout-account">
+            <button type="button" id="auth-trigger" class="secondary">Sign in</button>
+            <button
+              type="button"
+              id="auth-avatar"
+              class="icon-button avatar-button is-hidden"
+              aria-label="Account menu"
+              title="Account"
+            >
+              <img id="auth-avatar-img" class="avatar-img is-hidden" alt="" />
+              <span id="auth-avatar-fallback" class="avatar-fallback">
+                <span data-lucide="user" aria-hidden="true"></span>
+              </span>
+            </button>
+            <div class="auth-menu is-hidden" id="auth-menu" role="menu">
+              <div class="auth-user" id="auth-user-email"></div>
+              <button type="button" id="auth-signout" class="secondary">Sign out</button>
+            </div>
+          </div>
         </div>
 
         <div class="layout">
@@ -72,26 +91,6 @@
               <summary>Controls</summary>
               <div class="panel-content controls-content">
                 <div class="panel-block">
-                  <div class="auth-panel" id="auth-panel">
-                    <div class="auth-signed-out" id="auth-signed-out">
-                      <label class="field-label">
-                        Sign in
-                        <input id="auth-email" type="email" placeholder="you@example.com" />
-                      </label>
-                      <div class="button-row auth-buttons">
-                        <button type="button" id="auth-email-button" class="secondary">
-                          Send magic link
-                        </button>
-                        <button type="button" id="auth-google-button" class="secondary">
-                          Google
-                        </button>
-                      </div>
-                    </div>
-                    <div class="auth-signed-in is-hidden" id="auth-signed-in">
-                      <div class="auth-user" id="auth-user-email"></div>
-                      <button type="button" id="auth-signout" class="secondary">Sign out</button>
-                    </div>
-                  </div>
                   <div class="saved-play-row">
                     <select id="playbook-select" aria-label="Playbook"></select>
                     <button type="button" id="new-playbook" class="secondary">New</button>
