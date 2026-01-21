@@ -463,6 +463,7 @@ button {
   grid-template-columns: 1fr auto;
   grid-template-areas:
     'label remove'
+    'delay delay'
     'speed speed'
     'action action';
   column-gap: 8px;
@@ -477,19 +478,16 @@ button {
   grid-area: label;
   font-size: 0.85rem;
   font-weight: 600;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.waypoint-time {
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--muted);
 }
 
 .waypoint-speed {
   grid-area: speed;
+  width: 100%;
+  padding: 6px 8px;
+}
+
+.waypoint-delay {
+  grid-area: delay;
   width: 100%;
   padding: 6px 8px;
 }
@@ -512,6 +510,10 @@ button {
 
 .waypoint-speed-field {
   grid-area: speed;
+}
+
+.waypoint-delay-field {
+  grid-area: delay;
 }
 
 .waypoint-action-field {

@@ -167,29 +167,32 @@ function collectBallEvents(play: Play): BallEvent[] {
     const delay = player.startDelay ?? 0;
     if (player.startAction) {
       events.push({
-        time: 0,
+        time: Math.max(0, delay),
         passerId: player.id,
         targetId: player.startAction.targetId,
         type: player.startAction.type,
         order: order++
       });
     }
-    let currentTime = 0;
+    let currentTime = delay;
     let from = player.start;
     for (const leg of route) {
       const duration = getLegDuration(from, leg);
       currentTime += duration;
       from = leg.to;
+      const wait = Math.max(0, leg.delay ?? 0);
       if (!leg.action) {
+        currentTime += wait;
         continue;
       }
       events.push({
-        time: Math.max(0, delay + currentTime),
+        time: Math.max(0, currentTime + wait),
         passerId: player.id,
         targetId: leg.action.targetId,
         type: leg.action.type,
         order: order++
       });
+      currentTime += wait;
     }
   }
 
@@ -226,8 +229,19 @@ function findIntercept(origin: Vec2, passTime: number, target: Player, speed: nu
 function getPlayerSegments(player: Player): Segment[] {
   const segments: Segment[] = [];
   const route = player.route ?? [];
-  let currentTime = 0;
+  const startDelay = player.startDelay ?? 0;
+  let currentTime = startDelay;
   let from = player.start;
+
+  if (startDelay > 0) {
+    segments.push({
+      startTime: 0,
+      endTime: startDelay,
+      start: from,
+      end: from,
+      velocityYards: { x: 0, y: 0 }
+    });
+  }
 
   for (const leg of route) {
     const duration = getLegDuration(from, leg);
@@ -246,6 +260,18 @@ function getPlayerSegments(player: Player): Segment[] {
 
     currentTime += duration;
     from = end;
+
+    const wait = Math.max(0, leg.delay ?? 0);
+    if (wait > 0) {
+      segments.push({
+        startTime: currentTime,
+        endTime: currentTime + wait,
+        start: from,
+        end: from,
+        velocityYards: { x: 0, y: 0 }
+      });
+      currentTime += wait;
+    }
   }
 
   segments.push({

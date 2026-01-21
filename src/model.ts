@@ -8,6 +8,7 @@ export interface Vec2 {
 export interface RouteLeg {
   to: Vec2;
   speed: number;
+  delay?: number;
   action?: RouteAction;
 }
 
@@ -88,6 +89,11 @@ export function getPlayerPositionAtTime(player: Player, timeSeconds: number): Ve
     const duration = getLegDuration(from, leg);
     if (duration === 0) {
       from = leg.to;
+      const wait = Math.max(0, leg.delay ?? 0);
+      if (remaining <= wait) {
+        return { ...from };
+      }
+      remaining -= wait;
       continue;
     }
 
@@ -101,6 +107,12 @@ export function getPlayerPositionAtTime(player: Player, timeSeconds: number): Ve
 
     remaining -= duration;
     from = leg.to;
+
+    const wait = Math.max(0, leg.delay ?? 0);
+    if (remaining <= wait) {
+      return { ...from };
+    }
+    remaining -= wait;
   }
 
   return { ...from };
@@ -161,6 +173,11 @@ function isRouteLeg(value: unknown): value is RouteLeg {
   }
   if (!isVec2(value.to) || !isNumber(value.speed) || value.speed <= 0) {
     return false;
+  }
+  if ('delay' in value && value.delay !== undefined) {
+    if (!isNumber(value.delay)) {
+      return false;
+    }
   }
   if ('action' in value && value.action !== undefined) {
     return isRouteAction(value.action);
@@ -223,12 +240,12 @@ export function getRouteDuration(player: Player): number {
   if (player.team === 'defense') {
     return 0;
   }
-  const startDelay = Math.max(0, player.startDelay ?? 0);
+  const startDelay = player.startDelay ?? 0;
   const route = player.route ?? [];
   let total = 0;
   let from = player.start;
   for (const leg of route) {
-    total += getLegDuration(from, leg);
+    total += getLegDuration(from, leg) + Math.max(0, leg.delay ?? 0);
     from = leg.to;
   }
   return startDelay + total;

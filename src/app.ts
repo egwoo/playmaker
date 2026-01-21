@@ -655,14 +655,34 @@ export function initApp() {
 
     route.forEach((leg, index) => {
       const duration = getLegDuration(from, leg);
-      elapsed += duration;
+      const arrival = elapsed + duration;
 
       const row = document.createElement('div');
       row.className = 'waypoint-row';
 
       const label = document.createElement('div');
       label.className = 'waypoint-label';
-      label.textContent = `Leg ${index + 1} @ ${elapsed.toFixed(1)}s`;
+      label.textContent = `Leg ${index + 1} @ ${arrival.toFixed(1)}s`;
+
+      const delayInput = document.createElement('input');
+      delayInput.type = 'number';
+      delayInput.min = '0';
+      delayInput.step = '0.1';
+      delayInput.value = (leg.delay ?? 0).toString();
+      delayInput.className = 'waypoint-delay';
+      delayInput.addEventListener('change', () => {
+        const nextDelay = parseDelay(delayInput.value, leg.delay ?? 0);
+        if (nextDelay === (leg.delay ?? 0)) {
+          return;
+        }
+        applyMutation(() => {
+          const target = getSelectedPlayer();
+          if (!target?.route) {
+            return;
+          }
+          target.route[index].delay = nextDelay;
+        });
+      });
 
       const speed = document.createElement('input');
       speed.type = 'number';
@@ -754,6 +774,11 @@ export function initApp() {
         });
       });
 
+      const delayField = document.createElement('label');
+      delayField.className = 'waypoint-field waypoint-delay-field';
+      delayField.textContent = 'Delay';
+      delayField.append(delayInput);
+
       const speedField = document.createElement('label');
       speedField.className = 'waypoint-field waypoint-speed-field';
       speedField.textContent = 'Speed';
@@ -764,9 +789,11 @@ export function initApp() {
       actionField.textContent = 'Action';
       actionField.append(actionSelect);
 
-      row.append(label, speedField, actionField, deleteButton);
+      row.append(label, delayField, speedField, actionField, deleteButton);
       waypointList.append(row);
 
+      const wait = Math.max(0, leg.delay ?? 0);
+      elapsed = arrival + wait;
       from = leg.to;
     });
 
@@ -959,7 +986,7 @@ export function initApp() {
     const previousSpeed =
       route.length > 0 ? route[route.length - 1]?.speed ?? DEFAULT_SPEED : DEFAULT_SPEED;
     const speed = parseSpeed(previousSpeed.toString(), DEFAULT_SPEED);
-    const leg: RouteLeg = { to: point, speed };
+    const leg: RouteLeg = { to: point, speed, delay: 0 };
     route.push(leg);
     player.route = route;
     setStatus(`Added waypoint for ${player.label}.`);
@@ -1766,6 +1793,14 @@ function getNextLabel(team: Team, players: Player[]): string {
 function parseSpeed(value: string, fallback: number): number {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return parsed;
+}
+
+function parseDelay(value: string, fallback: number): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
     return fallback;
   }
   return parsed;
