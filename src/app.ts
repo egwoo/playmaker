@@ -14,8 +14,9 @@ import {
 } from './model';
 import { DEFAULT_BALL_SPEED_YPS, getBallEndTime, getBallState } from './ball';
 import { createRenderer } from './renderer';
-import { loadDraftPlay, loadSavedPlays, saveDraftPlay, saveSavedPlays, type SavedPlay } from './storage';
+import { loadDraftPlay, saveDraftPlay } from './storage';
 import { renderIcons } from './icons';
+import { supabase } from './supabase';
 
 const DEFAULT_SPEED = 6;
 const DEFAULT_DEFENSE_SPEED = 6;
@@ -57,6 +58,22 @@ type Settings = {
   showWaypointMarkers: boolean;
 };
 
+type Playbook = {
+  id: string;
+  name: string;
+  role: 'coach' | 'player';
+};
+
+type RemotePlay = {
+  id: string;
+  name: string;
+  play: Play;
+  notes: string;
+  tags: string[];
+  createdAt: number;
+  updatedAt: number;
+};
+
 export function initApp() {
   const canvas = document.getElementById('field-canvas') as HTMLCanvasElement | null;
   const statusText = document.getElementById('status-text');
@@ -74,6 +91,15 @@ export function initApp() {
   const saveMenu = document.getElementById('save-menu');
   const saveAsNewButton = document.getElementById('save-as-new') as HTMLButtonElement | null;
   const sharePlayButton = document.getElementById('share-play') as HTMLButtonElement | null;
+  const authSignedOut = document.getElementById('auth-signed-out');
+  const authSignedIn = document.getElementById('auth-signed-in');
+  const authEmailInput = document.getElementById('auth-email') as HTMLInputElement | null;
+  const authEmailButton = document.getElementById('auth-email-button') as HTMLButtonElement | null;
+  const authGoogleButton = document.getElementById('auth-google-button') as HTMLButtonElement | null;
+  const authUserEmail = document.getElementById('auth-user-email');
+  const authSignOut = document.getElementById('auth-signout') as HTMLButtonElement | null;
+  const playbookSelect = document.getElementById('playbook-select') as HTMLSelectElement | null;
+  const newPlaybookButton = document.getElementById('new-playbook') as HTMLButtonElement | null;
   const showWaypointsToggle = document.getElementById('show-waypoints-toggle') as
     | HTMLInputElement
     | null;
@@ -98,6 +124,8 @@ export function initApp() {
   const zoneRadiusXInput = document.getElementById('zone-radius-x-input') as HTMLInputElement | null;
   const zoneRadiusYInput = document.getElementById('zone-radius-y-input') as HTMLInputElement | null;
   const zoneSpeedInput = document.getElementById('zone-speed-input') as HTMLInputElement | null;
+  const playNotesInput = document.getElementById('play-notes') as HTMLTextAreaElement | null;
+  const playTagsInput = document.getElementById('play-tags') as HTMLInputElement | null;
   const teamButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-team]'));
   const waypointOpenState = new Map<string, Map<number, boolean>>();
 
@@ -118,6 +146,15 @@ export function initApp() {
     !saveMenu ||
     !saveAsNewButton ||
     !sharePlayButton ||
+    !authSignedOut ||
+    !authSignedIn ||
+    !authEmailInput ||
+    !authEmailButton ||
+    !authGoogleButton ||
+    !authUserEmail ||
+    !authSignOut ||
+    !playbookSelect ||
+    !newPlaybookButton ||
     !savedPlaysSelect ||
     !renamePlayButton ||
     !deletePlayButton ||
@@ -137,6 +174,8 @@ export function initApp() {
     !zoneRadiusXInput ||
     !zoneRadiusYInput ||
     !zoneSpeedInput ||
+    !playNotesInput ||
+    !playTagsInput ||
     !controlsPanel ||
     !panelWrapper
   ) {
@@ -146,11 +185,18 @@ export function initApp() {
   const renderer = createRenderer(canvas);
   const sharedPlay = loadSharedPlay();
   const savedPlay = loadDraftPlay();
-  let savedPlays: SavedPlay[] = loadSavedPlays();
-  let selectedSavedPlayId: string | null = null;
   let settings = loadSettings();
 
   let play = sharedPlay ?? savedPlay ?? createEmptyPlay();
+  let savedPlays: RemotePlay[] = [];
+  let selectedSavedPlayId: string | null = null;
+  let playbooks: Playbook[] = [];
+  let selectedPlaybookId: string | null = null;
+  let currentRole: Playbook['role'] | null = null;
+  let currentNotes = '';
+  let currentTags: string[] = [];
+  let currentUserId: string | null = null;
+  let canEdit = true;
   let selectedPlayerId: string | null = null;
   let activeTeam: Team = 'offense';
   let playTime = 0;
@@ -274,11 +320,11 @@ export function initApp() {
       ensureDefenseAssignment(player);
     }
 
-    deletePlayerButton.disabled = false;
+    deletePlayerButton.disabled = !canEdit;
     deselectPlayerButton.disabled = false;
     setSectionHidden(playerActions, false);
     setSectionHidden(playerNameField, player.team === 'defense');
-    playerNameInput.disabled = player.team === 'defense';
+    playerNameInput.disabled = player.team === 'defense' || !canEdit;
     if (player.team === 'offense') {
       playerNameInput.value = player.label;
     } else {
@@ -342,11 +388,161 @@ export function initApp() {
     return name ? name : 'Untitled play';
   }
 
+  function setAuthUI(isSignedIn: boolean, email?: string | null) {
+    authSignedOut.classList.toggle('is-hidden', isSignedIn);
+    authSignedIn.classList.toggle('is-hidden', !isSignedIn);
+    authUserEmail.textContent = email ?? '';
+  }
+
+  function setEditorMode(allowEdit: boolean) {
+    const disable = !allowEdit;
+    canEdit = allowEdit;
+    newPlayButton.disabled = disable;
+    flipPlayButton.disabled = disable;
+    savePlayButton.disabled = disable;
+    saveMenuToggle.disabled = disable;
+    renamePlayButton.disabled = disable || !selectedSavedPlayId;
+    deletePlayButton.disabled = disable || !selectedSavedPlayId;
+    newPlaybookButton.disabled = disable;
+    playNotesInput.disabled = disable;
+    playTagsInput.disabled = disable;
+    playerNameInput.disabled = disable || playerNameInput.disabled;
+  }
+
+  function updatePlayMetaFields() {
+    playNotesInput.value = currentNotes;
+    playTagsInput.value = currentTags.join(', ');
+  }
+
+  function parseTags(value: string): string[] {
+    return value
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+  }
+
+  async function loadPlaybooks() {
+    const { data, error } = await supabase
+      .from('playbook_members')
+      .select('role, playbooks (id, name)')
+      .order('created_at', { ascending: true });
+    if (error) {
+      console.error('Failed to load playbooks', error);
+      return;
+    }
+    playbooks = (data ?? [])
+      .map((row) => {
+        const entry = row.playbooks as { id: string; name: string } | null;
+        if (!entry) {
+          return null;
+        }
+        return {
+          id: entry.id,
+          name: entry.name,
+          role: row.role as Playbook['role']
+        };
+      })
+      .filter((entry): entry is Playbook => !!entry);
+
+    if (playbooks.length === 0) {
+      const created = await createDefaultPlaybook();
+      if (created) {
+        playbooks = [created];
+      }
+    }
+    renderPlaybookSelect();
+    if (!selectedPlaybookId && playbooks.length > 0) {
+      selectedPlaybookId = playbooks[0].id;
+    }
+    if (selectedPlaybookId) {
+      const current = playbooks.find((item) => item.id === selectedPlaybookId);
+      currentRole = current?.role ?? null;
+      setEditorMode(currentRole === 'coach');
+      updateSelectedPanel();
+      await loadPlaysForPlaybook(selectedPlaybookId);
+    }
+  }
+
+  async function createDefaultPlaybook(): Promise<Playbook | null> {
+    const { data, error } = await supabase
+      .from('playbooks')
+      .insert({ name: 'My Playbook', owner_id: currentUserId })
+      .select('id, name')
+      .single();
+    if (error || !data) {
+      console.error('Failed to create playbook', error);
+      return null;
+    }
+    return { id: data.id, name: data.name, role: 'coach' };
+  }
+
+  function renderPlaybookSelect() {
+    playbookSelect.replaceChildren();
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    if (!currentUserId) {
+      placeholder.textContent = 'Sign in to load playbooks';
+    } else if (playbooks.length) {
+      placeholder.textContent = 'Select playbook';
+    } else {
+      placeholder.textContent = 'No playbooks';
+    }
+    playbookSelect.append(placeholder);
+
+    for (const playbook of playbooks) {
+      const option = document.createElement('option');
+      option.value = playbook.id;
+      option.textContent = playbook.name;
+      playbookSelect.append(option);
+    }
+
+    if (selectedPlaybookId) {
+      playbookSelect.value = selectedPlaybookId;
+    } else {
+      playbookSelect.value = '';
+    }
+    playbookSelect.disabled = !currentUserId || playbooks.length === 0;
+  }
+
+  async function loadPlaysForPlaybook(playbookId: string) {
+    const { data, error } = await supabase
+      .from('plays')
+      .select('id, name, data, notes, tags, created_at, updated_at')
+      .eq('playbook_id', playbookId)
+      .order('updated_at', { ascending: false });
+    if (error) {
+      console.error('Failed to load plays', error);
+      savedPlays = [];
+      renderSavedPlaysSelect();
+      return;
+    }
+    savedPlays = (data ?? []).map((row) => ({
+      id: row.id,
+      name: row.name,
+      play: row.data as Play,
+      notes: row.notes ?? '',
+      tags: row.tags ?? [],
+      createdAt: new Date(row.created_at).getTime(),
+      updatedAt: new Date(row.updated_at).getTime()
+    }));
+    selectedSavedPlayId = null;
+    currentNotes = '';
+    currentTags = [];
+    updatePlayMetaFields();
+    renderSavedPlaysSelect();
+  }
+
   function renderSavedPlaysSelect() {
     savedPlaysSelect.replaceChildren();
     const placeholder = document.createElement('option');
     placeholder.value = '';
-    placeholder.textContent = 'New play';
+    if (!currentUserId) {
+      placeholder.textContent = 'Sign in to load plays';
+    } else if (!selectedPlaybookId) {
+      placeholder.textContent = 'Select a playbook';
+    } else {
+      placeholder.textContent = 'New play';
+    }
     savedPlaysSelect.append(placeholder);
 
     const sorted = [...savedPlays].sort((a, b) => b.updatedAt - a.updatedAt);
@@ -357,10 +553,11 @@ export function initApp() {
       savedPlaysSelect.append(option);
     }
 
+    const canEdit = currentRole === 'coach';
     if (selectedSavedPlayId && savedPlays.some((entry) => entry.id === selectedSavedPlayId)) {
       savedPlaysSelect.value = selectedSavedPlayId;
-      renamePlayButton.disabled = false;
-      deletePlayButton.disabled = false;
+      renamePlayButton.disabled = !canEdit;
+      deletePlayButton.disabled = !canEdit;
     } else {
       savedPlaysSelect.value = '';
       renamePlayButton.disabled = true;
@@ -368,16 +565,17 @@ export function initApp() {
     }
 
     updateSaveButtonLabel();
-    savedPlaysSelect.disabled = false;
+    savedPlaysSelect.disabled = !currentUserId || !selectedPlaybookId;
   }
 
   function updateSavedPlaysStorage() {
-    saveSavedPlays(savedPlays);
     renderSavedPlaysSelect();
   }
 
   function updateSaveButtonLabel() {
     savePlayButton.textContent = selectedSavedPlayId ? 'Update' : 'Save';
+    savePlayButton.disabled = currentRole !== 'coach';
+    saveMenuToggle.disabled = currentRole !== 'coach';
   }
 
   function getCurrentPlayName(): string {
@@ -393,6 +591,9 @@ export function initApp() {
     playTime = 0;
     historyPast = [];
     historyFuture = [];
+    currentNotes = '';
+    currentTags = [];
+    updatePlayMetaFields();
     updateHistoryUI();
     updateSelectedPanel();
     updateTimelineUI();
@@ -400,14 +601,36 @@ export function initApp() {
     persist();
   }
 
-  function savePlayAsNew(name: string) {
-    const now = Date.now();
-    const entry: SavedPlay = {
-      id: createId(),
+  async function savePlayAsNew(name: string) {
+    if (!selectedPlaybookId) {
+      setStatus('Sign in to save plays.');
+      return;
+    }
+    const payload = {
+      playbook_id: selectedPlaybookId,
       name,
-      play: clonePlay(play),
-      createdAt: now,
-      updatedAt: now
+      data: clonePlay(play),
+      notes: currentNotes,
+      tags: currentTags
+    };
+    const { data, error } = await supabase
+      .from('plays')
+      .insert(payload)
+      .select('id, name, data, notes, tags, created_at, updated_at')
+      .single();
+    if (error || !data) {
+      console.error('Failed to save play', error);
+      setStatus('Unable to save play.');
+      return;
+    }
+    const entry: RemotePlay = {
+      id: data.id,
+      name: data.name,
+      play: data.data as Play,
+      notes: data.notes ?? '',
+      tags: data.tags ?? [],
+      createdAt: new Date(data.created_at).getTime(),
+      updatedAt: new Date(data.updated_at).getTime()
     };
     savedPlays = [entry, ...savedPlays];
     selectedSavedPlayId = entry.id;
@@ -427,28 +650,41 @@ export function initApp() {
     });
   }
 
-  function updateSelectedPlay(name: string) {
+  async function updateSelectedPlay(name: string) {
     if (!selectedSavedPlayId) {
-      savePlayAsNew(name);
+      await savePlayAsNew(name);
       return;
     }
-    let updated = false;
-    savedPlays = savedPlays.map((entry) => {
-      if (entry.id !== selectedSavedPlayId) {
-        return entry;
-      }
-      updated = true;
-      return {
-        ...entry,
-        name,
-        play: clonePlay(play),
-        updatedAt: Date.now()
-      };
-    });
-    if (!updated) {
-      savePlayAsNew(name);
+    const payload = {
+      name,
+      data: clonePlay(play),
+      notes: currentNotes,
+      tags: currentTags
+    };
+    const { data, error } = await supabase
+      .from('plays')
+      .update(payload)
+      .eq('id', selectedSavedPlayId)
+      .select('id, name, data, notes, tags, created_at, updated_at')
+      .single();
+    if (error || !data) {
+      console.error('Failed to update play', error);
+      setStatus('Unable to update play.');
       return;
     }
+    savedPlays = savedPlays.map((entry) =>
+      entry.id === selectedSavedPlayId
+        ? {
+            id: data.id,
+            name: data.name,
+            play: data.data as Play,
+            notes: data.notes ?? '',
+            tags: data.tags ?? [],
+            createdAt: new Date(data.created_at).getTime(),
+            updatedAt: new Date(data.updated_at).getTime()
+          }
+        : entry
+    );
     updateSavedPlaysStorage();
     setStatus('Play updated.');
   }
@@ -498,6 +734,7 @@ export function initApp() {
     }
 
     setSectionHidden(coveragePanel, false);
+    const editable = canEdit;
     coverageTypeSelect.replaceChildren();
     const typeMan = document.createElement('option');
     typeMan.value = 'man';
@@ -518,6 +755,7 @@ export function initApp() {
       currentType = 'zone';
     }
     coverageTypeSelect.value = currentType;
+    coverageTypeSelect.disabled = !editable;
     setSectionHidden(coverageManSection, currentType !== 'man');
     setSectionHidden(coverageZoneSection, currentType !== 'zone');
 
@@ -547,14 +785,14 @@ export function initApp() {
       ) {
         coverageTargetSelect.value = player.assignment.targetId;
         coverageSpeedInput.value = player.assignment.speed.toString();
-        coverageSpeedInput.disabled = false;
+        coverageSpeedInput.disabled = !editable;
       } else {
         coverageTargetSelect.value = candidates[0]?.id ?? '';
         coverageSpeedInput.value = DEFAULT_DEFENSE_SPEED.toString();
-        coverageSpeedInput.disabled = false;
+        coverageSpeedInput.disabled = !editable;
       }
 
-      coverageTargetSelect.disabled = currentType !== 'man';
+      coverageTargetSelect.disabled = currentType !== 'man' || !editable;
     }
 
     if (player.assignment?.type === 'zone') {
@@ -567,14 +805,15 @@ export function initApp() {
       zoneSpeedInput.value = DEFAULT_DEFENSE_SPEED.toString();
     }
 
-    zoneRadiusXInput.disabled = currentType !== 'zone';
-    zoneRadiusYInput.disabled = currentType !== 'zone';
-    zoneSpeedInput.disabled = currentType !== 'zone';
+    zoneRadiusXInput.disabled = currentType !== 'zone' || !editable;
+    zoneRadiusYInput.disabled = currentType !== 'zone' || !editable;
+    zoneSpeedInput.disabled = currentType !== 'zone' || !editable;
   }
 
   function renderWaypointList(player: Player) {
     waypointList.replaceChildren();
     const route = player.route ?? [];
+    const isEditable = canEdit;
 
     const candidates = play.players.filter(
       (candidate) => candidate.team === 'offense' && candidate.id !== player.id
@@ -645,7 +884,11 @@ export function initApp() {
     waypoint0DelayInput.step = '0.1';
     waypoint0DelayInput.value = (player.startDelay ?? 0).toString();
     waypoint0DelayInput.className = 'waypoint-delay';
+    waypoint0DelayInput.disabled = !isEditable;
     waypoint0DelayInput.addEventListener('change', () => {
+      if (!isEditable) {
+        return;
+      }
       const nextDelay = parseDelay(waypoint0DelayInput.value, player.startDelay ?? 0, Number.NEGATIVE_INFINITY);
       if (nextDelay === (player.startDelay ?? 0)) {
         return;
@@ -660,6 +903,9 @@ export function initApp() {
     });
 
     const waypoint0ActionSelect = buildActionSelect(player.startAction?.targetId, (targetId) => {
+      if (!isEditable) {
+        return;
+      }
       applyMutation(() => {
         const target = getSelectedPlayer();
         if (!target || target.team !== 'offense') {
@@ -672,6 +918,9 @@ export function initApp() {
         target.startAction = { type: 'pass', targetId };
       });
     });
+    if (!isEditable) {
+      waypoint0ActionSelect.disabled = true;
+    }
 
     const waypoint0DelayField = document.createElement('label');
     waypoint0DelayField.className = 'waypoint-field waypoint-delay-field';
@@ -692,6 +941,9 @@ export function initApp() {
     const waypoint0State = waypointOpenState.get(player.id)?.get(0);
     waypoint0Row.classList.toggle('is-open', waypoint0State ?? waypoint0DefaultOpen);
     waypoint0Label.addEventListener('click', () => {
+      if (!isEditable && !waypoint0Row.classList.contains('is-open')) {
+        waypoint0Row.classList.add('is-open');
+      }
       const isOpen = waypoint0Row.classList.toggle('is-open');
       let map = waypointOpenState.get(player.id);
       if (!map) {
@@ -731,7 +983,11 @@ export function initApp() {
       speed.step = '0.1';
       speed.value = leg.speed.toString();
       speed.className = 'waypoint-speed';
+      speed.disabled = !isEditable;
       speed.addEventListener('change', () => {
+        if (!isEditable) {
+          return;
+        }
         const nextSpeed = parseSpeed(speed.value, leg.speed);
         if (nextSpeed === leg.speed) {
           return;
@@ -751,7 +1007,11 @@ export function initApp() {
       deleteButton.setAttribute('aria-label', 'Remove waypoint');
       deleteButton.title = 'Remove waypoint';
       deleteButton.innerHTML = '<span data-lucide="trash-2" aria-hidden="true"></span>';
+      deleteButton.disabled = !isEditable;
       deleteButton.addEventListener('click', () => {
+        if (!isEditable) {
+          return;
+        }
         applyMutation(() => {
           const target = getSelectedPlayer();
           if (!target?.route) {
@@ -787,7 +1047,11 @@ export function initApp() {
       delayInput.step = '0.1';
       delayInput.value = (leg.delay ?? 0).toString();
       delayInput.className = 'waypoint-delay';
+      delayInput.disabled = !isEditable;
       delayInput.addEventListener('change', () => {
+        if (!isEditable) {
+          return;
+        }
         const nextDelay = parseDelay(delayInput.value, leg.delay ?? 0);
         if (nextDelay === (leg.delay ?? 0)) {
           return;
@@ -802,6 +1066,9 @@ export function initApp() {
       });
 
       const actionSelect = buildActionSelect(leg.action?.targetId, (targetId) => {
+        if (!isEditable) {
+          return;
+        }
         applyMutation(() => {
           const target = getSelectedPlayer();
           if (!target?.route) {
@@ -814,6 +1081,9 @@ export function initApp() {
           target.route[index].action = { type: 'pass', targetId };
         });
       });
+      if (!isEditable) {
+        actionSelect.disabled = true;
+      }
 
       const delayField = document.createElement('label');
       delayField.className = 'waypoint-field waypoint-delay-field';
@@ -834,6 +1104,9 @@ export function initApp() {
       const waypointState = waypointOpenState.get(player.id)?.get(waypointIndex);
       waypointRow.classList.toggle('is-open', waypointState ?? waypointDefaultOpen);
       waypointLabel.addEventListener('click', () => {
+        if (!isEditable && !waypointRow.classList.contains('is-open')) {
+          waypointRow.classList.add('is-open');
+        }
         const isOpen = waypointRow.classList.toggle('is-open');
         let map = waypointOpenState.get(player.id);
         if (!map) {
@@ -1310,14 +1583,16 @@ export function initApp() {
       y: event.clientY - rect.top
     };
 
-    const zoneAxis = renderer.hitTestZoneHandle(point, play, selectedPlayerId);
-    if (zoneAxis) {
-      startZoneDrag(event.pointerId, zoneAxis);
-      return;
+    if (canEdit) {
+      const zoneAxis = renderer.hitTestZoneHandle(point, play, selectedPlayerId);
+      if (zoneAxis) {
+        startZoneDrag(event.pointerId, zoneAxis);
+        return;
+      }
     }
 
     const selectedForWaypoint = getSelectedPlayer();
-    if (selectedForWaypoint?.team === 'offense') {
+    if (canEdit && selectedForWaypoint?.team === 'offense') {
       const waypointIndex = renderer.hitTestWaypoint(point, selectedPlayerId, play);
       if (waypointIndex !== null) {
         startWaypointDrag(event.pointerId, waypointIndex);
@@ -1327,12 +1602,20 @@ export function initApp() {
 
     const hitId = renderer.hitTest(point, play, playTime);
     if (hitId) {
-      startPlayerDrag(event.pointerId, hitId, point);
+      if (canEdit) {
+        startPlayerDrag(event.pointerId, hitId, point);
+      } else {
+        selectPlayer(hitId);
+      }
       return;
     }
 
     const world = renderer.canvasToWorld(point);
     if (!world) {
+      return;
+    }
+
+    if (!canEdit) {
       return;
     }
 
@@ -1414,7 +1697,7 @@ export function initApp() {
 
   deletePlayerButton.addEventListener('click', () => {
     const player = getSelectedPlayer();
-    if (!player) {
+    if (!player || !canEdit) {
       return;
     }
     applyMutation(() => {
@@ -1429,6 +1712,9 @@ export function initApp() {
   });
 
   coverageTypeSelect.addEventListener('change', () => {
+    if (!canEdit) {
+      return;
+    }
     const type = coverageTypeSelect.value;
     applyMutation(() => {
       const target = getSelectedPlayer();
@@ -1463,6 +1749,9 @@ export function initApp() {
   });
 
   coverageTargetSelect.addEventListener('change', () => {
+    if (!canEdit) {
+      return;
+    }
     if (coverageTypeSelect.value !== 'man') {
       return;
     }
@@ -1481,6 +1770,9 @@ export function initApp() {
   });
 
   coverageSpeedInput.addEventListener('change', () => {
+    if (!canEdit) {
+      return;
+    }
     const target = getSelectedPlayer();
     if (!target?.assignment || target.assignment.type !== 'man') {
       return;
@@ -1501,6 +1793,9 @@ export function initApp() {
   });
 
   zoneRadiusXInput.addEventListener('change', () => {
+    if (!canEdit) {
+      return;
+    }
     const target = getSelectedPlayer();
     if (!target?.assignment || target.assignment.type !== 'zone') {
       return;
@@ -1519,6 +1814,9 @@ export function initApp() {
   });
 
   zoneRadiusYInput.addEventListener('change', () => {
+    if (!canEdit) {
+      return;
+    }
     const target = getSelectedPlayer();
     if (!target?.assignment || target.assignment.type !== 'zone') {
       return;
@@ -1537,6 +1835,9 @@ export function initApp() {
   });
 
   zoneSpeedInput.addEventListener('change', () => {
+    if (!canEdit) {
+      return;
+    }
     const target = getSelectedPlayer();
     if (!target?.assignment || target.assignment.type !== 'zone') {
       return;
@@ -1586,11 +1887,11 @@ export function initApp() {
     window.prompt('Copy share link', url);
   }
 
-  savePlayButton.addEventListener('click', () => {
+  savePlayButton.addEventListener('click', async () => {
     if (selectedSavedPlayId) {
       const entry = savedPlays.find((item) => item.id === selectedSavedPlayId);
       if (entry) {
-        updateSelectedPlay(entry.name);
+        await updateSelectedPlay(entry.name);
         return;
       }
     }
@@ -1598,7 +1899,7 @@ export function initApp() {
     if (!name) {
       return;
     }
-    updateSelectedPlay(name);
+    await updateSelectedPlay(name);
   });
 
   newPlayButton.addEventListener('click', () => {
@@ -1616,12 +1917,12 @@ export function initApp() {
     setStatus('Flipped play.');
   });
 
-  saveAsNewButton.addEventListener('click', () => {
+  saveAsNewButton.addEventListener('click', async () => {
     const name = promptForPlayName(getCurrentPlayName());
     if (!name) {
       return;
     }
-    savePlayAsNew(name);
+    await savePlayAsNew(name);
     closeSaveMenu();
   });
 
@@ -1630,7 +1931,7 @@ export function initApp() {
     closeSaveMenu();
   });
 
-  renamePlayButton.addEventListener('click', () => {
+  renamePlayButton.addEventListener('click', async () => {
     if (!selectedSavedPlayId) {
       return;
     }
@@ -1642,19 +1943,46 @@ export function initApp() {
     if (!name || name === entry.name) {
       return;
     }
+    const { data, error } = await supabase
+      .from('plays')
+      .update({ name })
+      .eq('id', entry.id)
+      .select('id, name, data, notes, tags, created_at, updated_at')
+      .single();
+    if (error || !data) {
+      console.error('Failed to rename play', error);
+      setStatus('Unable to rename play.');
+      return;
+    }
     savedPlays = savedPlays.map((item) =>
-      item.id === entry.id ? { ...item, name, updatedAt: Date.now() } : item
+      item.id === entry.id
+        ? {
+            id: data.id,
+            name: data.name,
+            play: data.data as Play,
+            notes: data.notes ?? '',
+            tags: data.tags ?? [],
+            createdAt: new Date(data.created_at).getTime(),
+            updatedAt: new Date(data.updated_at).getTime()
+          }
+        : item
     );
     updateSavedPlaysStorage();
     setStatus(`Renamed to ${name}.`);
   });
 
-  deletePlayButton.addEventListener('click', () => {
+  deletePlayButton.addEventListener('click', async () => {
     if (!selectedSavedPlayId) {
       return;
     }
     const entry = savedPlays.find((item) => item.id === selectedSavedPlayId);
     if (!entry) {
+      return;
+    }
+    const { error } = await supabase.from('plays').delete().eq('id', entry.id);
+    if (error) {
+      console.error('Failed to delete play', error);
+      setStatus('Unable to delete play.');
       return;
     }
     savedPlays = savedPlays.filter((item) => item.id !== selectedSavedPlayId);
@@ -1690,6 +2018,9 @@ export function initApp() {
       selectedSavedPlayId = null;
       renamePlayButton.disabled = true;
       deletePlayButton.disabled = true;
+      currentNotes = '';
+      currentTags = [];
+      updatePlayMetaFields();
       updateSaveButtonLabel();
       return;
     }
@@ -1699,6 +2030,9 @@ export function initApp() {
       renamePlayButton.disabled = false;
       deletePlayButton.disabled = false;
       play = clonePlay(selectedEntry.play);
+      currentNotes = selectedEntry.notes ?? '';
+      currentTags = selectedEntry.tags ?? [];
+      updatePlayMetaFields();
       playTime = 0;
       scrubberTouched = false;
       historyPast = [];
@@ -1728,7 +2062,7 @@ export function initApp() {
 
   playerNameInput.addEventListener('change', () => {
     const target = getSelectedPlayer();
-    if (!target || target.team !== 'offense') {
+    if (!target || target.team !== 'offense' || !canEdit) {
       return;
     }
     const nextLabel = playerNameInput.value.trim();
@@ -1784,6 +2118,130 @@ export function initApp() {
     });
   }
 
+  async function handleSession(session: { user: { id: string; email?: string | null } } | null) {
+    currentUserId = session?.user.id ?? null;
+    setAuthUI(!!session, session?.user.email);
+    if (!session) {
+      playbooks = [];
+      selectedPlaybookId = null;
+      savedPlays = [];
+      selectedSavedPlayId = null;
+      currentRole = null;
+      setEditorMode(true);
+      newPlaybookButton.disabled = true;
+      renderPlaybookSelect();
+      renderSavedPlaysSelect();
+      updatePlayMetaFields();
+      updateSelectedPanel();
+      return;
+    }
+    await loadPlaybooks();
+  }
+
+  authEmailButton.addEventListener('click', async () => {
+    const email = authEmailInput.value.trim();
+    if (!email) {
+      setStatus('Enter an email to receive a magic link.');
+      return;
+    }
+    const redirectTo = `${window.location.origin}${window.location.pathname}`;
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: redirectTo }
+    });
+    if (error) {
+      console.error('Magic link error', error);
+      setStatus('Unable to send magic link.');
+      return;
+    }
+    setStatus('Magic link sent. Check your email.');
+  });
+
+  authGoogleButton.addEventListener('click', async () => {
+    const redirectTo = `${window.location.origin}${window.location.pathname}`;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo }
+    });
+    if (error) {
+      console.error('Google auth error', error);
+      setStatus('Unable to sign in with Google.');
+    }
+  });
+
+  authSignOut.addEventListener('click', async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Sign out error', error);
+      setStatus('Unable to sign out.');
+    }
+  });
+
+  playbookSelect.addEventListener('change', async () => {
+    const value = playbookSelect.value;
+    selectedPlaybookId = value || null;
+    selectedSavedPlayId = null;
+    savedPlays = [];
+    renderSavedPlaysSelect();
+    if (!selectedPlaybookId) {
+      currentRole = null;
+      setEditorMode(true);
+      return;
+    }
+    const current = playbooks.find((item) => item.id === selectedPlaybookId);
+    currentRole = current?.role ?? null;
+    setEditorMode(!currentUserId || currentRole === 'coach');
+    updateSelectedPanel();
+    await loadPlaysForPlaybook(selectedPlaybookId);
+  });
+
+  newPlaybookButton.addEventListener('click', async () => {
+    if (!currentUserId) {
+      return;
+    }
+    const name = promptForPlayName('New playbook');
+    if (!name) {
+      return;
+    }
+    const { data, error } = await supabase
+      .from('playbooks')
+      .insert({ name, owner_id: currentUserId })
+      .select('id, name')
+      .single();
+    if (error || !data) {
+      console.error('Failed to create playbook', error);
+      setStatus('Unable to create playbook.');
+      return;
+    }
+    const entry: Playbook = { id: data.id, name: data.name, role: 'coach' };
+    playbooks = [entry, ...playbooks];
+    selectedPlaybookId = entry.id;
+    currentRole = entry.role;
+    setEditorMode(true);
+    renderPlaybookSelect();
+    await loadPlaysForPlaybook(entry.id);
+  });
+
+  playNotesInput.addEventListener('input', () => {
+    currentNotes = playNotesInput.value.trim();
+  });
+
+  playTagsInput.addEventListener('input', () => {
+    currentTags = parseTags(playTagsInput.value);
+  });
+
+  playTagsInput.addEventListener('blur', () => {
+    playTagsInput.value = currentTags.join(', ');
+  });
+
+  supabase.auth.onAuthStateChange((_event, session) => {
+    handleSession(session);
+  });
+
+  supabase.auth.getSession().then(({ data }) => {
+    handleSession(data.session);
+  });
+
   setActiveTeam(activeTeam);
   updateHistoryUI();
   updateSelectedPanel();
@@ -1799,6 +2257,8 @@ export function initApp() {
     render();
   });
   renderSavedPlaysSelect();
+  renderPlaybookSelect();
+  updatePlayMetaFields();
   render();
 }
 
@@ -1844,6 +2304,18 @@ function clampRange(value: number, min: number, max: number): number {
   return value;
 }
 
+function buildShareUrl(play: Play): string | null {
+  try {
+    const raw = serializePlay(play);
+    const encoded = encodeBase64Url(raw);
+    const url = new URL(window.location.href);
+    url.searchParams.set('play', encoded);
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 function loadSharedPlay(): Play | null {
   const params = new URLSearchParams(window.location.search);
   const encoded = params.get('play');
@@ -1853,18 +2325,6 @@ function loadSharedPlay(): Play | null {
   try {
     const decoded = decodeBase64Url(encoded);
     return deserializePlay(decoded);
-  } catch {
-    return null;
-  }
-}
-
-function buildShareUrl(play: Play): string | null {
-  try {
-    const raw = serializePlay(play);
-    const encoded = encodeBase64Url(raw);
-    const url = new URL(window.location.href);
-    url.searchParams.set('play', encoded);
-    return url.toString();
   } catch {
     return null;
   }

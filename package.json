@@ -16,6 +16,7 @@
     "vitest": "^2.1.0"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.91.0",
     "lucide": "^0.562.0"
   }
 }

@@ -72,6 +72,30 @@
               <summary>Controls</summary>
               <div class="panel-content controls-content">
                 <div class="panel-block">
+                  <div class="auth-panel" id="auth-panel">
+                    <div class="auth-signed-out" id="auth-signed-out">
+                      <label class="field-label">
+                        Sign in
+                        <input id="auth-email" type="email" placeholder="you@example.com" />
+                      </label>
+                      <div class="button-row auth-buttons">
+                        <button type="button" id="auth-email-button" class="secondary">
+                          Send magic link
+                        </button>
+                        <button type="button" id="auth-google-button" class="secondary">
+                          Google
+                        </button>
+                      </div>
+                    </div>
+                    <div class="auth-signed-in is-hidden" id="auth-signed-in">
+                      <div class="auth-user" id="auth-user-email"></div>
+                      <button type="button" id="auth-signout" class="secondary">Sign out</button>
+                    </div>
+                  </div>
+                  <div class="saved-play-row">
+                    <select id="playbook-select" aria-label="Playbook"></select>
+                    <button type="button" id="new-playbook" class="secondary">New</button>
+                  </div>
                   <div class="saved-play-row">
                     <select id="saved-plays-select" aria-label="Saved plays"></select>
                     <button
@@ -117,6 +141,20 @@
                         </button>
                       </div>
                     </div>
+                  </div>
+                  <div class="play-meta">
+                    <label class="field-label">
+                      Notes
+                      <textarea id="play-notes" rows="3" placeholder="Optional play notes"></textarea>
+                    </label>
+                    <label class="field-label">
+                      Tags
+                      <input
+                        id="play-tags"
+                        type="text"
+                        placeholder="run, left, blitz"
+                      />
+                    </label>
                   </div>
                   <label class="toggle-row">
                     <span>Show waypoint markers</span>
