@@ -85,7 +85,7 @@ export function initApp() {
   const fieldOverlay = document.getElementById('field-overlay');
   const playerSelect = document.getElementById('selected-player-select') as HTMLSelectElement | null;
   const playerActions = document.getElementById('player-actions');
-  const waypointSection = document.querySelector<HTMLElement>('.waypoint-section');
+  const waypointSection = document.querySelector<HTMLDetailsElement>('.waypoint-section');
   const waypointList = document.getElementById('waypoint-list');
   const playerNameField = document.querySelector<HTMLElement>('.player-name');
   const playerNameInput = document.getElementById('player-name-input') as HTMLInputElement | null;
@@ -99,6 +99,9 @@ export function initApp() {
   const zoneRadiusYInput = document.getElementById('zone-radius-y-input') as HTMLInputElement | null;
   const zoneSpeedInput = document.getElementById('zone-speed-input') as HTMLInputElement | null;
   const teamButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-team]'));
+  let waypointPanelTouched = false;
+  let waypointPanelPlayerId: string | null = null;
+  let suppressWaypointToggle = false;
 
   if (
     !canvas ||
@@ -266,6 +269,7 @@ export function initApp() {
       setSectionHidden(playerNameField, true);
       playerNameInput.disabled = true;
       setSectionHidden(coveragePanel, true);
+      syncWaypointPanel(null);
       return;
     }
 
@@ -290,6 +294,7 @@ export function initApp() {
       waypointList.replaceChildren();
     }
     renderCoverageControls(player);
+    syncWaypointPanel(player);
   }
 
   function setSectionHidden(element: HTMLElement, hidden: boolean) {
@@ -571,6 +576,40 @@ export function initApp() {
     zoneSpeedInput.disabled = currentType !== 'zone';
   }
 
+  function shouldExpandWaypoints(player: Player): boolean {
+    if (player.team !== 'offense') {
+      return false;
+    }
+    const startDelay = player.startDelay ?? 0;
+    if (startDelay !== 0) {
+      return true;
+    }
+    if (player.startAction) {
+      return true;
+    }
+    const route = player.route ?? [];
+    if (route.length > 0) {
+      return true;
+    }
+    return false;
+  }
+
+  function syncWaypointPanel(player: Player | null) {
+    if (!waypointSection) {
+      return;
+    }
+    const playerId = player?.id ?? null;
+    if (playerId !== waypointPanelPlayerId) {
+      waypointPanelTouched = false;
+      waypointPanelPlayerId = playerId;
+    }
+    if (!waypointPanelTouched) {
+      suppressWaypointToggle = true;
+      waypointSection.open = !!player && shouldExpandWaypoints(player);
+      suppressWaypointToggle = false;
+    }
+  }
+
   function renderWaypointList(player: Player) {
     waypointList.replaceChildren();
     const route = player.route ?? [];
@@ -632,7 +671,7 @@ export function initApp() {
 
     const waypoint0Label = document.createElement('div');
     waypoint0Label.className = 'waypoint-label';
-    waypoint0Label.textContent = 'Waypoint 0 @ 0.0s';
+    waypoint0Label.textContent = `Waypoint 0 @ ${(player.startDelay ?? 0).toFixed(1)}s`;
 
     const waypoint0DelayInput = document.createElement('input');
     waypoint0DelayInput.type = 'number';
@@ -679,6 +718,15 @@ export function initApp() {
 
     waypoint0Row.append(waypoint0Label, waypoint0DelayField, waypoint0ActionField);
     waypointList.append(waypoint0Row);
+
+    if (route.length === 0) {
+      const emptyRow = document.createElement('div');
+      emptyRow.className = 'waypoint-empty';
+      emptyRow.textContent = 'No waypoints yet.';
+      waypointList.append(emptyRow);
+      renderIcons(waypointList);
+      return;
+    }
 
     let from = player.start;
     let elapsed = player.startDelay ?? 0;
@@ -1738,6 +1786,14 @@ export function initApp() {
   updateTimelineUI();
   setPlayToggleState(isPlaying ? 'pause' : 'play');
   controlsPanel.addEventListener('toggle', syncControlsCollapse);
+  if (waypointSection) {
+    waypointSection.addEventListener('toggle', () => {
+      if (suppressWaypointToggle) {
+        return;
+      }
+      waypointPanelTouched = true;
+    });
+  }
   window.addEventListener('resize', syncControlsCollapse);
   collapsePanelsForMobile();
   syncControlsCollapse();

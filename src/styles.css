@@ -444,12 +444,25 @@ button {
   gap: 8px;
 }
 
+.waypoint-section summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.waypoint-section summary::-webkit-details-marker {
+  display: none;
+}
+
 .waypoint-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   font-weight: 600;
   font-size: 0.9rem;
+}
+
+.waypoint-section[open] .waypoint-list {
+  margin-top: 2px;
 }
 
 .waypoint-list {
@@ -584,10 +597,6 @@ button {
 .ball-status {
   font-size: 0.9rem;
   color: var(--muted);
-}
-
-.start-action select {
-  margin-top: 6px;
 }
 
 .is-hidden {
