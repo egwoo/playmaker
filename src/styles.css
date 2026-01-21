@@ -501,8 +501,7 @@ button {
   content: '';
 }
 
-.waypoint-row.is-waypoint summary::after {
-  content: '';
+.waypoint-caret {
   width: 8px;
   height: 8px;
   border-right: 2px solid currentColor;
@@ -514,7 +513,7 @@ button {
   flex: 0 0 auto;
 }
 
-.waypoint-row.is-waypoint[open] summary::after {
+.waypoint-row.is-waypoint[open] .waypoint-caret {
   transform: rotate(225deg);
 }
 

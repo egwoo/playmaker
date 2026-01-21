@@ -634,6 +634,9 @@ export function initApp() {
     const waypoint0Label = document.createElement('summary');
     waypoint0Label.className = 'waypoint-label';
     waypoint0Label.textContent = `Waypoint 0 @ ${(player.startDelay ?? 0).toFixed(1)}s`;
+    const waypoint0Caret = document.createElement('span');
+    waypoint0Caret.className = 'waypoint-caret';
+    waypoint0Label.append(waypoint0Caret);
 
     const waypoint0DelayInput = document.createElement('input');
     waypoint0DelayInput.type = 'number';
@@ -766,6 +769,9 @@ export function initApp() {
       const waypointLabel = document.createElement('summary');
       waypointLabel.className = 'waypoint-label';
       waypointLabel.textContent = `Waypoint ${index + 1} @ ${arrival.toFixed(1)}s`;
+      const waypointCaret = document.createElement('span');
+      waypointCaret.className = 'waypoint-caret';
+      waypointLabel.append(waypointCaret);
 
       const delayInput = document.createElement('input');
       delayInput.type = 'number';
