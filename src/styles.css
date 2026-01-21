@@ -497,6 +497,10 @@ button {
   display: none;
 }
 
+.waypoint-row.is-waypoint summary::marker {
+  content: '';
+}
+
 .waypoint-row.is-waypoint summary::after {
   content: '';
   width: 8px;
