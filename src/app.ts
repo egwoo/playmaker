@@ -85,7 +85,7 @@ export function initApp() {
   const fieldOverlay = document.getElementById('field-overlay');
   const playerSelect = document.getElementById('selected-player-select') as HTMLSelectElement | null;
   const playerActions = document.getElementById('player-actions');
-  const waypointSection = document.querySelector<HTMLDetailsElement>('.waypoint-section');
+  const waypointSection = document.querySelector<HTMLElement>('.waypoint-section');
   const waypointList = document.getElementById('waypoint-list');
   const playerNameField = document.querySelector<HTMLElement>('.player-name');
   const playerNameInput = document.getElementById('player-name-input') as HTMLInputElement | null;
@@ -99,9 +99,7 @@ export function initApp() {
   const zoneRadiusYInput = document.getElementById('zone-radius-y-input') as HTMLInputElement | null;
   const zoneSpeedInput = document.getElementById('zone-speed-input') as HTMLInputElement | null;
   const teamButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-team]'));
-  let waypointPanelTouched = false;
-  let waypointPanelPlayerId: string | null = null;
-  let suppressWaypointToggle = false;
+  const waypointOpenState = new Map<string, Map<number, boolean>>();
 
   if (
     !canvas ||
@@ -269,7 +267,6 @@ export function initApp() {
       setSectionHidden(playerNameField, true);
       playerNameInput.disabled = true;
       setSectionHidden(coveragePanel, true);
-      syncWaypointPanel(null);
       return;
     }
 
@@ -294,7 +291,6 @@ export function initApp() {
       waypointList.replaceChildren();
     }
     renderCoverageControls(player);
-    syncWaypointPanel(player);
   }
 
   function setSectionHidden(element: HTMLElement, hidden: boolean) {
@@ -576,40 +572,6 @@ export function initApp() {
     zoneSpeedInput.disabled = currentType !== 'zone';
   }
 
-  function shouldExpandWaypoints(player: Player): boolean {
-    if (player.team !== 'offense') {
-      return false;
-    }
-    const startDelay = player.startDelay ?? 0;
-    if (startDelay !== 0) {
-      return true;
-    }
-    if (player.startAction) {
-      return true;
-    }
-    const route = player.route ?? [];
-    if (route.length > 0) {
-      return true;
-    }
-    return false;
-  }
-
-  function syncWaypointPanel(player: Player | null) {
-    if (!waypointSection) {
-      return;
-    }
-    const playerId = player?.id ?? null;
-    if (playerId !== waypointPanelPlayerId) {
-      waypointPanelTouched = false;
-      waypointPanelPlayerId = playerId;
-    }
-    if (!waypointPanelTouched) {
-      suppressWaypointToggle = true;
-      waypointSection.open = !!player && shouldExpandWaypoints(player);
-      suppressWaypointToggle = false;
-    }
-  }
-
   function renderWaypointList(player: Player) {
     waypointList.replaceChildren();
     const route = player.route ?? [];
@@ -666,10 +628,10 @@ export function initApp() {
       return actionSelect;
     };
 
-    const waypoint0Row = document.createElement('div');
+    const waypoint0Row = document.createElement('details');
     waypoint0Row.className = 'waypoint-row is-waypoint';
 
-    const waypoint0Label = document.createElement('div');
+    const waypoint0Label = document.createElement('summary');
     waypoint0Label.className = 'waypoint-label';
     waypoint0Label.textContent = `Waypoint 0 @ ${(player.startDelay ?? 0).toFixed(1)}s`;
 
@@ -717,6 +679,18 @@ export function initApp() {
     waypoint0ActionField.append(waypoint0ActionSelect);
 
     waypoint0Row.append(waypoint0Label, waypoint0DelayField, waypoint0ActionField);
+
+    const waypoint0DefaultOpen = (player.startDelay ?? 0) !== 0 || !!player.startAction;
+    const waypoint0State = waypointOpenState.get(player.id)?.get(0);
+    waypoint0Row.open = waypoint0State ?? waypoint0DefaultOpen;
+    waypoint0Row.addEventListener('toggle', () => {
+      let map = waypointOpenState.get(player.id);
+      if (!map) {
+        map = new Map();
+        waypointOpenState.set(player.id, map);
+      }
+      map.set(0, waypoint0Row.open);
+    });
     waypointList.append(waypoint0Row);
 
     if (route.length === 0) {
@@ -786,10 +760,10 @@ export function initApp() {
       legRow.append(legLabel, speedField, deleteButton);
       waypointList.append(legRow);
 
-      const waypointRow = document.createElement('div');
+      const waypointRow = document.createElement('details');
       waypointRow.className = 'waypoint-row is-waypoint';
 
-      const waypointLabel = document.createElement('div');
+      const waypointLabel = document.createElement('summary');
       waypointLabel.className = 'waypoint-label';
       waypointLabel.textContent = `Waypoint ${index + 1} @ ${arrival.toFixed(1)}s`;
 
@@ -838,6 +812,18 @@ export function initApp() {
       actionField.append(actionSelect);
 
       waypointRow.append(waypointLabel, delayField, actionField);
+      const waypointIndex = index + 1;
+      const waypointDefaultOpen = (leg.delay ?? 0) !== 0 || !!leg.action;
+      const waypointState = waypointOpenState.get(player.id)?.get(waypointIndex);
+      waypointRow.open = waypointState ?? waypointDefaultOpen;
+      waypointRow.addEventListener('toggle', () => {
+        let map = waypointOpenState.get(player.id);
+        if (!map) {
+          map = new Map();
+          waypointOpenState.set(player.id, map);
+        }
+        map.set(waypointIndex, waypointRow.open);
+      });
       waypointList.append(waypointRow);
 
       const wait = Math.max(0, leg.delay ?? 0);
@@ -1786,14 +1772,6 @@ export function initApp() {
   updateTimelineUI();
   setPlayToggleState(isPlaying ? 'pause' : 'play');
   controlsPanel.addEventListener('toggle', syncControlsCollapse);
-  if (waypointSection) {
-    waypointSection.addEventListener('toggle', () => {
-      if (suppressWaypointToggle) {
-        return;
-      }
-      waypointPanelTouched = true;
-    });
-  }
   window.addEventListener('resize', syncControlsCollapse);
   collapsePanelsForMobile();
   syncControlsCollapse();

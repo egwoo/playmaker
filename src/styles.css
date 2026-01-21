@@ -444,25 +444,12 @@ button {
   gap: 8px;
 }
 
-.waypoint-section summary {
-  list-style: none;
-  cursor: pointer;
-}
-
-.waypoint-section summary::-webkit-details-marker {
-  display: none;
-}
-
 .waypoint-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   font-weight: 600;
   font-size: 0.9rem;
-}
-
-.waypoint-section[open] .waypoint-list {
-  margin-top: 2px;
 }
 
 .waypoint-list {
@@ -495,6 +482,16 @@ button {
     'label'
     'delay'
     'action';
+}
+
+.waypoint-row.is-waypoint summary {
+  grid-area: label;
+  list-style: none;
+  cursor: pointer;
+}
+
+.waypoint-row.is-waypoint summary::-webkit-details-marker {
+  display: none;
 }
 
 .waypoint-label {
