@@ -89,10 +89,6 @@ export function initApp() {
   const waypointList = document.getElementById('waypoint-list');
   const playerNameField = document.querySelector<HTMLElement>('.player-name');
   const playerNameInput = document.getElementById('player-name-input') as HTMLInputElement | null;
-  const startDelayField = document.querySelector<HTMLElement>('.start-delay');
-  const startDelayInput = document.getElementById('start-delay-input') as HTMLInputElement | null;
-  const startActionField = document.querySelector<HTMLElement>('.start-action');
-  const startActionSelect = document.getElementById('start-action-select') as HTMLSelectElement | null;
   const coveragePanel = document.getElementById('coverage-panel');
   const coverageTypeSelect = document.getElementById('coverage-type-select') as HTMLSelectElement | null;
   const coverageManSection = document.querySelector<HTMLElement>('.coverage-man');
@@ -131,10 +127,6 @@ export function initApp() {
     !waypointList ||
     !playerNameField ||
     !playerNameInput ||
-    !startDelayField ||
-    !startDelayInput ||
-    !startActionField ||
-    !startActionSelect ||
     !coveragePanel ||
     !coverageTypeSelect ||
     !coverageManSection ||
@@ -273,11 +265,6 @@ export function initApp() {
       setSectionHidden(waypointSection, true);
       setSectionHidden(playerNameField, true);
       playerNameInput.disabled = true;
-      setSectionHidden(startDelayField, true);
-      startDelayInput.disabled = true;
-      startActionSelect.replaceChildren();
-      startActionSelect.disabled = true;
-      setSectionHidden(startActionField, true);
       setSectionHidden(coveragePanel, true);
       return;
     }
@@ -296,21 +283,10 @@ export function initApp() {
     } else {
       playerNameInput.value = '';
     }
-    setSectionHidden(startDelayField, player.team !== 'offense');
-    startDelayInput.disabled = player.team !== 'offense';
-    if (player.team === 'offense') {
-      startDelayInput.value = (player.startDelay ?? 0).toString();
-    } else {
-      startDelayInput.value = '0';
-    }
-    setSectionHidden(startActionField, player.team !== 'offense');
     setSectionHidden(waypointSection, player.team === 'defense');
     if (player.team === 'offense') {
-      renderStartAction(player);
       renderWaypointList(player);
     } else {
-      startActionSelect.replaceChildren();
-      startActionSelect.disabled = true;
       waypointList.replaceChildren();
     }
     renderCoverageControls(player);
@@ -514,49 +490,6 @@ export function initApp() {
     persist();
   }
 
-  function renderStartAction(player: Player) {
-    if (player.team !== 'offense') {
-      startActionSelect.replaceChildren();
-      startActionSelect.disabled = true;
-      return;
-    }
-    startActionSelect.replaceChildren();
-    const candidates = play.players.filter(
-      (candidate) => candidate.team === 'offense' && candidate.id !== player.id
-    );
-
-    if (candidates.length === 0) {
-      const emptyOption = document.createElement('option');
-      emptyOption.value = '';
-      emptyOption.textContent = 'Add an offensive player to target';
-      emptyOption.disabled = true;
-      emptyOption.selected = true;
-      startActionSelect.append(emptyOption);
-      startActionSelect.disabled = true;
-      return;
-    }
-
-    const actionNone = document.createElement('option');
-    actionNone.value = '';
-    actionNone.textContent = 'None';
-    startActionSelect.append(actionNone);
-
-    for (const candidate of candidates) {
-      const option = document.createElement('option');
-      option.value = candidate.id;
-      option.textContent = `${player.label} → ${candidate.label}`;
-      startActionSelect.append(option);
-    }
-
-    if (player.startAction && candidates.some((candidate) => candidate.id === player.startAction?.targetId)) {
-      startActionSelect.value = player.startAction.targetId;
-    } else {
-      startActionSelect.value = '';
-    }
-
-    startActionSelect.disabled = false;
-  }
-
   function renderCoverageControls(player: Player) {
     if (player.team !== 'defense') {
       setSectionHidden(coveragePanel, true);
@@ -642,74 +575,17 @@ export function initApp() {
     waypointList.replaceChildren();
     const route = player.route ?? [];
 
-    if (route.length === 0) {
-      const emptyRow = document.createElement('div');
-      emptyRow.className = 'waypoint-empty';
-      emptyRow.textContent = 'No waypoints yet.';
-      waypointList.append(emptyRow);
-      return;
-    }
+    const candidates = play.players.filter(
+      (candidate) => candidate.team === 'offense' && candidate.id !== player.id
+    );
 
-    let from = player.start;
-    let elapsed = player.startDelay ?? 0;
-
-    route.forEach((leg, index) => {
-      const duration = getLegDuration(from, leg);
-      const arrival = elapsed + duration;
-
-      const row = document.createElement('div');
-      row.className = 'waypoint-row';
-
-      const label = document.createElement('div');
-      label.className = 'waypoint-label';
-      label.textContent = `Leg ${index + 1} @ ${arrival.toFixed(1)}s`;
-
-      const delayInput = document.createElement('input');
-      delayInput.type = 'number';
-      delayInput.min = '0';
-      delayInput.step = '0.1';
-      delayInput.value = (leg.delay ?? 0).toString();
-      delayInput.className = 'waypoint-delay';
-      delayInput.addEventListener('change', () => {
-        const nextDelay = parseDelay(delayInput.value, leg.delay ?? 0);
-        if (nextDelay === (leg.delay ?? 0)) {
-          return;
-        }
-        applyMutation(() => {
-          const target = getSelectedPlayer();
-          if (!target?.route) {
-            return;
-          }
-          target.route[index].delay = nextDelay;
-        });
-      });
-
-      const speed = document.createElement('input');
-      speed.type = 'number';
-      speed.min = '0.1';
-      speed.step = '0.1';
-      speed.value = leg.speed.toString();
-      speed.className = 'waypoint-speed';
-      speed.addEventListener('change', () => {
-        const nextSpeed = parseSpeed(speed.value, leg.speed);
-        if (nextSpeed === leg.speed) {
-          return;
-        }
-        applyMutation(() => {
-          const target = getSelectedPlayer();
-          if (!target?.route) {
-            return;
-          }
-          target.route[index].speed = nextSpeed;
-        });
-      });
-
+    const buildActionSelect = (
+      currentTargetId: string | undefined,
+      onChange: (targetId: string | null) => void
+    ) => {
       const actionSelect = document.createElement('select');
       actionSelect.className = 'waypoint-action';
 
-      const candidates = play.players.filter(
-        (candidate) => candidate.team === 'offense' && candidate.id !== player.id
-      );
       if (candidates.length === 0) {
         const emptyOption = document.createElement('option');
         emptyOption.value = '';
@@ -731,8 +607,8 @@ export function initApp() {
           actionSelect.append(option);
         }
 
-        if (leg.action && candidates.some((candidate) => candidate.id === leg.action?.targetId)) {
-          actionSelect.value = leg.action.targetId;
+        if (currentTargetId && candidates.some((candidate) => candidate.id === currentTargetId)) {
+          actionSelect.value = currentTargetId;
         } else {
           actionSelect.value = '';
         }
@@ -745,16 +621,96 @@ export function initApp() {
           return;
         }
         const value = actionSelect.value;
+        onChange(value ? value : null);
+      });
+
+      return actionSelect;
+    };
+
+    const waypoint0Row = document.createElement('div');
+    waypoint0Row.className = 'waypoint-row is-waypoint';
+
+    const waypoint0Label = document.createElement('div');
+    waypoint0Label.className = 'waypoint-label';
+    waypoint0Label.textContent = 'Waypoint 0 @ 0.0s';
+
+    const waypoint0DelayInput = document.createElement('input');
+    waypoint0DelayInput.type = 'number';
+    waypoint0DelayInput.step = '0.1';
+    waypoint0DelayInput.value = (player.startDelay ?? 0).toString();
+    waypoint0DelayInput.className = 'waypoint-delay';
+    waypoint0DelayInput.addEventListener('change', () => {
+      const nextDelay = parseDelay(waypoint0DelayInput.value, player.startDelay ?? 0, Number.NEGATIVE_INFINITY);
+      if (nextDelay === (player.startDelay ?? 0)) {
+        return;
+      }
+      applyMutation(() => {
+        const target = getSelectedPlayer();
+        if (!target || target.team !== 'offense') {
+          return;
+        }
+        target.startDelay = nextDelay;
+      });
+    });
+
+    const waypoint0ActionSelect = buildActionSelect(player.startAction?.targetId, (targetId) => {
+      applyMutation(() => {
+        const target = getSelectedPlayer();
+        if (!target || target.team !== 'offense') {
+          return;
+        }
+        if (!targetId) {
+          target.startAction = undefined;
+          return;
+        }
+        target.startAction = { type: 'pass', targetId };
+      });
+    });
+
+    const waypoint0DelayField = document.createElement('label');
+    waypoint0DelayField.className = 'waypoint-field waypoint-delay-field';
+    waypoint0DelayField.textContent = 'Delay';
+    waypoint0DelayField.append(waypoint0DelayInput);
+
+    const waypoint0ActionField = document.createElement('label');
+    waypoint0ActionField.className = 'waypoint-field waypoint-action-field';
+    waypoint0ActionField.textContent = 'Action';
+    waypoint0ActionField.append(waypoint0ActionSelect);
+
+    waypoint0Row.append(waypoint0Label, waypoint0DelayField, waypoint0ActionField);
+    waypointList.append(waypoint0Row);
+
+    let from = player.start;
+    let elapsed = player.startDelay ?? 0;
+
+    route.forEach((leg, index) => {
+      const duration = getLegDuration(from, leg);
+      const arrival = elapsed + duration;
+
+      const legRow = document.createElement('div');
+      legRow.className = 'waypoint-row is-leg';
+
+      const legLabel = document.createElement('div');
+      legLabel.className = 'waypoint-label';
+      legLabel.textContent = `Leg ${index} → ${index + 1}`;
+
+      const speed = document.createElement('input');
+      speed.type = 'number';
+      speed.min = '0.1';
+      speed.step = '0.1';
+      speed.value = leg.speed.toString();
+      speed.className = 'waypoint-speed';
+      speed.addEventListener('change', () => {
+        const nextSpeed = parseSpeed(speed.value, leg.speed);
+        if (nextSpeed === leg.speed) {
+          return;
+        }
         applyMutation(() => {
           const target = getSelectedPlayer();
           if (!target?.route) {
             return;
           }
-          if (!value) {
-            target.route[index].action = undefined;
-            return;
-          }
-          target.route[index].action = { type: 'pass', targetId: value };
+          target.route[index].speed = nextSpeed;
         });
       });
 
@@ -774,23 +730,67 @@ export function initApp() {
         });
       });
 
-      const delayField = document.createElement('label');
-      delayField.className = 'waypoint-field waypoint-delay-field';
-      delayField.textContent = 'Delay';
-      delayField.append(delayInput);
-
       const speedField = document.createElement('label');
       speedField.className = 'waypoint-field waypoint-speed-field';
       speedField.textContent = 'Speed';
       speedField.append(speed);
+
+      legRow.append(legLabel, speedField, deleteButton);
+      waypointList.append(legRow);
+
+      const waypointRow = document.createElement('div');
+      waypointRow.className = 'waypoint-row is-waypoint';
+
+      const waypointLabel = document.createElement('div');
+      waypointLabel.className = 'waypoint-label';
+      waypointLabel.textContent = `Waypoint ${index + 1} @ ${arrival.toFixed(1)}s`;
+
+      const delayInput = document.createElement('input');
+      delayInput.type = 'number';
+      delayInput.min = '0';
+      delayInput.step = '0.1';
+      delayInput.value = (leg.delay ?? 0).toString();
+      delayInput.className = 'waypoint-delay';
+      delayInput.addEventListener('change', () => {
+        const nextDelay = parseDelay(delayInput.value, leg.delay ?? 0);
+        if (nextDelay === (leg.delay ?? 0)) {
+          return;
+        }
+        applyMutation(() => {
+          const target = getSelectedPlayer();
+          if (!target?.route) {
+            return;
+          }
+          target.route[index].delay = nextDelay;
+        });
+      });
+
+      const actionSelect = buildActionSelect(leg.action?.targetId, (targetId) => {
+        applyMutation(() => {
+          const target = getSelectedPlayer();
+          if (!target?.route) {
+            return;
+          }
+          if (!targetId) {
+            target.route[index].action = undefined;
+            return;
+          }
+          target.route[index].action = { type: 'pass', targetId };
+        });
+      });
+
+      const delayField = document.createElement('label');
+      delayField.className = 'waypoint-field waypoint-delay-field';
+      delayField.textContent = 'Delay';
+      delayField.append(delayInput);
 
       const actionField = document.createElement('label');
       actionField.className = 'waypoint-field waypoint-action-field';
       actionField.textContent = 'Action';
       actionField.append(actionSelect);
 
-      row.append(label, delayField, speedField, actionField, deleteButton);
-      waypointList.append(row);
+      waypointRow.append(waypointLabel, delayField, actionField);
+      waypointList.append(waypointRow);
 
       const wait = Math.max(0, leg.delay ?? 0);
       elapsed = arrival + wait;
@@ -1376,21 +1376,6 @@ export function initApp() {
     selectPlayer(null);
   });
 
-  startActionSelect.addEventListener('change', () => {
-    const value = startActionSelect.value;
-    applyMutation(() => {
-      const target = getSelectedPlayer();
-      if (!target) {
-        return;
-      }
-      if (!value) {
-        target.startAction = undefined;
-        return;
-      }
-      target.startAction = { type: 'pass', targetId: value };
-    });
-  });
-
   coverageTypeSelect.addEventListener('change', () => {
     const type = coverageTypeSelect.value;
     applyMutation(() => {
@@ -1711,25 +1696,6 @@ export function initApp() {
     });
   });
 
-  startDelayInput.addEventListener('change', () => {
-    const target = getSelectedPlayer();
-    if (!target || target.team !== 'offense') {
-      return;
-    }
-    const parsed = Number(startDelayInput.value);
-    const nextDelay = Number.isFinite(parsed) ? parsed : 0;
-    if (nextDelay === (target.startDelay ?? 0)) {
-      return;
-    }
-    applyMutation(() => {
-      const selected = getSelectedPlayer();
-      if (!selected || selected.team !== 'offense') {
-        return;
-      }
-      selected.startDelay = nextDelay;
-    });
-  });
-
   undoButton.addEventListener('click', handleUndo);
   redoButton.addEventListener('click', handleRedo);
 
@@ -1798,9 +1764,9 @@ function parseSpeed(value: string, fallback: number): number {
   return parsed;
 }
 
-function parseDelay(value: string, fallback: number): number {
+function parseDelay(value: string, fallback: number, minValue = 0): number {
   const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) {
+  if (!Number.isFinite(parsed) || parsed < minValue) {
     return fallback;
   }
   return parsed;

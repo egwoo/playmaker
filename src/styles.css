@@ -461,17 +461,27 @@ button {
 .waypoint-row {
   display: grid;
   grid-template-columns: 1fr auto;
-  grid-template-areas:
-    'label remove'
-    'delay delay'
-    'speed speed'
-    'action action';
+  grid-template-areas: 'label remove';
   column-gap: 8px;
   row-gap: 10px;
   align-items: center;
   padding: 8px;
   border-radius: 12px;
   background: #f7f0e4;
+}
+
+.waypoint-row.is-leg {
+  grid-template-areas:
+    'label remove'
+    'speed speed';
+}
+
+.waypoint-row.is-waypoint {
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    'label'
+    'delay'
+    'action';
 }
 
 .waypoint-label {
