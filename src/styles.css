@@ -486,7 +486,7 @@ button {
 
 .waypoint-row.is-waypoint summary {
   grid-area: label;
-  list-style: none;
+  list-style: none !important;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -494,11 +494,11 @@ button {
 }
 
 .waypoint-row.is-waypoint summary::-webkit-details-marker {
-  display: none;
+  display: none !important;
 }
 
 .waypoint-row.is-waypoint summary::marker {
-  content: '';
+  content: '' !important;
 }
 
 .waypoint-caret {
