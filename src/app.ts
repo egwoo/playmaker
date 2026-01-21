@@ -124,8 +124,6 @@ export function initApp() {
   const zoneRadiusXInput = document.getElementById('zone-radius-x-input') as HTMLInputElement | null;
   const zoneRadiusYInput = document.getElementById('zone-radius-y-input') as HTMLInputElement | null;
   const zoneSpeedInput = document.getElementById('zone-speed-input') as HTMLInputElement | null;
-  const playNotesInput = document.getElementById('play-notes') as HTMLTextAreaElement | null;
-  const playTagsInput = document.getElementById('play-tags') as HTMLInputElement | null;
   const teamButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-team]'));
   const waypointOpenState = new Map<string, Map<number, boolean>>();
 
@@ -174,8 +172,6 @@ export function initApp() {
     !zoneRadiusXInput ||
     !zoneRadiusYInput ||
     !zoneSpeedInput ||
-    !playNotesInput ||
-    !playTagsInput ||
     !controlsPanel ||
     !panelWrapper
   ) {
@@ -417,21 +413,7 @@ export function initApp() {
     renamePlayButton.disabled = disable || !selectedSavedPlayId;
     deletePlayButton.disabled = disable || !selectedSavedPlayId;
     newPlaybookButton.disabled = disable;
-    playNotesInput.disabled = disable;
-    playTagsInput.disabled = disable;
     playerNameInput.disabled = disable || playerNameInput.disabled;
-  }
-
-  function updatePlayMetaFields() {
-    playNotesInput.value = currentNotes;
-    playTagsInput.value = currentTags.join(', ');
-  }
-
-  function parseTags(value: string): string[] {
-    return value
-      .split(',')
-      .map((tag) => tag.trim())
-      .filter(Boolean);
   }
 
   async function loadPlaybooks() {
@@ -541,7 +523,6 @@ export function initApp() {
     selectedSavedPlayId = null;
     currentNotes = '';
     currentTags = [];
-    updatePlayMetaFields();
     renderSavedPlaysSelect();
   }
 
@@ -606,7 +587,6 @@ export function initApp() {
     historyFuture = [];
     currentNotes = '';
     currentTags = [];
-    updatePlayMetaFields();
     updateHistoryUI();
     updateSelectedPanel();
     updateTimelineUI();
@@ -2033,7 +2013,6 @@ export function initApp() {
       deletePlayButton.disabled = true;
       currentNotes = '';
       currentTags = [];
-      updatePlayMetaFields();
       updateSaveButtonLabel();
       return;
     }
@@ -2045,7 +2024,6 @@ export function initApp() {
       play = clonePlay(selectedEntry.play);
       currentNotes = selectedEntry.notes ?? '';
       currentTags = selectedEntry.tags ?? [];
-      updatePlayMetaFields();
       playTime = 0;
       scrubberTouched = false;
       historyPast = [];
@@ -2259,7 +2237,6 @@ export function initApp() {
       newPlaybookButton.disabled = true;
       renderPlaybookSelect();
       renderSavedPlaysSelect();
-      updatePlayMetaFields();
       updateSelectedPanel();
       return;
     }
@@ -2338,18 +2315,6 @@ export function initApp() {
     await loadPlaysForPlaybook(entry.id);
   });
 
-  playNotesInput.addEventListener('input', () => {
-    currentNotes = playNotesInput.value.trim();
-  });
-
-  playTagsInput.addEventListener('input', () => {
-    currentTags = parseTags(playTagsInput.value);
-  });
-
-  playTagsInput.addEventListener('blur', () => {
-    playTagsInput.value = currentTags.join(', ');
-  });
-
   supabase.auth.onAuthStateChange((_event, session) => {
     handleSession(session);
   });
@@ -2374,7 +2339,6 @@ export function initApp() {
   });
   renderSavedPlaysSelect();
   renderPlaybookSelect();
-  updatePlayMetaFields();
   render();
 }
 

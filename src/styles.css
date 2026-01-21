@@ -556,16 +556,6 @@ button {
   font-size: 0.9rem;
 }
 
-.play-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.play-meta textarea {
-  resize: vertical;
-  min-height: 70px;
-}
 
 .player-card {
   padding: 10px 12px;
