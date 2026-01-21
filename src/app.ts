@@ -628,15 +628,17 @@ export function initApp() {
       return actionSelect;
     };
 
-    const waypoint0Row = document.createElement('details');
+    const waypoint0Row = document.createElement('div');
     waypoint0Row.className = 'waypoint-row is-waypoint';
 
-    const waypoint0Label = document.createElement('summary');
-    waypoint0Label.className = 'waypoint-label';
-    waypoint0Label.textContent = `Waypoint 0 @ ${(player.startDelay ?? 0).toFixed(1)}s`;
+    const waypoint0Label = document.createElement('button');
+    waypoint0Label.type = 'button';
+    waypoint0Label.className = 'waypoint-toggle';
+    const waypoint0LabelText = document.createElement('span');
+    waypoint0LabelText.textContent = `Waypoint 0 @ ${(player.startDelay ?? 0).toFixed(1)}s`;
     const waypoint0Caret = document.createElement('span');
     waypoint0Caret.className = 'waypoint-caret';
-    waypoint0Label.append(waypoint0Caret);
+    waypoint0Label.append(waypoint0LabelText, waypoint0Caret);
 
     const waypoint0DelayInput = document.createElement('input');
     waypoint0DelayInput.type = 'number';
@@ -681,18 +683,22 @@ export function initApp() {
     waypoint0ActionField.textContent = 'Action';
     waypoint0ActionField.append(waypoint0ActionSelect);
 
-    waypoint0Row.append(waypoint0Label, waypoint0DelayField, waypoint0ActionField);
+    const waypoint0Content = document.createElement('div');
+    waypoint0Content.className = 'waypoint-content';
+    waypoint0Content.append(waypoint0DelayField, waypoint0ActionField);
+    waypoint0Row.append(waypoint0Label, waypoint0Content);
 
     const waypoint0DefaultOpen = (player.startDelay ?? 0) !== 0 || !!player.startAction;
     const waypoint0State = waypointOpenState.get(player.id)?.get(0);
-    waypoint0Row.open = waypoint0State ?? waypoint0DefaultOpen;
-    waypoint0Row.addEventListener('toggle', () => {
+    waypoint0Row.classList.toggle('is-open', waypoint0State ?? waypoint0DefaultOpen);
+    waypoint0Label.addEventListener('click', () => {
+      const isOpen = waypoint0Row.classList.toggle('is-open');
       let map = waypointOpenState.get(player.id);
       if (!map) {
         map = new Map();
         waypointOpenState.set(player.id, map);
       }
-      map.set(0, waypoint0Row.open);
+      map.set(0, isOpen);
     });
     waypointList.append(waypoint0Row);
 
@@ -763,15 +769,17 @@ export function initApp() {
       legRow.append(legLabel, speedField, deleteButton);
       waypointList.append(legRow);
 
-      const waypointRow = document.createElement('details');
+      const waypointRow = document.createElement('div');
       waypointRow.className = 'waypoint-row is-waypoint';
 
-      const waypointLabel = document.createElement('summary');
-      waypointLabel.className = 'waypoint-label';
-      waypointLabel.textContent = `Waypoint ${index + 1} @ ${arrival.toFixed(1)}s`;
+      const waypointLabel = document.createElement('button');
+      waypointLabel.type = 'button';
+      waypointLabel.className = 'waypoint-toggle';
+      const waypointLabelText = document.createElement('span');
+      waypointLabelText.textContent = `Waypoint ${index + 1} @ ${arrival.toFixed(1)}s`;
       const waypointCaret = document.createElement('span');
       waypointCaret.className = 'waypoint-caret';
-      waypointLabel.append(waypointCaret);
+      waypointLabel.append(waypointLabelText, waypointCaret);
 
       const delayInput = document.createElement('input');
       delayInput.type = 'number';
@@ -817,18 +825,22 @@ export function initApp() {
       actionField.textContent = 'Action';
       actionField.append(actionSelect);
 
-      waypointRow.append(waypointLabel, delayField, actionField);
+      const waypointContent = document.createElement('div');
+      waypointContent.className = 'waypoint-content';
+      waypointContent.append(delayField, actionField);
+      waypointRow.append(waypointLabel, waypointContent);
       const waypointIndex = index + 1;
       const waypointDefaultOpen = (leg.delay ?? 0) !== 0 || !!leg.action;
       const waypointState = waypointOpenState.get(player.id)?.get(waypointIndex);
-      waypointRow.open = waypointState ?? waypointDefaultOpen;
-      waypointRow.addEventListener('toggle', () => {
+      waypointRow.classList.toggle('is-open', waypointState ?? waypointDefaultOpen);
+      waypointLabel.addEventListener('click', () => {
+        const isOpen = waypointRow.classList.toggle('is-open');
         let map = waypointOpenState.get(player.id);
         if (!map) {
           map = new Map();
           waypointOpenState.set(player.id, map);
         }
-        map.set(waypointIndex, waypointRow.open);
+        map.set(waypointIndex, isOpen);
       });
       waypointList.append(waypointRow);
 
