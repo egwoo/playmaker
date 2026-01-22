@@ -82,7 +82,6 @@ export function initApp() {
   const scrubber = document.getElementById('scrubber') as HTMLInputElement | null;
   const playToggle = document.getElementById('play-toggle') as HTMLButtonElement | null;
   const deletePlayerButton = document.getElementById('delete-player') as HTMLButtonElement | null;
-  const deselectPlayerButton = document.getElementById('deselect-player') as HTMLButtonElement | null;
   const undoButton = document.getElementById('undo-action') as HTMLButtonElement | null;
   const redoButton = document.getElementById('redo-action') as HTMLButtonElement | null;
   const resetTimeButton = document.getElementById('reset-time') as HTMLButtonElement | null;
@@ -147,7 +146,6 @@ export function initApp() {
     !scrubber ||
     !playToggle ||
     !deletePlayerButton ||
-    !deselectPlayerButton ||
     !undoButton ||
     !redoButton ||
     !resetTimeButton ||
@@ -319,7 +317,6 @@ export function initApp() {
     const player = getSelectedPlayer();
     if (!player) {
       deletePlayerButton.disabled = true;
-      deselectPlayerButton.disabled = true;
       playerMenuToggle.disabled = true;
       renamePlayerButton.disabled = true;
       waypointList.replaceChildren();
@@ -340,7 +337,6 @@ export function initApp() {
     deletePlayerButton.disabled = !canEdit;
     renamePlayerButton.disabled = !canEdit;
     playerMenuToggle.disabled = !canEdit;
-    deselectPlayerButton.disabled = false;
     setSectionHidden(playerActions, false);
     setSectionHidden(waypointSection, player.team === 'defense');
     if (player.team === 'offense') {
@@ -1572,7 +1568,6 @@ export function initApp() {
     } else if (!playerDragState.moved) {
       if (playerDragState.initialSelectedId === playerDragState.playerId) {
         selectPlayer(null);
-        setStatus('Add player mode.');
       } else {
         selectPlayer(playerDragState.playerId);
         setStatus('Player selected. Tap to add waypoints.');
@@ -1852,7 +1847,6 @@ export function initApp() {
 
   resetTimeButton.addEventListener('click', () => {
     resetPlayback();
-    setStatus('Playback reset.');
   });
 
   deletePlayerButton.addEventListener('click', () => {
@@ -1893,10 +1887,6 @@ export function initApp() {
       selected.label = name;
     });
     setStatus(`Renamed to ${name}.`);
-  });
-
-  deselectPlayerButton.addEventListener('click', () => {
-    selectPlayer(null);
   });
 
   coverageTypeSelect.addEventListener('change', () => {
@@ -2322,7 +2312,6 @@ export function initApp() {
       updateSelectedPanel();
       render();
       persist();
-      setStatus(`Loaded ${selectedEntry.name}.`);
     }
     updateSaveButtonLabel();
     renderSavedPlaysSelect();
@@ -2530,11 +2519,8 @@ export function initApp() {
     overlay.className = 'auth-modal';
     overlay.innerHTML = `
       <div class="auth-modal-card help-modal-card" role="dialog" aria-modal="true" aria-label="Help">
-        <div class="auth-modal-header">
-          <div>
-            <p class="auth-modal-title">Help</p>
-            <p class="auth-modal-subtitle">Quick walkthrough to get started.</p>
-          </div>
+        <div class="auth-modal-header help-modal-header">
+          <div></div>
           <button type="button" class="icon-button" data-help-close aria-label="Close">
             <span data-lucide="x" aria-hidden="true"></span>
           </button>
@@ -2542,14 +2528,57 @@ export function initApp() {
         <div class="help-carousel">
           <div class="help-slides">
             ${steps
-              .map(
-                (step, index) => `
+              .map((step, index) => {
+                const visual =
+                  index === 0
+                    ? 'hike'
+                    : index === 1
+                      ? 'waypoints'
+                      : index === 2
+                        ? 'run'
+                        : index === 3
+                          ? 'share'
+                          : 'motion';
+                const visualMarkup =
+                  visual === 'run'
+                    ? `
+                <div class="help-mini-controls">
+                  <span class="help-mini-play">
+                    <span class="help-mini-play-icon"></span>
+                  </span>
+                  <div class="help-mini-scrubber">
+                    <span class="help-mini-scrubber-dot"></span>
+                  </div>
+                </div>
+                <div class="help-visual help-visual-canvas" data-help-visual="${visual}"></div>
+              `
+                    : visual === 'share'
+                      ? `
+                <div class="help-visual help-visual-share" data-help-visual="${visual}">
+                  <div class="help-share-bar">
+                    <div class="help-share-dots">
+                      <span></span><span></span><span></span>
+                    </div>
+                  </div>
+                  <div class="help-share-menu">
+                    <div class="help-share-item help-share-item-share">Share</div>
+                    <div class="help-share-item">Rename</div>
+                    <div class="help-share-item">Delete</div>
+                  </div>
+                  <div class="help-share-cursor"></div>
+                </div>
+              `
+                      : `
+                <div class="help-visual help-visual-canvas" data-help-visual="${visual}"></div>
+              `;
+                return `
               <div class="help-slide${index === 0 ? ' is-active' : ''}" data-help-slide="${index}">
                 <p class="help-slide-title">${step.title}</p>
                 ${step.body.map((line) => `<p class="help-slide-text">${line}</p>`).join('')}
+                ${visualMarkup}
               </div>
-            `
-              )
+            `;
+              })
               .join('')}
           </div>
           <div class="help-footer">
@@ -2572,10 +2601,12 @@ export function initApp() {
     `;
     document.body.append(overlay);
     renderIcons(overlay);
+    const cleanupAnimations: Array<() => void> = [];
 
     const close = () => {
       overlay.remove();
       document.removeEventListener('keydown', onKey);
+      cleanupAnimations.forEach((cleanup) => cleanup());
       try {
         localStorage.setItem(HELP_SEEN_KEY, '1');
       } catch {
@@ -2605,6 +2636,186 @@ export function initApp() {
     if (!prevButton || !nextButton) {
       return;
     }
+
+    const setupHelpVisuals = () => {
+      const visuals = Array.from(
+        overlay.querySelectorAll<HTMLElement>('[data-help-visual]')
+      );
+
+      const createHikePlay = (): Play => {
+        const centerId = 'help-center';
+        const qbId = 'help-qb';
+        const wrId = 'help-wr';
+        return {
+          players: [
+            {
+              id: centerId,
+              label: 'C',
+              team: 'offense',
+              start: { x: 0.5, y: 0.68 },
+              startAction: { type: 'handoff', targetId: qbId }
+            },
+            {
+              id: qbId,
+              label: 'QB',
+              team: 'offense',
+              start: { x: 0.5, y: 0.78 },
+              route: [
+                {
+                  to: { x: 0.48, y: 0.82 },
+                  speed: 6,
+                  delay: 0.6,
+                  action: { type: 'pass', targetId: wrId }
+                }
+              ]
+            },
+            {
+              id: wrId,
+              label: 'WR',
+              team: 'offense',
+              start: { x: 0.7, y: 0.62 },
+              route: [
+                {
+                  to: { x: 0.55, y: 0.46 },
+                  speed: 7
+                }
+              ]
+            }
+          ]
+        };
+      };
+
+      const createMotionPlay = (): Play => ({
+        players: [
+          {
+            id: 'motion-qb',
+            label: 'QB',
+            team: 'offense',
+            start: { x: 0.5, y: 0.78 }
+          },
+          {
+            id: 'motion-wr',
+            label: 'WR',
+            team: 'offense',
+            start: { x: 0.2, y: 0.62 },
+            startDelay: -1,
+            route: [
+              {
+                to: { x: 0.8, y: 0.62 },
+                speed: 6
+              }
+            ]
+          }
+        ]
+      });
+
+      const createWaypointSteps = (): Play[] => {
+        const playerA = {
+          id: 'waypoint-a',
+          label: 'O',
+          team: 'offense' as const,
+          start: { x: 0.4, y: 0.7 }
+        };
+        const playerB = {
+          id: 'waypoint-b',
+          label: 'O',
+          team: 'offense' as const,
+          start: { x: 0.65, y: 0.7 }
+        };
+        const baseLeg = {
+          to: { x: 0.47, y: 0.58 },
+          speed: 8
+        };
+        return [
+          { players: [playerA] },
+          { players: [playerA, playerB] },
+          {
+            players: [
+              {
+                ...playerA,
+                route: [baseLeg]
+              },
+              playerB
+            ]
+          },
+          {
+            players: [
+              {
+                ...playerA,
+                route: [
+                  {
+                    ...baseLeg,
+                    action: { type: 'handoff', targetId: playerB.id }
+                  }
+                ]
+              },
+              playerB
+            ]
+          }
+        ];
+      };
+
+      const hikePlay = createHikePlay();
+      const motionPlay = createMotionPlay();
+      const waypointSteps = createWaypointSteps();
+
+      visuals.forEach((visual) => {
+        const type = visual.dataset.helpVisual;
+        if (!type || type === 'share') {
+          return;
+        }
+        const canvas = document.createElement('canvas');
+        visual.append(canvas);
+        const renderer = createRenderer(canvas);
+
+        const handleResize = () => {
+          renderer.resize();
+        };
+        handleResize();
+        window.addEventListener('resize', handleResize);
+
+        let frameId = 0;
+        const start = performance.now();
+        const loop = (now: number) => {
+          const elapsed = (now - start) / 1000;
+          let playToRender: Play = hikePlay;
+          let playTime = elapsed % 4.5;
+          let showMarkers = false;
+
+          if (type === 'motion') {
+            playToRender = motionPlay;
+            const duration = 4.2;
+            playTime = -1 + (elapsed % duration);
+          } else if (type === 'waypoints') {
+            const stepDuration = 1.2;
+            const step = Math.floor((elapsed % (stepDuration * 4)) / stepDuration);
+            const localTime = (elapsed % stepDuration) / stepDuration;
+            playToRender = waypointSteps[step] ?? waypointSteps[0];
+            showMarkers = step >= 2;
+            playTime = step === 3 ? localTime * 0.9 : 0;
+          }
+
+          const ballState = getBallState(playToRender, playTime, DEFAULT_BALL_SPEED_YPS);
+          renderer.render({
+            play: playToRender,
+            playTime,
+            selectedPlayerId: null,
+            ball: ballState,
+            showWaypointMarkers: showMarkers
+          });
+          frameId = window.requestAnimationFrame(loop);
+        };
+
+        frameId = window.requestAnimationFrame(loop);
+
+        cleanupAnimations.push(() => {
+          window.cancelAnimationFrame(frameId);
+          window.removeEventListener('resize', handleResize);
+        });
+      });
+    };
+
+    setupHelpVisuals();
 
     let activeIndex = 0;
 
