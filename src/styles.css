@@ -210,6 +210,17 @@ body {
   right: 14px;
 }
 
+.help-modal-close .icon-button {
+  border-color: transparent;
+  background: transparent;
+  border-radius: 12px;
+}
+
+.help-modal-close .icon-button:hover {
+  border-color: rgba(26, 32, 27, 0.14);
+  background: #f7f0e4;
+}
+
 .help-carousel {
   display: flex;
   flex-direction: column;

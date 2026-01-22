@@ -2725,11 +2725,11 @@ export function initApp() {
             startDelay: -1,
             route: [
               {
-                to: { x: 0.42, y: 0.8 },
+                to: { x: 0.42, y: 0.9 },
                 speed: 6
               },
               {
-                to: { x: 0.78, y: 0.8 },
+                to: { x: 0.78, y: 0.9 },
                 speed: 6
               }
             ]
