@@ -560,6 +560,16 @@ button {
   height: 36px;
 }
 
+.menu-wrapper .icon-button {
+  border-color: transparent;
+  background: transparent;
+}
+
+.menu-wrapper .icon-button:hover {
+  border-color: rgba(26, 32, 27, 0.16);
+  background: #f7f0e4;
+}
+
 .menu-wrapper {
   position: relative;
   display: flex;
