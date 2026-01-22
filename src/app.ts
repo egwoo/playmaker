@@ -210,22 +210,20 @@ export function initApp() {
 
   const renderer = createRenderer(canvas);
   const shareTokens = loadShareTokens();
-  sharedPlayToken = shareTokens.playToken;
-  sharedPlaybookToken = shareTokens.playbookToken;
   const savedPlay = loadDraftPlay();
   let settings = loadSettings();
 
+  let sharedPlayToken: string | null = shareTokens.playToken;
+  let sharedPlayName: string | null = null;
+  let sharedPlayActive = false;
+  let sharedPlaybookToken: string | null = shareTokens.playbookToken;
+  let sharedPlaybookAccepted = false;
   let play = sharedPlayToken ? createEmptyPlay() : savedPlay ?? createEmptyPlay();
   let savedPlays: RemotePlay[] = [];
   let selectedSavedPlayId: string | null = null;
   let playbooks: Playbook[] = [];
   let selectedPlaybookId: string | null = null;
   let currentRole: Playbook['role'] | null = null;
-  let sharedPlayToken: string | null = null;
-  let sharedPlayName: string | null = null;
-  let sharedPlayActive = false;
-  let sharedPlaybookToken: string | null = null;
-  let sharedPlaybookAccepted = false;
   let currentNotes = '';
   let currentTags: string[] = [];
   let currentUserId: string | null = null;
