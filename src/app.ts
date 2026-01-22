@@ -75,6 +75,7 @@ type RemotePlay = {
 };
 
 export function initApp() {
+  const NEW_PLAYBOOK_VALUE = '__new__';
   const canvas = document.getElementById('field-canvas') as HTMLCanvasElement | null;
   const statusText = document.getElementById('status-text');
   const scrubber = document.getElementById('scrubber') as HTMLInputElement | null;
@@ -99,7 +100,6 @@ export function initApp() {
   const authUserEmail = document.getElementById('auth-user-email');
   const authSignOut = document.getElementById('auth-signout') as HTMLButtonElement | null;
   const playbookSelect = document.getElementById('playbook-select') as HTMLSelectElement | null;
-  const newPlaybookButton = document.getElementById('new-playbook') as HTMLButtonElement | null;
   const showWaypointsToggle = document.getElementById('show-waypoints-toggle') as
     | HTMLInputElement
     | null;
@@ -152,7 +152,6 @@ export function initApp() {
     !authUserEmail ||
     !authSignOut ||
     !playbookSelect ||
-    !newPlaybookButton ||
     !savedPlaysSelect ||
     !renamePlayButton ||
     !deletePlayButton ||
@@ -412,7 +411,6 @@ export function initApp() {
     saveMenuToggle.disabled = disable;
     renamePlayButton.disabled = disable || !selectedSavedPlayId;
     deletePlayButton.disabled = disable || !selectedSavedPlayId;
-    newPlaybookButton.disabled = disable;
     playerNameInput.disabled = disable || playerNameInput.disabled;
   }
 
@@ -480,7 +478,7 @@ export function initApp() {
     } else if (playbooks.length) {
       placeholder.textContent = 'Select playbook';
     } else {
-      placeholder.textContent = 'No playbooks';
+      placeholder.textContent = 'Select playbook';
     }
     playbookSelect.append(placeholder);
 
@@ -491,12 +489,19 @@ export function initApp() {
       playbookSelect.append(option);
     }
 
+    if (currentUserId) {
+      const addOption = document.createElement('option');
+      addOption.value = NEW_PLAYBOOK_VALUE;
+      addOption.textContent = '+ Add a new playbook';
+      playbookSelect.append(addOption);
+    }
+
     if (selectedPlaybookId) {
       playbookSelect.value = selectedPlaybookId;
     } else {
       playbookSelect.value = '';
     }
-    playbookSelect.disabled = !currentUserId || playbooks.length === 0;
+    playbookSelect.disabled = !currentUserId;
   }
 
   async function loadPlaysForPlaybook(playbookId: string) {
@@ -2218,6 +2223,81 @@ export function initApp() {
     });
   }
 
+  function openPlaybookModal(defaultName = ''): Promise<string | null> {
+    if (document.querySelector('.auth-modal')) {
+      return Promise.resolve(null);
+    }
+
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'auth-modal';
+      overlay.innerHTML = `
+        <div class="auth-modal-card" role="dialog" aria-modal="true" aria-label="New playbook">
+          <div class="auth-modal-header">
+            <div>
+              <p class="auth-modal-title">New playbook</p>
+              <p class="auth-modal-subtitle">Create a fresh playbook to organize plays.</p>
+            </div>
+            <button type="button" class="icon-button" data-playbook-close aria-label="Close">
+              <span data-lucide="x" aria-hidden="true"></span>
+            </button>
+          </div>
+          <div class="auth-email-row">
+            <label class="field-label">
+              Playbook name
+              <input type="text" data-playbook-name placeholder="My playbook" />
+            </label>
+            <button type="button" class="primary" data-playbook-submit>
+              Create playbook
+            </button>
+          </div>
+        </div>
+      `;
+
+      document.body.append(overlay);
+      renderIcons(overlay);
+
+      const close = (value: string | null) => {
+        overlay.remove();
+        document.removeEventListener('keydown', onKey);
+        resolve(value);
+      };
+
+      const onKey = (event: KeyboardEvent) => {
+        if (event.key === 'Escape') {
+          close(null);
+        }
+      };
+      document.addEventListener('keydown', onKey);
+
+      const closeButton = overlay.querySelector('[data-playbook-close]') as HTMLButtonElement | null;
+      const submitButton = overlay.querySelector('[data-playbook-submit]') as HTMLButtonElement | null;
+      const nameInput = overlay.querySelector('[data-playbook-name]') as HTMLInputElement | null;
+
+      if (nameInput) {
+        nameInput.value = defaultName;
+        window.setTimeout(() => nameInput.focus(), 0);
+      }
+
+      overlay.addEventListener('click', (event) => {
+        if (event.target === overlay) {
+          close(null);
+        }
+      });
+
+      closeButton?.addEventListener('click', () => close(null));
+
+      submitButton?.addEventListener('click', () => {
+        const name = nameInput?.value.trim() ?? '';
+        if (!name) {
+          setStatus('Enter a playbook name.');
+          return;
+        }
+        close(name);
+      });
+    });
+  }
+
   async function handleSession(
     session: { user: { id: string; email?: string | null; user_metadata?: { avatar_url?: string | null } } } | null
   ) {
@@ -2234,7 +2314,6 @@ export function initApp() {
       selectedSavedPlayId = null;
       currentRole = null;
       setEditorMode(true);
-      newPlaybookButton.disabled = true;
       renderPlaybookSelect();
       renderSavedPlaysSelect();
       updateSelectedPanel();
@@ -2272,6 +2351,36 @@ export function initApp() {
 
   playbookSelect.addEventListener('change', async () => {
     const value = playbookSelect.value;
+
+    if (value === NEW_PLAYBOOK_VALUE) {
+      playbookSelect.value = selectedPlaybookId ?? '';
+      if (!currentUserId) {
+        return;
+      }
+      const name = await openPlaybookModal('My playbook');
+      if (!name) {
+        return;
+      }
+      const { data, error } = await supabase
+        .from('playbooks')
+        .insert({ name, owner_id: currentUserId })
+        .select('id, name')
+        .single();
+      if (error || !data) {
+        console.error('Failed to create playbook', error);
+        setStatus('Unable to create playbook.');
+        return;
+      }
+      const entry: Playbook = { id: data.id, name: data.name, role: 'coach' };
+      playbooks = [entry, ...playbooks];
+      selectedPlaybookId = entry.id;
+      currentRole = entry.role;
+      setEditorMode(true);
+      renderPlaybookSelect();
+      await loadPlaysForPlaybook(entry.id);
+      return;
+    }
+
     selectedPlaybookId = value || null;
     selectedSavedPlayId = null;
     savedPlays = [];
@@ -2286,33 +2395,6 @@ export function initApp() {
     setEditorMode(!currentUserId || currentRole === 'coach');
     updateSelectedPanel();
     await loadPlaysForPlaybook(selectedPlaybookId);
-  });
-
-  newPlaybookButton.addEventListener('click', async () => {
-    if (!currentUserId) {
-      return;
-    }
-    const name = promptForPlayName('New playbook');
-    if (!name) {
-      return;
-    }
-    const { data, error } = await supabase
-      .from('playbooks')
-      .insert({ name, owner_id: currentUserId })
-      .select('id, name')
-      .single();
-    if (error || !data) {
-      console.error('Failed to create playbook', error);
-      setStatus('Unable to create playbook.');
-      return;
-    }
-    const entry: Playbook = { id: data.id, name: data.name, role: 'coach' };
-    playbooks = [entry, ...playbooks];
-    selectedPlaybookId = entry.id;
-    currentRole = entry.role;
-    setEditorMode(true);
-    renderPlaybookSelect();
-    await loadPlaysForPlaybook(entry.id);
   });
 
   supabase.auth.onAuthStateChange((_event, session) => {
