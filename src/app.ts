@@ -1272,6 +1272,12 @@ export function initApp() {
     setPlayToggleState('play');
   }
 
+  function resetPlayback() {
+    stopPlayback();
+    scrubberTouched = false;
+    setPlayTime(getPlaybackStartTime());
+  }
+
   function startPlayback() {
     const { start, end } = getPlaybackRange();
     if (end <= start) {
@@ -1739,9 +1745,7 @@ export function initApp() {
   });
 
   resetTimeButton.addEventListener('click', () => {
-    stopPlayback();
-    setPlayTime(getPlaybackStartTime());
-    scrubberTouched = false;
+    resetPlayback();
     setStatus('Playback reset.');
   });
 
@@ -2129,8 +2133,7 @@ export function initApp() {
       play = clonePlay(selectedEntry.play);
       currentNotes = selectedEntry.notes ?? '';
       currentTags = selectedEntry.tags ?? [];
-      playTime = 0;
-      scrubberTouched = false;
+      resetPlayback();
       historyPast = [];
       historyFuture = [];
       updateHistoryUI();

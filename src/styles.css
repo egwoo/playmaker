@@ -137,11 +137,13 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
 }
 
 .auth-modal-header .icon-button {
   border-color: transparent;
   background: transparent;
+  border-radius: 12px;
 }
 
 .auth-modal-header .icon-button:hover {
@@ -155,7 +157,7 @@ body {
 }
 
 .auth-modal-subtitle {
-  margin: 0;
+  margin: 6px 0 0;
   font-size: 0.9rem;
   color: var(--muted);
 }
