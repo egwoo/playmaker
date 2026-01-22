@@ -62,6 +62,7 @@ type Playbook = {
   id: string;
   name: string;
   role: 'coach' | 'player';
+  isOwner: boolean;
 };
 
 type RemotePlay = {
@@ -102,16 +103,24 @@ export function initApp() {
   const playbookSelect = document.getElementById('playbook-select') as HTMLSelectElement | null;
   const playbookMenuToggle = document.getElementById('playbook-menu-toggle') as HTMLButtonElement | null;
   const playbookMenu = document.getElementById('playbook-menu');
+  const sharePlaybookButton = document.getElementById('share-playbook') as HTMLButtonElement | null;
   const renamePlaybookButton = document.getElementById('rename-playbook') as HTMLButtonElement | null;
   const deletePlaybookButton = document.getElementById('delete-playbook') as HTMLButtonElement | null;
+  const sharedPlaybookBanner = document.getElementById('shared-playbook-banner');
+  const sharedPlaybookText = document.getElementById('shared-playbook-text');
+  const sharedPlaybookAction = document.getElementById('shared-playbook-action') as HTMLButtonElement | null;
   const showWaypointsToggle = document.getElementById('show-waypoints-toggle') as
     | HTMLInputElement
     | null;
   const savedPlaysSelect = document.getElementById('saved-plays-select') as HTMLSelectElement | null;
   const playMenuToggle = document.getElementById('play-menu-toggle') as HTMLButtonElement | null;
   const playMenu = document.getElementById('play-menu');
+  const playHistoryButton = document.getElementById('play-history') as HTMLButtonElement | null;
   const renamePlayButton = document.getElementById('rename-play') as HTMLButtonElement | null;
   const deletePlayButton = document.getElementById('delete-play') as HTMLButtonElement | null;
+  const sharedPlayBanner = document.getElementById('shared-play-banner');
+  const sharedPlayText = document.getElementById('shared-play-text');
+  const sharedPlayAction = document.getElementById('shared-play-action') as HTMLButtonElement | null;
   const controlsPanel = document.querySelector<HTMLDetailsElement>('details[data-panel="controls"]');
   const panelWrapper = document.querySelector<HTMLElement>('section.panel');
   const fieldOverlay = document.getElementById('field-overlay');
@@ -161,13 +170,21 @@ export function initApp() {
     !playbookSelect ||
     !playbookMenuToggle ||
     !playbookMenu ||
+    !sharePlaybookButton ||
     !renamePlaybookButton ||
     !deletePlaybookButton ||
+    !sharedPlaybookBanner ||
+    !sharedPlaybookText ||
+    !sharedPlaybookAction ||
     !savedPlaysSelect ||
     !playMenuToggle ||
     !playMenu ||
+    !playHistoryButton ||
     !renamePlayButton ||
     !deletePlayButton ||
+    !sharedPlayBanner ||
+    !sharedPlayText ||
+    !sharedPlayAction ||
     !showWaypointsToggle ||
     !playerSelect ||
     !playerMenuToggle ||
@@ -192,16 +209,23 @@ export function initApp() {
   }
 
   const renderer = createRenderer(canvas);
-  const sharedPlay = loadSharedPlay();
+  const shareTokens = loadShareTokens();
+  sharedPlayToken = shareTokens.playToken;
+  sharedPlaybookToken = shareTokens.playbookToken;
   const savedPlay = loadDraftPlay();
   let settings = loadSettings();
 
-  let play = sharedPlay ?? savedPlay ?? createEmptyPlay();
+  let play = sharedPlayToken ? createEmptyPlay() : savedPlay ?? createEmptyPlay();
   let savedPlays: RemotePlay[] = [];
   let selectedSavedPlayId: string | null = null;
   let playbooks: Playbook[] = [];
   let selectedPlaybookId: string | null = null;
   let currentRole: Playbook['role'] | null = null;
+  let sharedPlayToken: string | null = null;
+  let sharedPlayName: string | null = null;
+  let sharedPlayActive = false;
+  let sharedPlaybookToken: string | null = null;
+  let sharedPlaybookAccepted = false;
   let currentNotes = '';
   let currentTags: string[] = [];
   let currentUserId: string | null = null;
@@ -234,7 +258,7 @@ export function initApp() {
       render();
     });
   }
-  if (sharedPlay) {
+  if (!sharedPlayToken) {
     saveDraftPlay(play);
   }
 
@@ -404,9 +428,83 @@ export function initApp() {
     }
   }
 
+  function updateSharedPlayUI() {
+    const shouldShow = !!sharedPlayToken && sharedPlayActive;
+    sharedPlayBanner.classList.toggle('is-hidden', !shouldShow);
+    if (!shouldShow) {
+      return;
+    }
+    if (!currentUserId) {
+      sharedPlayText.textContent = 'Viewing a shared play.';
+      sharedPlayAction.textContent = 'Sign in to save this play';
+    } else {
+      sharedPlayText.textContent = `Shared play: ${sharedPlayName ?? 'Untitled play'}`;
+      sharedPlayAction.textContent = 'Save to playbook';
+    }
+  }
+
+  function updateSharedPlaybookUI() {
+    const shouldShow = !!sharedPlaybookToken && !sharedPlaybookAccepted;
+    sharedPlaybookBanner.classList.toggle('is-hidden', !shouldShow);
+    if (!shouldShow) {
+      return;
+    }
+    if (!currentUserId) {
+      sharedPlaybookText.textContent = 'Shared playbook link.';
+      sharedPlaybookAction.textContent = 'Sign in to access';
+    } else {
+      sharedPlaybookText.textContent = 'Shared playbook ready to add.';
+      sharedPlaybookAction.textContent = 'Add to my playbooks';
+    }
+  }
+
+  async function loadSharedPlayByToken(token: string) {
+    const { data, error } = await supabase.rpc('fetch_play_share', { share_token: token });
+    if (error || !data || data.length === 0) {
+      console.error('Failed to load shared play', error);
+      setStatus('Unable to load shared play.');
+      sharedPlayActive = false;
+      sharedPlayToken = null;
+      updateSharedPlayUI();
+      return;
+    }
+    const entry = Array.isArray(data) ? data[0] : data;
+    sharedPlayName = entry.play_name ?? 'Untitled play';
+    sharedPlayActive = true;
+    play = entry.play_data as Play;
+    selectedSavedPlayId = null;
+    selectedPlayerId = null;
+    historyPast = [];
+    historyFuture = [];
+    resetPlayback();
+    setEditorMode(false);
+    updateSelectedPanel();
+    updateTimelineUI();
+    updateSaveButtonLabel();
+    render();
+    updateSharedPlayUI();
+  }
+
+  async function acceptPlaybookShare(token: string) {
+    const { data, error } = await supabase.rpc('accept_playbook_share', { share_token: token });
+    if (error || !data || data.length === 0) {
+      console.error('Failed to accept playbook share', error);
+      setStatus('Unable to accept playbook share.');
+      return;
+    }
+    const entry = Array.isArray(data) ? data[0] : data;
+    selectedPlaybookId = entry.playbook_id ?? null;
+    sharedPlaybookAccepted = true;
+    sharedPlaybookToken = null;
+    clearShareParam('playbook');
+    updateSharedPlaybookUI();
+    await loadPlaybooks();
+    setStatus('Playbook added to your account.');
+  }
+
   function setEditorMode(allowEdit: boolean) {
-    const disable = !allowEdit;
-    canEdit = allowEdit;
+    const disable = !allowEdit || sharedPlayActive;
+    canEdit = allowEdit && !sharedPlayActive;
     newPlayButton.disabled = disable;
     flipPlayButton.disabled = disable;
     savePlayButton.disabled = disable;
@@ -414,9 +512,11 @@ export function initApp() {
     playMenuToggle.disabled = disable || !selectedSavedPlayId;
     renamePlayButton.disabled = disable || !selectedSavedPlayId;
     deletePlayButton.disabled = disable || !selectedSavedPlayId;
-    playbookMenuToggle.disabled = disable || !selectedPlaybookId || currentRole !== 'coach';
-    renamePlaybookButton.disabled = disable || !selectedPlaybookId || currentRole !== 'coach';
-    deletePlaybookButton.disabled = disable || !selectedPlaybookId || currentRole !== 'coach';
+    const hasPlaybook = !!selectedPlaybookId;
+    playbookMenuToggle.disabled = !hasPlaybook;
+    sharePlaybookButton.disabled = !hasPlaybook || currentRole !== 'coach';
+    renamePlaybookButton.disabled = !hasPlaybook || currentRole !== 'coach';
+    deletePlaybookButton.disabled = !hasPlaybook;
   }
 
   async function loadPlaybooks() {
@@ -444,7 +544,7 @@ export function initApp() {
 
     const playbookMap = new Map<string, Playbook>();
     (ownedResult.data ?? []).forEach((row) => {
-      playbookMap.set(row.id, { id: row.id, name: row.name, role: 'coach' });
+      playbookMap.set(row.id, { id: row.id, name: row.name, role: 'coach', isOwner: true });
     });
 
     (membersResult.data ?? []).forEach((row) => {
@@ -452,10 +552,12 @@ export function initApp() {
       if (!entry) {
         return;
       }
+      const existing = playbookMap.get(entry.id);
       playbookMap.set(entry.id, {
         id: entry.id,
         name: entry.name,
-        role: row.role as Playbook['role']
+        role: row.role as Playbook['role'],
+        isOwner: existing?.isOwner ?? false
       });
     });
 
@@ -495,7 +597,7 @@ export function initApp() {
       console.error('Failed to check for default playbook', existingError);
     }
     if (existing) {
-      return { id: existing.id, name: existing.name, role: 'coach' };
+      return { id: existing.id, name: existing.name, role: 'coach', isOwner: true };
     }
     const { data, error } = await supabase
       .from('playbooks')
@@ -506,7 +608,7 @@ export function initApp() {
       console.error('Failed to create playbook', error);
       return null;
     }
-    return { id: data.id, name: data.name, role: 'coach' };
+    return { id: data.id, name: data.name, role: 'coach', isOwner: true };
   }
 
   function renderPlaybookSelect() {
@@ -551,10 +653,11 @@ export function initApp() {
       playbookSelect.value = '';
     }
     playbookSelect.disabled = !currentUserId;
-    const canManagePlaybook = currentRole === 'coach' && !!selectedPlaybookId;
-    playbookMenuToggle.disabled = !canManagePlaybook;
-    renamePlaybookButton.disabled = !canManagePlaybook;
-    deletePlaybookButton.disabled = !canManagePlaybook;
+    const hasPlaybook = !!selectedPlaybookId;
+    playbookMenuToggle.disabled = !hasPlaybook;
+    sharePlaybookButton.disabled = !hasPlaybook || currentRole !== 'coach';
+    renamePlaybookButton.disabled = !hasPlaybook || currentRole !== 'coach';
+    deletePlaybookButton.disabled = !hasPlaybook;
   }
 
   async function loadPlaysForPlaybook(playbookId: string) {
@@ -605,12 +708,13 @@ export function initApp() {
       savedPlaysSelect.append(option);
     }
 
-    const canManage = currentRole === 'coach' && !!selectedSavedPlayId;
+    const canManage = currentRole === 'coach' && !!selectedSavedPlayId && !sharedPlayActive;
     if (selectedSavedPlayId && savedPlays.some((entry) => entry.id === selectedSavedPlayId)) {
       savedPlaysSelect.value = selectedSavedPlayId;
     } else {
       savedPlaysSelect.value = '';
     }
+    playHistoryButton.disabled = !selectedSavedPlayId;
     playMenuToggle.disabled = !canManage;
     renamePlayButton.disabled = !canManage;
     deletePlayButton.disabled = !canManage;
@@ -625,8 +729,10 @@ export function initApp() {
 
   function updateSaveButtonLabel() {
     savePlayButton.textContent = selectedSavedPlayId ? 'Update' : 'Save';
-    savePlayButton.disabled = currentRole !== 'coach';
-    saveMenuToggle.disabled = currentRole !== 'coach';
+    const canSave = currentRole === 'coach' && !sharedPlayActive;
+    savePlayButton.disabled = !canSave;
+    saveMenuToggle.disabled = !canSave;
+    sharePlayButton.disabled = !canSave;
   }
 
   function getCurrentPlayName(): string {
@@ -684,6 +790,7 @@ export function initApp() {
     };
     savedPlays = [entry, ...savedPlays];
     selectedSavedPlayId = entry.id;
+    await recordPlayVersion(entry.id, entry.name, entry.play);
     updateSavedPlaysStorage();
     setStatus('Saved new play.');
   }
@@ -735,8 +842,23 @@ export function initApp() {
           }
         : entry
     );
+    await recordPlayVersion(data.id, data.name, data.data as Play);
     updateSavedPlaysStorage();
     setStatus('Play updated.');
+  }
+
+  async function recordPlayVersion(playId: string, name: string, playData: Play) {
+    const { error } = await supabase.from('play_versions').insert({
+      play_id: playId,
+      name,
+      data: playData,
+      created_by: currentUserId
+    });
+    if (error) {
+      console.error('Failed to record play version', error);
+      return;
+    }
+    await supabase.rpc('prune_play_versions', { pid: playId });
   }
 
   function ensureDefenseAssignment(player: Player) {
@@ -1952,21 +2074,88 @@ export function initApp() {
     saveMenuToggle.setAttribute('aria-expanded', 'true');
   }
 
-  async function copyShareLink() {
-    const url = buildShareUrl(play);
-    if (!url) {
-      return;
-    }
+  async function copyToClipboard(text: string) {
     if (navigator.clipboard?.writeText) {
       try {
-        await navigator.clipboard.writeText(url);
-        setStatus('Share link copied.');
+        await navigator.clipboard.writeText(text);
+        setStatus('Link copied.');
         return;
       } catch {
         // fall back to prompt below
       }
     }
-    window.prompt('Copy share link', url);
+    window.prompt('Copy link', text);
+  }
+
+  async function copyShareLink() {
+    if (!currentUserId || currentRole !== 'coach') {
+      setStatus('Sign in as a collaborator to share plays.');
+      return;
+    }
+    if (!selectedSavedPlayId) {
+      const name = await openNameModal({
+        title: 'Save play',
+        subtitle: 'Name this play before sharing.',
+        label: 'Play name',
+        placeholder: 'New play',
+        submitLabel: 'Save play',
+        defaultName: getCurrentPlayName()
+      });
+      if (!name) {
+        return;
+      }
+      await updateSelectedPlay(name);
+    }
+    if (!selectedSavedPlayId) {
+      return;
+    }
+    const token = generateShareToken();
+    const payload = {
+      play_id: selectedSavedPlayId,
+      play_name: getCurrentPlayName(),
+      play_data: clonePlay(play),
+      token,
+      created_by: currentUserId
+    };
+    const { data, error } = await supabase
+      .from('play_shares')
+      .insert(payload)
+      .select('token')
+      .single();
+    if (error || !data) {
+      console.error('Failed to create play share', error);
+      setStatus('Unable to share play.');
+      return;
+    }
+    const url = buildShareUrl(data.token, 'share');
+    await copyToClipboard(url);
+  }
+
+  async function createPlaybookShareLink(role: 'player' | 'coach'): Promise<string | null> {
+    if (!currentUserId || !selectedPlaybookId || currentRole !== 'coach') {
+      setStatus('Select a playbook you can share.');
+      return null;
+    }
+    const token = generateShareToken();
+    const { data, error } = await supabase
+      .from('playbook_shares')
+      .upsert(
+        {
+          playbook_id: selectedPlaybookId,
+          role,
+          token,
+          created_by: currentUserId
+        },
+        { onConflict: 'playbook_id,role' }
+      )
+      .select('token')
+      .single();
+    if (error || !data) {
+      console.error('Failed to create playbook share', error);
+      setStatus('Unable to share playbook.');
+      return null;
+    }
+    return buildShareUrl(data.token, 'playbook');
   }
 
   savePlayButton.addEventListener('click', async () => {
@@ -1994,9 +2183,13 @@ export function initApp() {
   newPlayButton.addEventListener('click', () => {
     resetPlayState();
     selectedSavedPlayId = null;
+    sharedPlayActive = false;
+    sharedPlayToken = null;
+    setEditorMode(currentRole === 'coach');
     renderSavedPlaysSelect();
     scrubberTouched = false;
     setStatus('Started a new play.');
+    updateSharedPlayUI();
   });
 
   flipPlayButton.addEventListener('click', () => {
@@ -2130,6 +2323,9 @@ export function initApp() {
     selectedSavedPlayId = value;
     const selectedEntry = savedPlays.find((entry) => entry.id === value);
     if (selectedEntry) {
+      sharedPlayActive = false;
+      sharedPlayToken = null;
+      setEditorMode(currentRole === 'coach');
       play = clonePlay(selectedEntry.play);
       currentNotes = selectedEntry.notes ?? '';
       currentTags = selectedEntry.tags ?? [];
@@ -2144,6 +2340,7 @@ export function initApp() {
     }
     updateSaveButtonLabel();
     renderSavedPlaysSelect();
+    updateSharedPlayUI();
   });
 
   playerSelect.addEventListener('change', () => {
@@ -2397,6 +2594,287 @@ export function initApp() {
     });
   }
 
+  function openSharedSaveModal(defaultName: string): Promise<{ playbookId: string; name: string } | null> {
+    if (document.querySelector('.auth-modal')) {
+      return Promise.resolve(null);
+    }
+    const editablePlaybooks = playbooks.filter((book) => book.role === 'coach');
+    if (editablePlaybooks.length === 0) {
+      setStatus('Create a playbook you can edit to save this play.');
+      return Promise.resolve(null);
+    }
+
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'auth-modal';
+      overlay.innerHTML = `
+        <div class="auth-modal-card history-modal-card" role="dialog" aria-modal="true" aria-label="Save shared play">
+          <div class="auth-modal-header">
+            <div>
+              <p class="auth-modal-title">Save shared play</p>
+              <p class="auth-modal-subtitle">Choose where to store this play.</p>
+            </div>
+            <button type="button" class="icon-button" data-share-close aria-label="Close">
+              <span data-lucide="x" aria-hidden="true"></span>
+            </button>
+          </div>
+          <div class="auth-email-row">
+            <label class="field-label">
+              Playbook
+              <select data-share-playbook></select>
+            </label>
+            <label class="field-label">
+              Play name
+              <input type="text" data-share-name placeholder="New play" />
+            </label>
+            <button type="button" class="primary" data-share-submit>Save play</button>
+          </div>
+        </div>
+      `;
+
+      document.body.append(overlay);
+      renderIcons(overlay);
+
+      const close = (value: { playbookId: string; name: string } | null) => {
+        overlay.remove();
+        document.removeEventListener('keydown', onKey);
+        resolve(value);
+      };
+
+      const onKey = (event: KeyboardEvent) => {
+        if (event.key === 'Escape') {
+          close(null);
+        }
+      };
+      document.addEventListener('keydown', onKey);
+
+      const playbookSelectEl = overlay.querySelector('[data-share-playbook]') as HTMLSelectElement | null;
+      const nameInput = overlay.querySelector('[data-share-name]') as HTMLInputElement | null;
+      const submitButton = overlay.querySelector('[data-share-submit]') as HTMLButtonElement | null;
+      const closeButton = overlay.querySelector('[data-share-close]') as HTMLButtonElement | null;
+
+      if (playbookSelectEl) {
+        editablePlaybooks.forEach((book) => {
+          const option = document.createElement('option');
+          option.value = book.id;
+          option.textContent = book.name;
+          playbookSelectEl.append(option);
+        });
+        playbookSelectEl.value = selectedPlaybookId ?? editablePlaybooks[0].id;
+      }
+
+      if (nameInput) {
+        nameInput.value = defaultName;
+        window.setTimeout(() => nameInput.focus(), 0);
+      }
+
+      overlay.addEventListener('click', (event) => {
+        if (event.target === overlay) {
+          close(null);
+        }
+      });
+
+      closeButton?.addEventListener('click', () => close(null));
+      submitButton?.addEventListener('click', () => {
+        const name = nameInput?.value.trim() ?? '';
+        const playbookId = playbookSelectEl?.value ?? '';
+        if (!playbookId) {
+          setStatus('Select a playbook.');
+          return;
+        }
+        if (!name) {
+          setStatus('Enter a play name.');
+          return;
+        }
+        close({ playbookId, name });
+      });
+    });
+  }
+
+  function openPlaybookShareModal(getLink: (role: 'player' | 'coach') => Promise<string | null>) {
+    if (document.querySelector('.auth-modal')) {
+      return;
+    }
+    const overlay = document.createElement('div');
+    overlay.className = 'auth-modal';
+    overlay.innerHTML = `
+      <div class="auth-modal-card history-modal-card" role="dialog" aria-modal="true" aria-label="Share playbook">
+        <div class="auth-modal-header">
+          <div>
+            <p class="auth-modal-title">Share playbook</p>
+            <p class="auth-modal-subtitle">Send a view or collaborate link.</p>
+          </div>
+          <button type="button" class="icon-button" data-share-close aria-label="Close">
+            <span data-lucide="x" aria-hidden="true"></span>
+          </button>
+        </div>
+        <div class="share-link-list">
+          <div class="share-link-row">
+            <div>
+              <strong>Viewer link</strong>
+              <p class="auth-modal-subtitle">Read-only access.</p>
+            </div>
+            <button type="button" class="secondary" data-share-view>Copy link</button>
+          </div>
+          <div class="share-link-row">
+            <div>
+              <strong>Collaborator link</strong>
+              <p class="auth-modal-subtitle">Can edit plays.</p>
+            </div>
+            <button type="button" class="secondary" data-share-collab>Copy link</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.append(overlay);
+    renderIcons(overlay);
+
+    const close = () => {
+      overlay.remove();
+      document.removeEventListener('keydown', onKey);
+    };
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        close();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) {
+        close();
+      }
+    });
+
+    const closeButton = overlay.querySelector('[data-share-close]') as HTMLButtonElement | null;
+    closeButton?.addEventListener('click', close);
+
+    const viewButton = overlay.querySelector('[data-share-view]') as HTMLButtonElement | null;
+    const collabButton = overlay.querySelector('[data-share-collab]') as HTMLButtonElement | null;
+
+    viewButton?.addEventListener('click', async () => {
+      const link = await getLink('player');
+      if (link) {
+        await copyToClipboard(link);
+      }
+    });
+
+    collabButton?.addEventListener('click', async () => {
+      const link = await getLink('coach');
+      if (link) {
+        await copyToClipboard(link);
+      }
+    });
+  }
+
+  function openHistoryModal(versions: { id: string; createdAt: number; play: Play }[]) {
+    if (document.querySelector('.auth-modal')) {
+      return;
+    }
+    const overlay = document.createElement('div');
+    overlay.className = 'auth-modal';
+    overlay.innerHTML = `
+      <div class="auth-modal-card history-modal-card history-modal" role="dialog" aria-modal="true" aria-label="Play history">
+        <div class="auth-modal-header">
+          <div>
+            <p class="auth-modal-title">Play history</p>
+            <p class="auth-modal-subtitle">Restore a previous save.</p>
+          </div>
+          <button type="button" class="icon-button" data-history-close aria-label="Close">
+            <span data-lucide="x" aria-hidden="true"></span>
+          </button>
+        </div>
+        <div class="history-body">
+          <div class="history-list" data-history-list></div>
+          <div class="history-preview" data-history-preview>
+            <p class="auth-modal-subtitle">Select a version to restore.</p>
+            <button type="button" class="secondary" data-history-restore disabled>Restore version</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.append(overlay);
+    renderIcons(overlay);
+
+    const close = () => {
+      overlay.remove();
+      document.removeEventListener('keydown', onKey);
+    };
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        close();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) {
+        close();
+      }
+    });
+
+    const closeButton = overlay.querySelector('[data-history-close]') as HTMLButtonElement | null;
+    closeButton?.addEventListener('click', close);
+
+    const listEl = overlay.querySelector('[data-history-list]') as HTMLElement | null;
+    const previewEl = overlay.querySelector('[data-history-preview]') as HTMLElement | null;
+    const restoreButton = overlay.querySelector('[data-history-restore]') as HTMLButtonElement | null;
+
+    if (!listEl || !previewEl || !restoreButton) {
+      return;
+    }
+
+    let selectedVersion: { id: string; createdAt: number; play: Play } | null = null;
+
+    versions.forEach((version) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'history-item';
+      button.textContent = formatTimestamp(version.createdAt);
+      button.addEventListener('click', () => {
+        selectedVersion = version;
+        listEl.querySelectorAll('.history-item').forEach((item) => {
+          item.classList.toggle('is-active', item === button);
+        });
+        previewEl.innerHTML = `
+          <div>
+            <p class="auth-modal-subtitle">Saved ${formatTimestamp(version.createdAt)}</p>
+          </div>
+          <button type="button" class="secondary" data-history-restore>Restore version</button>
+        `;
+        const nextRestore = previewEl.querySelector('[data-history-restore]') as HTMLButtonElement | null;
+        if (nextRestore) {
+          nextRestore.addEventListener('click', async () => {
+            if (!selectedVersion) {
+              return;
+            }
+            play = clonePlay(selectedVersion.play);
+            resetPlayback();
+            await updateSelectedPlay(getCurrentPlayName());
+            updateSelectedPanel();
+            render();
+            close();
+          });
+        }
+      });
+      listEl.append(button);
+    });
+
+    restoreButton.addEventListener('click', async () => {
+      if (!selectedVersion) {
+        return;
+      }
+      play = clonePlay(selectedVersion.play);
+      resetPlayback();
+      await updateSelectedPlay(getCurrentPlayName());
+      updateSelectedPanel();
+      render();
+      close();
+    });
+  }
+
   function setupContextMenu(toggle: HTMLButtonElement, menu: HTMLElement) {
     const close = () => {
       menu.classList.add('is-hidden');
@@ -2438,6 +2916,8 @@ export function initApp() {
       session?.user.user_metadata?.picture ??
       null;
     setAuthUI(!!session, session?.user.email, avatar);
+    updateSharedPlayUI();
+    updateSharedPlaybookUI();
     if (!session) {
       playbooks = [];
       selectedPlaybookId = null;
@@ -2452,6 +2932,10 @@ export function initApp() {
   }
     renderPlaybookSelect();
     renderSavedPlaysSelect();
+    if (sharedPlaybookToken && !sharedPlaybookAccepted) {
+      await acceptPlaybookShare(sharedPlaybookToken);
+      return;
+    }
     if (playbookLoadPromise && lastSessionUserId === currentUserId) {
       await playbookLoadPromise;
       return;
@@ -2490,6 +2974,39 @@ export function initApp() {
     }
   });
 
+  sharedPlayAction.addEventListener('click', async () => {
+    if (!currentUserId) {
+      openAuthModal();
+      return;
+    }
+    const name = sharedPlayName ?? getCurrentPlayName();
+    const result = await openSharedSaveModal(name);
+    if (!result) {
+      return;
+    }
+    selectedPlaybookId = result.playbookId;
+    const current = playbooks.find((item) => item.id === selectedPlaybookId);
+    currentRole = current?.role ?? null;
+    renderPlaybookSelect();
+    await loadPlaysForPlaybook(selectedPlaybookId);
+    await savePlayAsNew(result.name);
+    clearShareParam('share');
+    sharedPlayActive = false;
+    sharedPlayToken = null;
+    setEditorMode(currentRole === 'coach');
+    updateSharedPlayUI();
+  });
+
+  sharedPlaybookAction.addEventListener('click', async () => {
+    if (!currentUserId) {
+      openAuthModal();
+      return;
+    }
+    if (sharedPlaybookToken && !sharedPlaybookAccepted) {
+      await acceptPlaybookShare(sharedPlaybookToken);
+    }
+  });
+
   playbookSelect.addEventListener('change', async () => {
     const value = playbookSelect.value;
 
@@ -2519,7 +3036,7 @@ export function initApp() {
         setStatus('Unable to create playbook.');
         return;
       }
-      const entry: Playbook = { id: data.id, name: data.name, role: 'coach' };
+      const entry: Playbook = { id: data.id, name: data.name, role: 'coach', isOwner: true };
       playbooks = [entry, ...playbooks];
       selectedPlaybookId = entry.id;
       currentRole = entry.role;
@@ -2543,6 +3060,11 @@ export function initApp() {
     setEditorMode(!currentUserId || currentRole === 'coach');
     updateSelectedPanel();
     await loadPlaysForPlaybook(selectedPlaybookId);
+  });
+
+  sharePlaybookButton.addEventListener('click', () => {
+    closePlaybookMenu();
+    openPlaybookShareModal(createPlaybookShareLink);
   });
 
   renamePlaybookButton.addEventListener('click', async () => {
@@ -2585,20 +3107,34 @@ export function initApp() {
 
   deletePlaybookButton.addEventListener('click', async () => {
     closePlaybookMenu();
-    if (!selectedPlaybookId || currentRole !== 'coach') {
+    if (!selectedPlaybookId) {
       return;
     }
     const entry = playbooks.find((item) => item.id === selectedPlaybookId);
     if (!entry) {
       return;
     }
-    const { error } = await supabase.from('playbooks').delete().eq('id', entry.id);
-    if (error) {
-      console.error('Failed to delete playbook', error);
-      setStatus('Unable to delete playbook.');
-      return;
+    if (entry.isOwner) {
+      const { error } = await supabase.from('playbooks').delete().eq('id', entry.id);
+      if (error) {
+        console.error('Failed to delete playbook', error);
+        setStatus('Unable to delete playbook.');
+        return;
+      }
+      playbooks = playbooks.filter((item) => item.id !== entry.id);
+    } else {
+      const { error } = await supabase
+        .from('playbook_members')
+        .delete()
+        .eq('playbook_id', entry.id)
+        .eq('user_id', currentUserId);
+      if (error) {
+        console.error('Failed to leave playbook', error);
+        setStatus('Unable to leave playbook.');
+        return;
+      }
+      playbooks = playbooks.filter((item) => item.id !== entry.id);
     }
-    playbooks = playbooks.filter((item) => item.id !== entry.id);
     selectedPlaybookId = playbooks[0]?.id ?? null;
     selectedSavedPlayId = null;
     savedPlays = [];
@@ -2615,6 +3151,33 @@ export function initApp() {
       renderSavedPlaysSelect();
     }
     setStatus(`Deleted ${entry.name}.`);
+  });
+
+  playHistoryButton.addEventListener('click', async () => {
+    closePlayMenu();
+    if (!selectedSavedPlayId) {
+      return;
+    }
+    const { data, error } = await supabase
+      .from('play_versions')
+      .select('id, data, created_at')
+      .eq('play_id', selectedSavedPlayId)
+      .order('created_at', { ascending: false });
+    if (error || !data) {
+      console.error('Failed to load play history', error);
+      setStatus('Unable to load play history.');
+      return;
+    }
+    if (data.length === 0) {
+      setStatus('No history yet.');
+      return;
+    }
+    const versions = data.map((row) => ({
+      id: row.id,
+      play: row.data as Play,
+      createdAt: new Date(row.created_at).getTime()
+    }));
+    openHistoryModal(versions);
   });
 
   supabase.auth.onAuthStateChange((_event, session) => {
@@ -2641,6 +3204,11 @@ export function initApp() {
   });
   renderSavedPlaysSelect();
   renderPlaybookSelect();
+  updateSharedPlayUI();
+  updateSharedPlaybookUI();
+  if (sharedPlayToken) {
+    loadSharedPlayByToken(sharedPlayToken);
+  }
   render();
 }
 
@@ -2686,52 +3254,43 @@ function clampRange(value: number, min: number, max: number): number {
   return value;
 }
 
-function buildShareUrl(play: Play): string | null {
+function formatTimestamp(value: number): string {
   try {
-    const raw = serializePlay(play);
-    const encoded = encodeBase64Url(raw);
-    const url = new URL(window.location.href);
-    url.searchParams.set('play', encoded);
-    return url.toString();
+    return new Date(value).toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    });
   } catch {
-    return null;
+    return `${value}`;
   }
 }
 
-function loadSharedPlay(): Play | null {
+function buildShareUrl(token: string, param: 'share' | 'playbook'): string {
+  const url = new URL(window.location.href);
+  url.searchParams.set(param, token);
+  return url.toString();
+}
+
+function loadShareTokens(): { playToken: string | null; playbookToken: string | null } {
   const params = new URLSearchParams(window.location.search);
-  const encoded = params.get('play');
-  if (!encoded) {
-    return null;
-  }
-  try {
-    const decoded = decodeBase64Url(encoded);
-    return deserializePlay(decoded);
-  } catch {
-    return null;
-  }
+  return {
+    playToken: params.get('share'),
+    playbookToken: params.get('playbook')
+  };
 }
 
-function encodeBase64Url(input: string): string {
-  const bytes = new TextEncoder().encode(input);
-  let binary = '';
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-  const base64 = btoa(binary);
-  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+function clearShareParam(param: 'share' | 'playbook') {
+  const url = new URL(window.location.href);
+  url.searchParams.delete(param);
+  window.history.replaceState({}, '', url.toString());
 }
 
-function decodeBase64Url(input: string): string {
-  const normalized = input.replace(/-/g, '+').replace(/_/g, '/');
-  const padding = normalized.length % 4;
-  const padded = padding ? normalized + '='.repeat(4 - padding) : normalized;
-  const binary = atob(padded);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return new TextDecoder().decode(bytes);
+function generateShareToken(size = 16): string {
+  const bytes = new Uint8Array(size);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 function parsePositiveNumber(value: string, fallback: number): number {

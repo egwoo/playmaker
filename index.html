@@ -105,6 +105,9 @@
                         <span data-lucide="more-vertical" aria-hidden="true"></span>
                       </button>
                       <div class="split-menu context-menu is-hidden" id="playbook-menu" role="menu">
+                        <button type="button" id="share-playbook" class="split-menu-item" role="menuitem">
+                          Share
+                        </button>
                         <button type="button" id="rename-playbook" class="split-menu-item" role="menuitem">
                           Rename
                         </button>
@@ -113,6 +116,14 @@
                         </button>
                       </div>
                     </div>
+                  </div>
+                  <div class="share-banner is-hidden" id="shared-playbook-banner">
+                    <div class="share-banner-text" id="shared-playbook-text">
+                      Shared playbook link.
+                    </div>
+                    <button type="button" id="shared-playbook-action" class="secondary">
+                      Sign in to access
+                    </button>
                   </div>
                   <div class="saved-play-row menu-row">
                     <select id="saved-plays-select" aria-label="Saved plays"></select>
@@ -128,6 +139,9 @@
                         <span data-lucide="more-vertical" aria-hidden="true"></span>
                       </button>
                       <div class="split-menu context-menu is-hidden" id="play-menu" role="menu">
+                        <button type="button" id="play-history" class="split-menu-item" role="menuitem">
+                          History
+                        </button>
                         <button type="button" id="rename-play" class="split-menu-item" role="menuitem">
                           Rename
                         </button>
@@ -136,6 +150,12 @@
                         </button>
                       </div>
                     </div>
+                  </div>
+                  <div class="share-banner is-hidden" id="shared-play-banner">
+                    <div class="share-banner-text" id="shared-play-text">Shared play link.</div>
+                    <button type="button" id="shared-play-action" class="secondary">
+                      Sign in to save this play
+                    </button>
                   </div>
                   <div class="play-actions">
                     <button type="button" id="new-play" class="secondary">New</button>

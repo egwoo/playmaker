@@ -29,7 +29,35 @@ create table if not exists public.plays (
 create table if not exists public.play_shares (
   id uuid primary key default gen_random_uuid(),
   play_id uuid not null references public.plays(id) on delete cascade,
+  play_name text not null,
+  play_data jsonb not null,
   token text not null unique,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.play_shares add column if not exists play_name text;
+alter table public.play_shares add column if not exists play_data jsonb;
+alter table public.play_shares add column if not exists created_by uuid references auth.users(id) on delete set null;
+
+create table if not exists public.playbook_shares (
+  id uuid primary key default gen_random_uuid(),
+  playbook_id uuid not null references public.playbooks(id) on delete cascade,
+  token text not null unique,
+  role text not null check (role in ('coach', 'player')),
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  unique (playbook_id, role)
+);
+
+create unique index if not exists playbook_shares_unique_role on public.playbook_shares (playbook_id, role);
+
+create table if not exists public.play_versions (
+  id uuid primary key default gen_random_uuid(),
+  play_id uuid not null references public.plays(id) on delete cascade,
+  name text not null,
+  data jsonb not null,
+  created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now()
 );
 
@@ -105,10 +133,107 @@ as $$
   );
 $$;
 
+create or replace function public.fetch_play_share(share_token text)
+returns table (
+  id uuid,
+  play_name text,
+  play_data jsonb,
+  created_at timestamptz
+)
+language sql
+stable
+security definer
+set search_path = public
+set row_security = off
+as $$
+  select id, play_name, play_data, created_at
+  from public.play_shares
+  where token = share_token
+  limit 1;
+$$;
+
+create or replace function public.fetch_playbook_share(share_token text)
+returns table (
+  playbook_id uuid,
+  role text,
+  playbook_name text
+)
+language sql
+stable
+security definer
+set search_path = public
+set row_security = off
+as $$
+  select s.playbook_id,
+         s.role,
+         (select name from public.playbooks p where p.id = s.playbook_id) as playbook_name
+  from public.playbook_shares s
+  where s.token = share_token
+  limit 1;
+$$;
+
+create or replace function public.accept_playbook_share(share_token text)
+returns table (
+  playbook_id uuid,
+  role text,
+  playbook_name text
+)
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+declare
+  share_row record;
+begin
+  select * into share_row
+  from public.playbook_shares
+  where token = share_token
+  limit 1;
+
+  if share_row is null then
+    return;
+  end if;
+
+  insert into public.playbook_members (playbook_id, user_id, role)
+  values (share_row.playbook_id, auth.uid(), share_row.role)
+  on conflict (playbook_id, user_id) do update
+    set role = case
+      when playbook_members.role = 'coach' or excluded.role = 'coach' then 'coach'
+      else playbook_members.role
+    end;
+
+  return query
+    select share_row.playbook_id,
+           share_row.role,
+           (select name from public.playbooks p where p.id = share_row.playbook_id);
+end;
+$$;
+
+create or replace function public.prune_play_versions(pid uuid)
+returns void
+language sql
+security definer
+set search_path = public
+set row_security = off
+as $$
+  delete from public.play_versions
+  where play_id = pid
+    and id not in (
+      select id
+      from public.play_versions
+      where play_id = pid
+      order by created_at desc
+      limit 20
+    );
+$$;
+
 alter table public.playbooks enable row level security;
 alter table public.playbook_members enable row level security;
 alter table public.plays enable row level security;
 alter table public.play_shares enable row level security;
+alter table public.playbook_shares enable row level security;
+alter table public.play_versions enable row level security;
 
 drop policy if exists "playbooks_read" on public.playbooks;
 create policy "playbooks_read" on public.playbooks
@@ -150,7 +275,10 @@ for update using (public.is_playbook_coach(playbook_id));
 
 drop policy if exists "members_delete" on public.playbook_members;
 create policy "members_delete" on public.playbook_members
-for delete using (public.is_playbook_coach(playbook_id));
+for delete using (
+  public.is_playbook_coach(playbook_id)
+  or user_id = auth.uid()
+);
 
 drop policy if exists "plays_read" on public.plays;
 create policy "plays_read" on public.plays
@@ -167,5 +295,43 @@ for select using (public.is_playbook_member((select playbook_id from public.play
 drop policy if exists "play_shares_write" on public.play_shares;
 create policy "play_shares_write" on public.play_shares
 for insert with check (
+  public.is_playbook_coach((select playbook_id from public.plays p where p.id = play_id))
+);
+
+drop policy if exists "play_shares_delete" on public.play_shares;
+create policy "play_shares_delete" on public.play_shares
+for delete using (
+  public.is_playbook_coach((select playbook_id from public.plays p where p.id = play_id))
+);
+
+drop policy if exists "playbook_shares_read" on public.playbook_shares;
+create policy "playbook_shares_read" on public.playbook_shares
+for select using (public.is_playbook_coach(playbook_id));
+
+drop policy if exists "playbook_shares_write" on public.playbook_shares;
+create policy "playbook_shares_write" on public.playbook_shares
+for insert with check (public.is_playbook_coach(playbook_id));
+
+drop policy if exists "playbook_shares_update" on public.playbook_shares;
+create policy "playbook_shares_update" on public.playbook_shares
+for update using (public.is_playbook_coach(playbook_id));
+
+drop policy if exists "playbook_shares_delete" on public.playbook_shares;
+create policy "playbook_shares_delete" on public.playbook_shares
+for delete using (public.is_playbook_coach(playbook_id));
+
+drop policy if exists "play_versions_read" on public.play_versions;
+create policy "play_versions_read" on public.play_versions
+for select using (public.is_playbook_member((select playbook_id from public.plays p where p.id = play_id)));
+
+drop policy if exists "play_versions_write" on public.play_versions;
+create policy "play_versions_write" on public.play_versions
+for insert with check (
+  public.is_playbook_coach((select playbook_id from public.plays p where p.id = play_id))
+);
+
+drop policy if exists "play_versions_delete" on public.play_versions;
+create policy "play_versions_delete" on public.play_versions
+for delete using (
   public.is_playbook_coach((select playbook_id from public.plays p where p.id = play_id))
 );
