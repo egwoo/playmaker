@@ -387,15 +387,6 @@ export function initApp() {
     playerSelect.disabled = false;
   }
 
-  function promptForPlayName(defaultName: string): string | null {
-    const response = window.prompt('Play name', defaultName);
-    if (response === null) {
-      return null;
-    }
-    const name = response.trim();
-    return name ? name : 'Untitled play';
-  }
-
   function setAuthUI(isSignedIn: boolean, email?: string | null, avatarUrl?: string | null) {
     authTrigger.classList.toggle('is-hidden', isSignedIn);
     authAvatar.classList.toggle('is-hidden', !isSignedIn);
@@ -1767,13 +1758,20 @@ export function initApp() {
     });
   });
 
-  renamePlayerButton.addEventListener('click', () => {
+  renamePlayerButton.addEventListener('click', async () => {
     closePlayerMenu();
     const player = getSelectedPlayer();
     if (!player || !canEdit) {
       return;
     }
-    const name = promptForPlayName(player.label);
+    const name = await openNameModal({
+      title: 'Rename player',
+      subtitle: '',
+      label: 'Player name',
+      placeholder: player.label,
+      submitLabel: 'Rename player',
+      defaultName: player.label
+    });
     if (!name || name === player.label) {
       return;
     }
@@ -1975,7 +1973,14 @@ export function initApp() {
         return;
       }
     }
-    const name = promptForPlayName(getCurrentPlayName());
+    const name = await openNameModal({
+      title: 'Save play',
+      subtitle: 'Name this play before saving.',
+      label: 'Play name',
+      placeholder: 'New play',
+      submitLabel: 'Save play',
+      defaultName: getCurrentPlayName()
+    });
     if (!name) {
       return;
     }
@@ -1998,7 +2003,14 @@ export function initApp() {
   });
 
   saveAsNewButton.addEventListener('click', async () => {
-    const name = promptForPlayName(getCurrentPlayName());
+    const name = await openNameModal({
+      title: 'Save as new',
+      subtitle: 'Save a fresh copy of this play.',
+      label: 'Play name',
+      placeholder: 'New play',
+      submitLabel: 'Save play',
+      defaultName: getCurrentPlayName()
+    });
     if (!name) {
       return;
     }
@@ -2020,7 +2032,14 @@ export function initApp() {
     if (!entry) {
       return;
     }
-    const name = promptForPlayName(entry.name);
+    const name = await openNameModal({
+      title: 'Rename play',
+      subtitle: '',
+      label: 'Play name',
+      placeholder: entry.name,
+      submitLabel: 'Rename play',
+      defaultName: entry.name
+    });
     if (!name || name === entry.name) {
       return;
     }
@@ -2287,10 +2306,12 @@ export function initApp() {
     });
   }
 
-  function openPlaybookModal(options?: {
-    title?: string;
+  function openNameModal(options: {
+    title: string;
     subtitle?: string;
-    submitLabel?: string;
+    label: string;
+    placeholder: string;
+    submitLabel: string;
     defaultName?: string;
   }): Promise<string | null> {
     if (document.querySelector('.auth-modal')) {
@@ -2298,14 +2319,16 @@ export function initApp() {
     }
 
     return new Promise((resolve) => {
-      const title = options?.title ?? 'New playbook';
-      const subtitle = options?.subtitle ?? 'Create a fresh playbook to organize plays.';
-      const submitLabel = options?.submitLabel ?? 'Create playbook';
-      const defaultName = options?.defaultName ?? '';
+      const title = options.title;
+      const subtitle = options.subtitle ?? '';
+      const submitLabel = options.submitLabel;
+      const label = options.label;
+      const placeholder = options.placeholder;
+      const defaultName = options.defaultName ?? '';
       const overlay = document.createElement('div');
       overlay.className = 'auth-modal';
       overlay.innerHTML = `
-        <div class="auth-modal-card" role="dialog" aria-modal="true" aria-label="New playbook">
+        <div class="auth-modal-card" role="dialog" aria-modal="true" aria-label="${title}">
           <div class="auth-modal-header">
             <div>
               <p class="auth-modal-title">${title}</p>
@@ -2317,8 +2340,8 @@ export function initApp() {
           </div>
           <div class="auth-email-row">
             <label class="field-label">
-              Playbook name
-              <input type="text" data-playbook-name placeholder="My playbook" />
+              ${label}
+              <input type="text" data-playbook-name placeholder="${placeholder}" />
             </label>
             <button type="button" class="primary" data-playbook-submit>
               ${submitLabel}
@@ -2363,7 +2386,7 @@ export function initApp() {
       submitButton?.addEventListener('click', () => {
         const name = nameInput?.value.trim() ?? '';
         if (!name) {
-          setStatus('Enter a playbook name.');
+          setStatus(`Enter a ${label.toLowerCase()}.`);
           return;
         }
         close(name);
@@ -2472,7 +2495,12 @@ export function initApp() {
       if (!currentUserId) {
         return;
       }
-      const name = await openPlaybookModal({
+      const name = await openNameModal({
+        title: 'New playbook',
+        subtitle: 'Create a fresh playbook to organize plays.',
+        label: 'Playbook name',
+        placeholder: 'My playbook',
+        submitLabel: 'Create playbook',
         defaultName: 'My playbook'
       });
       if (!name) {
@@ -2523,9 +2551,11 @@ export function initApp() {
     if (!entry) {
       return;
     }
-    const name = await openPlaybookModal({
+    const name = await openNameModal({
       title: 'Rename playbook',
       subtitle: '',
+      label: 'Playbook name',
+      placeholder: 'My playbook',
       submitLabel: 'Rename playbook',
       defaultName: entry.name
     });
