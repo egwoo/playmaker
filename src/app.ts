@@ -2098,18 +2098,15 @@ export function initApp() {
     const value = savedPlaysSelect.value;
     if (!value) {
       selectedSavedPlayId = null;
-      renamePlayButton.disabled = true;
-      deletePlayButton.disabled = true;
       currentNotes = '';
       currentTags = [];
       updateSaveButtonLabel();
+      renderSavedPlaysSelect();
       return;
     }
     selectedSavedPlayId = value;
     const selectedEntry = savedPlays.find((entry) => entry.id === value);
     if (selectedEntry) {
-      renamePlayButton.disabled = false;
-      deletePlayButton.disabled = false;
       play = clonePlay(selectedEntry.play);
       currentNotes = selectedEntry.notes ?? '';
       currentTags = selectedEntry.tags ?? [];
@@ -2124,6 +2121,7 @@ export function initApp() {
       setStatus(`Loaded ${selectedEntry.name}.`);
     }
     updateSaveButtonLabel();
+    renderSavedPlaysSelect();
   });
 
   playerSelect.addEventListener('change', () => {
