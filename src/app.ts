@@ -476,10 +476,10 @@ export function initApp() {
         playbooks = [created];
       }
     }
-    renderPlaybookSelect();
     if (!selectedPlaybookId && playbooks.length > 0) {
       selectedPlaybookId = playbooks[0].id;
     }
+    renderPlaybookSelect();
     if (selectedPlaybookId) {
       const current = playbooks.find((item) => item.id === selectedPlaybookId);
       currentRole = current?.role ?? null;
