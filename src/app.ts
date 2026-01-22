@@ -23,7 +23,6 @@ const DEFAULT_DEFENSE_SPEED = 6;
 const DEFAULT_ZONE_RADIUS_X = 10;
 const DEFAULT_ZONE_RADIUS_Y = 5;
 const MIN_ZONE_RADIUS = 1;
-const SETTINGS_KEY = 'playmaker.settings.v1';
 
 type DragState = {
   playerId: string;
@@ -109,9 +108,6 @@ export function initApp() {
   const sharedPlaybookBanner = document.getElementById('shared-playbook-banner');
   const sharedPlaybookText = document.getElementById('shared-playbook-text');
   const sharedPlaybookAction = document.getElementById('shared-playbook-action') as HTMLButtonElement | null;
-  const showWaypointsToggle = document.getElementById('show-waypoints-toggle') as
-    | HTMLInputElement
-    | null;
   const savedPlaysSelect = document.getElementById('saved-plays-select') as HTMLSelectElement | null;
   const playMenuToggle = document.getElementById('play-menu-toggle') as HTMLButtonElement | null;
   const playMenu = document.getElementById('play-menu');
@@ -185,7 +181,6 @@ export function initApp() {
     !sharedPlayBanner ||
     !sharedPlayText ||
     !sharedPlayAction ||
-    !showWaypointsToggle ||
     !playerSelect ||
     !playerMenuToggle ||
     !playerMenu ||
@@ -211,7 +206,7 @@ export function initApp() {
   const renderer = createRenderer(canvas);
   const shareTokens = loadShareTokens();
   const savedPlay = loadDraftPlay();
-  let settings = loadSettings();
+  const settings: Settings = { showWaypointMarkers: false };
 
   let sharedPlayToken: string | null = shareTokens.playToken;
   let sharedPlayName: string | null = null;
@@ -243,6 +238,7 @@ export function initApp() {
   let playerDragState: PlayerDragState | null = null;
   let historyPast: Play[] = [];
   let historyFuture: Play[] = [];
+  let statusTimeout: number | null = null;
 
   const resizeObserver = new ResizeObserver(() => {
     renderer.resize();
@@ -275,32 +271,15 @@ export function initApp() {
     }
   }
 
-  function loadSettings(): Settings {
-    try {
-      const raw = localStorage.getItem(SETTINGS_KEY);
-      if (!raw) {
-      return { showWaypointMarkers: false };
-    }
-    const parsed = JSON.parse(raw) as Partial<Settings>;
-    return {
-      showWaypointMarkers: parsed.showWaypointMarkers !== false
-    };
-  } catch {
-    return { showWaypointMarkers: false };
-  }
-  }
-
-  function saveSettings(next: Settings) {
-    settings = next;
-    try {
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-    } catch {
-      // Ignore persistence errors.
-    }
-  }
-
   function setStatus(message: string) {
     statusText.textContent = message;
+    statusText.classList.remove('is-hidden');
+    if (statusTimeout) {
+      window.clearTimeout(statusTimeout);
+    }
+    statusTimeout = window.setTimeout(() => {
+      statusText.classList.add('is-hidden');
+    }, 2600);
   }
 
   function getSelectedPlayer(): Player | null {
@@ -842,7 +821,7 @@ export function initApp() {
     );
     await recordPlayVersion(data.id, data.name, data.data as Play);
     updateSavedPlaysStorage();
-    setStatus('Play updated.');
+    setStatus(`${data.name} updated.`);
   }
 
   async function recordPlayVersion(playId: string, name: string, playData: Play) {
@@ -1315,7 +1294,11 @@ export function initApp() {
   }
 
   function getPlaybackStartTime(): number {
-    const offense = play.players.filter((player) => player.team === 'offense');
+    return getPlaybackStartTimeForPlay(play);
+  }
+
+  function getPlaybackStartTimeForPlay(targetPlay: Play): number {
+    const offense = targetPlay.players.filter((player) => player.team === 'offense');
     let minStart = 0;
     for (const player of offense) {
       const delay = player.startDelay ?? 0;
@@ -2083,6 +2066,7 @@ export function initApp() {
       }
     }
     window.prompt('Copy link', text);
+    setStatus('Link copied.');
   }
 
   async function copyShareLink() {
@@ -2090,6 +2074,7 @@ export function initApp() {
       setStatus('Sign in as a collaborator to share plays.');
       return;
     }
+    setStatus('Generating share link...');
     if (!selectedSavedPlayId) {
       const name = await openNameModal({
         title: 'Save play',
@@ -2786,7 +2771,10 @@ export function initApp() {
         <div class="history-body">
           <div class="history-list" data-history-list></div>
           <div class="history-preview" data-history-preview>
-            <p class="auth-modal-subtitle">Select a version to restore.</p>
+            <p class="auth-modal-subtitle" data-history-meta>Select a version to restore.</p>
+            <div class="history-preview-canvas">
+              <canvas data-history-canvas></canvas>
+            </div>
             <button type="button" class="secondary" data-history-restore disabled>Restore version</button>
           </div>
         </div>
@@ -2817,14 +2805,29 @@ export function initApp() {
     closeButton?.addEventListener('click', close);
 
     const listEl = overlay.querySelector('[data-history-list]') as HTMLElement | null;
-    const previewEl = overlay.querySelector('[data-history-preview]') as HTMLElement | null;
+    const previewMeta = overlay.querySelector('[data-history-meta]') as HTMLElement | null;
+    const previewCanvas = overlay.querySelector('[data-history-canvas]') as HTMLCanvasElement | null;
     const restoreButton = overlay.querySelector('[data-history-restore]') as HTMLButtonElement | null;
 
-    if (!listEl || !previewEl || !restoreButton) {
+    if (!listEl || !previewMeta || !previewCanvas || !restoreButton) {
       return;
     }
 
     let selectedVersion: { id: string; createdAt: number; play: Play } | null = null;
+    const previewRenderer = createRenderer(previewCanvas);
+
+    const renderPreview = (previewPlay: Play) => {
+      previewRenderer.resize();
+      const startTime = getPlaybackStartTimeForPlay(previewPlay);
+      const ballState = getBallState(previewPlay, startTime, DEFAULT_BALL_SPEED_YPS);
+      previewRenderer.render({
+        play: previewPlay,
+        playTime: startTime,
+        selectedPlayerId: null,
+        ball: ballState,
+        showWaypointMarkers: false
+      });
+    };
 
     versions.forEach((version) => {
       const button = document.createElement('button');
@@ -2836,26 +2839,9 @@ export function initApp() {
         listEl.querySelectorAll('.history-item').forEach((item) => {
           item.classList.toggle('is-active', item === button);
         });
-        previewEl.innerHTML = `
-          <div>
-            <p class="auth-modal-subtitle">Saved ${formatTimestamp(version.createdAt)}</p>
-          </div>
-          <button type="button" class="secondary" data-history-restore>Restore version</button>
-        `;
-        const nextRestore = previewEl.querySelector('[data-history-restore]') as HTMLButtonElement | null;
-        if (nextRestore) {
-          nextRestore.addEventListener('click', async () => {
-            if (!selectedVersion) {
-              return;
-            }
-            play = clonePlay(selectedVersion.play);
-            resetPlayback();
-            await updateSelectedPlay(getCurrentPlayName());
-            updateSelectedPanel();
-            render();
-            close();
-          });
-        }
+        previewMeta.textContent = `Saved ${formatTimestamp(version.createdAt)}`;
+        restoreButton.disabled = false;
+        renderPreview(version.play);
       });
       listEl.append(button);
     });
@@ -3195,11 +3181,6 @@ export function initApp() {
   window.addEventListener('resize', syncControlsCollapse);
   collapsePanelsForMobile();
   syncControlsCollapse();
-  showWaypointsToggle.checked = settings.showWaypointMarkers;
-  showWaypointsToggle.addEventListener('change', () => {
-    saveSettings({ ...settings, showWaypointMarkers: showWaypointsToggle.checked });
-    render();
-  });
   renderSavedPlaysSelect();
   renderPlaybookSelect();
   updateSharedPlayUI();

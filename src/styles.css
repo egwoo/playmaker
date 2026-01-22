@@ -179,6 +179,21 @@ body {
   gap: 12px;
 }
 
+.history-preview-canvas {
+  width: 100%;
+  height: 180px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #184434;
+  border: 1px solid rgba(26, 32, 27, 0.1);
+}
+
+.history-preview-canvas canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
 .share-link-list {
   display: flex;
   flex-direction: column;
@@ -584,7 +599,14 @@ button {
 .split-button {
   position: relative;
   display: flex;
+  align-items: stretch;
   width: 100%;
+}
+
+.split-button > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .split-button > button:first-child {
@@ -597,6 +619,7 @@ button {
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
   width: 40px;
+  height: auto;
 }
 
 .split-menu {
