@@ -196,23 +196,25 @@ body {
 
 .help-modal-card {
   width: min(560px, 92vw);
+  position: relative;
+  padding: 16px;
 }
 
 .help-button {
   padding: 8px 14px;
 }
 
-.help-modal-card .auth-modal-header {
-  align-items: flex-start;
-  justify-content: flex-end;
-  margin-top: -6px;
-  margin-bottom: -6px;
+.help-modal-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
 }
 
 .help-carousel {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
+  margin-top: 0;
 }
 
 .help-slides {
@@ -312,8 +314,8 @@ body {
 
 .help-share-wrapper {
   position: relative;
-  width: min(320px, 80%);
-  height: 140px;
+  width: min(360px, 88%);
+  height: 160px;
 }
 
 .help-share-toolbar {

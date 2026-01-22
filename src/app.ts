@@ -2539,8 +2539,7 @@ export function initApp() {
     overlay.className = 'auth-modal';
     overlay.innerHTML = `
       <div class="auth-modal-card help-modal-card" role="dialog" aria-modal="true" aria-label="Help">
-        <div class="auth-modal-header help-modal-header">
-          <div></div>
+        <div class="help-modal-close">
           <button type="button" class="icon-button" data-help-close aria-label="Close">
             <span data-lucide="x" aria-hidden="true"></span>
           </button>
@@ -2722,11 +2721,15 @@ export function initApp() {
             id: 'motion-wr',
             label: 'WR',
             team: 'offense',
-            start: { x: 0.22, y: 0.66 },
+            start: { x: 0.2, y: 0.66 },
             startDelay: -1,
             route: [
               {
-                to: { x: 0.82, y: 0.9 },
+                to: { x: 0.42, y: 0.8 },
+                speed: 6
+              },
+              {
+                to: { x: 0.78, y: 0.8 },
                 speed: 6
               }
             ]
@@ -2783,6 +2786,14 @@ export function initApp() {
       const hikePlay = createHikePlay();
       const motionPlay = createMotionPlay();
       const waypointSteps = createWaypointSteps();
+      const waypointLegDuration = getLegDuration(
+        waypointSteps[2]?.players[0]?.start ?? { x: 0.4, y: 0.7 },
+        (waypointSteps[2]?.players[0] as Player | undefined)?.route?.[0] ?? {
+          to: { x: 0.52, y: 0.82 },
+          speed: 8
+        }
+      );
+      const handoffPreviewDuration = Math.max(0.6, waypointLegDuration + 0.35);
 
       visuals.forEach((visual) => {
         const type = visual.dataset.helpVisual;
@@ -2813,12 +2824,12 @@ export function initApp() {
             const duration = 4.2;
             playTime = -1 + (elapsed % duration);
           } else if (type === 'waypoints') {
-            const stepDuration = 1.2;
+            const stepDuration = Math.max(1.4, handoffPreviewDuration + 0.2);
             const step = Math.floor((elapsed % (stepDuration * 4)) / stepDuration);
             const localTime = (elapsed % stepDuration) / stepDuration;
             playToRender = waypointSteps[step] ?? waypointSteps[0];
             showMarkers = step >= 2;
-            playTime = step === 3 ? localTime * 0.9 : 0;
+            playTime = step === 3 ? localTime * handoffPreviewDuration : 0;
           }
 
           const ballState = getBallState(playToRender, playTime, DEFAULT_BALL_SPEED_YPS);
