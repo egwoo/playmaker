@@ -65,6 +65,9 @@
             <div class="status is-hidden" id="status-text">Ready.</div>
           </div>
           <div class="layout-account">
+            <button type="button" id="help-trigger" class="secondary icon-button" aria-label="Help">
+              <span data-lucide="help-circle" aria-hidden="true"></span>
+            </button>
             <button type="button" id="auth-trigger" class="secondary">Sign in</button>
             <button
               type="button"
@@ -184,7 +187,7 @@
                   </div>
                 </div>
                 <div class="panel-block">
-                  <p class="hint">Click on the field to place a player.</p>
+                  <p class="hint">Tap on the field to place a player.</p>
                   <div class="segmented" role="group" aria-label="Team selection">
                     <button type="button" data-team="offense" class="segmented-button active">
                       Offense
@@ -289,9 +292,6 @@
         <section class="field" aria-label="Field canvas">
           <div class="field-surface">
             <canvas id="field-canvas"></canvas>
-            <div class="field-overlay" id="field-overlay">
-              Tap to add players. Select a player, then tap to add waypoints.
-            </div>
           </div>
         </section>
         </div>

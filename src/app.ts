@@ -23,6 +23,7 @@ const DEFAULT_DEFENSE_SPEED = 6;
 const DEFAULT_ZONE_RADIUS_X = 10;
 const DEFAULT_ZONE_RADIUS_Y = 5;
 const MIN_ZONE_RADIUS = 1;
+const HELP_SEEN_KEY = 'playmaker.help.seen.v1';
 
 type DragState = {
   playerId: string;
@@ -92,6 +93,7 @@ export function initApp() {
   const saveMenu = document.getElementById('save-menu');
   const saveAsNewButton = document.getElementById('save-as-new') as HTMLButtonElement | null;
   const sharePlayButton = document.getElementById('share-play') as HTMLButtonElement | null;
+  const helpTrigger = document.getElementById('help-trigger') as HTMLButtonElement | null;
   const authTrigger = document.getElementById('auth-trigger') as HTMLButtonElement | null;
   const authAvatar = document.getElementById('auth-avatar') as HTMLButtonElement | null;
   const authAvatarImg = document.getElementById('auth-avatar-img') as HTMLImageElement | null;
@@ -156,6 +158,7 @@ export function initApp() {
     !saveMenu ||
     !saveAsNewButton ||
     !sharePlayButton ||
+    !helpTrigger ||
     !authTrigger ||
     !authAvatar ||
     !authAvatarImg ||
@@ -2489,6 +2492,159 @@ export function initApp() {
     });
   }
 
+  function openHelpModal() {
+    if (document.querySelector('.auth-modal')) {
+      return;
+    }
+
+    const steps = [
+      {
+        title: 'Welcome to Playmaker',
+        body: ['Start making plays by tapping on the field to add players.']
+      },
+      {
+        title: 'Add routes & actions',
+        body: [
+          'Select a player, then tap the field to add waypoints.',
+          'Set delays, speeds, and actions like handoffs or passes.'
+        ]
+      },
+      {
+        title: 'Run your play',
+        body: ['Press Play to watch it move and scrub the timeline to review.']
+      },
+      {
+        title: 'Share with your team',
+        body: ['Share a play or playbook so others can view or collaborate.']
+      },
+      {
+        title: 'Advanced timing',
+        body: [
+          'Run pre-snap motion by setting Waypoint 0 Delay to a negative number.',
+          'Use waypoint timings to sync player movements and actions.'
+        ]
+      }
+    ];
+
+    const overlay = document.createElement('div');
+    overlay.className = 'auth-modal';
+    overlay.innerHTML = `
+      <div class="auth-modal-card help-modal-card" role="dialog" aria-modal="true" aria-label="Help">
+        <div class="auth-modal-header">
+          <div>
+            <p class="auth-modal-title">Help</p>
+            <p class="auth-modal-subtitle">Quick walkthrough to get started.</p>
+          </div>
+          <button type="button" class="icon-button" data-help-close aria-label="Close">
+            <span data-lucide="x" aria-hidden="true"></span>
+          </button>
+        </div>
+        <div class="help-carousel">
+          <div class="help-slides">
+            ${steps
+              .map(
+                (step, index) => `
+              <div class="help-slide${index === 0 ? ' is-active' : ''}" data-help-slide="${index}">
+                <p class="help-slide-title">${step.title}</p>
+                ${step.body.map((line) => `<p class="help-slide-text">${line}</p>`).join('')}
+              </div>
+            `
+              )
+              .join('')}
+          </div>
+          <div class="help-footer">
+            <div class="help-dots" role="tablist">
+              ${steps
+                .map(
+                  (_step, index) => `
+                <button type="button" class="help-dot${index === 0 ? ' is-active' : ''}" data-help-dot="${index}" aria-label="Step ${index + 1}"></button>
+              `
+                )
+                .join('')}
+            </div>
+            <div class="help-actions">
+              <button type="button" class="secondary" data-help-prev>Back</button>
+              <button type="button" class="primary" data-help-next>Next</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.append(overlay);
+    renderIcons(overlay);
+
+    const close = () => {
+      overlay.remove();
+      document.removeEventListener('keydown', onKey);
+      try {
+        localStorage.setItem(HELP_SEEN_KEY, '1');
+      } catch {
+        // ignore persistence errors
+      }
+    };
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        close();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) {
+        close();
+      }
+    });
+
+    const closeButton = overlay.querySelector('[data-help-close]') as HTMLButtonElement | null;
+    const prevButton = overlay.querySelector('[data-help-prev]') as HTMLButtonElement | null;
+    const nextButton = overlay.querySelector('[data-help-next]') as HTMLButtonElement | null;
+    const slides = Array.from(overlay.querySelectorAll<HTMLElement>('.help-slide'));
+    const dots = Array.from(overlay.querySelectorAll<HTMLButtonElement>('.help-dot'));
+
+    if (!prevButton || !nextButton) {
+      return;
+    }
+
+    let activeIndex = 0;
+
+    const setSlide = (index: number) => {
+      activeIndex = Math.min(Math.max(index, 0), slides.length - 1);
+      slides.forEach((slide, idx) => {
+        slide.classList.toggle('is-active', idx === activeIndex);
+      });
+      dots.forEach((dot, idx) => {
+        dot.classList.toggle('is-active', idx === activeIndex);
+      });
+      prevButton.disabled = activeIndex === 0;
+      nextButton.textContent = activeIndex === slides.length - 1 ? 'Done' : 'Next';
+    };
+
+    prevButton.addEventListener('click', () => {
+      setSlide(activeIndex - 1);
+    });
+
+    nextButton.addEventListener('click', () => {
+      if (activeIndex === slides.length - 1) {
+        close();
+        return;
+      }
+      setSlide(activeIndex + 1);
+    });
+
+    dots.forEach((dot) => {
+      dot.addEventListener('click', () => {
+        const value = Number(dot.dataset.helpDot ?? 0);
+        if (!Number.isNaN(value)) {
+          setSlide(value);
+        }
+      });
+    });
+
+    closeButton?.addEventListener('click', close);
+    setSlide(0);
+  }
+
   function openNameModal(options: {
     title: string;
     subtitle?: string;
@@ -2933,6 +3089,7 @@ export function initApp() {
     }
   }
 
+  helpTrigger.addEventListener('click', openHelpModal);
   authTrigger.addEventListener('click', openAuthModal);
 
   authAvatar.addEventListener('click', (event) => {
@@ -3189,6 +3346,13 @@ export function initApp() {
     loadSharedPlayByToken(sharedPlayToken);
   }
   render();
+  try {
+    if (!localStorage.getItem(HELP_SEEN_KEY)) {
+      window.setTimeout(() => openHelpModal(), 400);
+    }
+  } catch {
+    // ignore persistence errors
+  }
 }
 
 function getNextLabel(team: Team, players: Player[]): string {
