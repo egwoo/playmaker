@@ -193,6 +193,8 @@ export function initApp() {
   let currentUserId: string | null = null;
   let currentAvatarUrl: string | null = null;
   let lastAuthEmail = '';
+  let lastSessionUserId: string | null = null;
+  let playbookLoadPromise: Promise<void> | null = null;
   let canEdit = true;
   let selectedPlayerId: string | null = null;
   let activeTeam: Team = 'offense';
@@ -415,27 +417,46 @@ export function initApp() {
   }
 
   async function loadPlaybooks() {
-    const { data, error } = await supabase
-      .from('playbook_members')
-      .select('role, playbooks (id, name)')
-      .order('created_at', { ascending: true });
-    if (error) {
-      console.error('Failed to load playbooks', error);
+    const [membersResult, ownedResult] = await Promise.all([
+      supabase
+        .from('playbook_members')
+        .select('role, playbooks (id, name, owner_id)')
+        .order('created_at', { ascending: true }),
+      currentUserId
+        ? supabase
+            .from('playbooks')
+            .select('id, name, owner_id')
+            .eq('owner_id', currentUserId)
+        : Promise.resolve({ data: [], error: null })
+    ]);
+
+    if (membersResult.error) {
+      console.error('Failed to load playbooks', membersResult.error);
       return;
     }
-    playbooks = (data ?? [])
-      .map((row) => {
-        const entry = row.playbooks as { id: string; name: string } | null;
-        if (!entry) {
-          return null;
-        }
-        return {
-          id: entry.id,
-          name: entry.name,
-          role: row.role as Playbook['role']
-        };
-      })
-      .filter((entry): entry is Playbook => !!entry);
+    if (ownedResult.error) {
+      console.error('Failed to load owned playbooks', ownedResult.error);
+      return;
+    }
+
+    const playbookMap = new Map<string, Playbook>();
+    (ownedResult.data ?? []).forEach((row) => {
+      playbookMap.set(row.id, { id: row.id, name: row.name, role: 'coach' });
+    });
+
+    (membersResult.data ?? []).forEach((row) => {
+      const entry = row.playbooks as { id: string; name: string } | null;
+      if (!entry) {
+        return;
+      }
+      playbookMap.set(entry.id, {
+        id: entry.id,
+        name: entry.name,
+        role: row.role as Playbook['role']
+      });
+    });
+
+    playbooks = Array.from(playbookMap.values());
 
     if (playbooks.length === 0) {
       const created = await createDefaultPlaybook();
@@ -457,6 +478,22 @@ export function initApp() {
   }
 
   async function createDefaultPlaybook(): Promise<Playbook | null> {
+    if (!currentUserId) {
+      return null;
+    }
+    const { data: existing, error: existingError } = await supabase
+      .from('playbooks')
+      .select('id, name')
+      .eq('owner_id', currentUserId)
+      .eq('name', 'My Playbook')
+      .limit(1)
+      .maybeSingle();
+    if (existingError) {
+      console.error('Failed to check for default playbook', existingError);
+    }
+    if (existing) {
+      return { id: existing.id, name: existing.name, role: 'coach' };
+    }
     const { data, error } = await supabase
       .from('playbooks')
       .insert({ name: 'My Playbook', owner_id: currentUserId })
@@ -482,10 +519,19 @@ export function initApp() {
     }
     playbookSelect.append(placeholder);
 
+    const nameTotals = new Map<string, number>();
+    playbooks.forEach((playbook) => {
+      nameTotals.set(playbook.name, (nameTotals.get(playbook.name) ?? 0) + 1);
+    });
+    const nameCounts = new Map<string, number>();
+
     for (const playbook of playbooks) {
       const option = document.createElement('option');
       option.value = playbook.id;
-      option.textContent = playbook.name;
+      const total = nameTotals.get(playbook.name) ?? 1;
+      const index = (nameCounts.get(playbook.name) ?? 0) + 1;
+      nameCounts.set(playbook.name, index);
+      option.textContent = total > 1 ? `${playbook.name} (${index})` : playbook.name;
       playbookSelect.append(option);
     }
 
@@ -2312,16 +2358,26 @@ export function initApp() {
       selectedPlaybookId = null;
       savedPlays = [];
       selectedSavedPlayId = null;
-      currentRole = null;
-      setEditorMode(true);
-      renderPlaybookSelect();
-      renderSavedPlaysSelect();
-      updateSelectedPanel();
-      return;
-    }
+    currentRole = null;
+    setEditorMode(true);
     renderPlaybookSelect();
     renderSavedPlaysSelect();
-    await loadPlaybooks();
+    updateSelectedPanel();
+    return;
+  }
+    renderPlaybookSelect();
+    renderSavedPlaysSelect();
+    if (playbookLoadPromise && lastSessionUserId === currentUserId) {
+      await playbookLoadPromise;
+      return;
+    }
+    lastSessionUserId = currentUserId;
+    playbookLoadPromise = loadPlaybooks();
+    try {
+      await playbookLoadPromise;
+    } finally {
+      playbookLoadPromise = null;
+    }
   }
 
   authTrigger.addEventListener('click', openAuthModal);

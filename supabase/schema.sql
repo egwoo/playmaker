@@ -53,6 +53,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = public
+set row_security = off
 as $$
 begin
   insert into public.playbook_members (playbook_id, user_id, role)
@@ -70,12 +71,18 @@ create or replace function public.is_playbook_member(pid uuid)
 returns boolean
 language sql
 stable
+security definer
+set search_path = public
+set row_security = off
 as $$
   select exists (
     select 1
-    from public.playbook_members m
-    where m.playbook_id = pid
+    from public.playbooks p
+    left join public.playbook_members m
+      on m.playbook_id = p.id
       and m.user_id = auth.uid()
+    where p.id = pid
+      and (p.owner_id = auth.uid() or m.user_id is not null)
   );
 $$;
 
@@ -83,13 +90,18 @@ create or replace function public.is_playbook_coach(pid uuid)
 returns boolean
 language sql
 stable
+security definer
+set search_path = public
+set row_security = off
 as $$
   select exists (
     select 1
-    from public.playbook_members m
-    where m.playbook_id = pid
+    from public.playbooks p
+    left join public.playbook_members m
+      on m.playbook_id = p.id
       and m.user_id = auth.uid()
-      and m.role = 'coach'
+    where p.id = pid
+      and (p.owner_id = auth.uid() or m.role = 'coach')
   );
 $$;
 
@@ -122,7 +134,15 @@ for select using (public.is_playbook_member(playbook_id));
 
 drop policy if exists "members_insert" on public.playbook_members;
 create policy "members_insert" on public.playbook_members
-for insert with check (public.is_playbook_coach(playbook_id));
+for insert with check (
+  public.is_playbook_coach(playbook_id)
+  or exists (
+    select 1
+    from public.playbooks p
+    where p.id = playbook_id
+      and p.owner_id = auth.uid()
+  )
+);
 
 drop policy if exists "members_update" on public.playbook_members;
 create policy "members_update" on public.playbook_members
