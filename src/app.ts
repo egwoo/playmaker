@@ -102,6 +102,7 @@ export function initApp() {
   const authSignOut = document.getElementById('auth-signout') as HTMLButtonElement | null;
   const fieldSection = document.querySelector<HTMLElement>('section.field');
   const playbookSelect = document.getElementById('playbook-select') as HTMLSelectElement | null;
+  const playbookRolePill = document.getElementById('playbook-role-pill');
   const playbookMenuToggle = document.getElementById('playbook-menu-toggle') as HTMLButtonElement | null;
   const playbookMenu = document.getElementById('playbook-menu');
   const sharePlaybookButton = document.getElementById('share-playbook') as HTMLButtonElement | null;
@@ -119,6 +120,7 @@ export function initApp() {
   const sharedPlayBanner = document.getElementById('shared-play-banner');
   const sharedPlayText = document.getElementById('shared-play-text');
   const sharedPlayAction = document.getElementById('shared-play-action') as HTMLButtonElement | null;
+  const playActions = document.getElementById('play-actions');
   const controlsPanel = document.querySelector<HTMLDetailsElement>('details[data-panel="controls"]');
   const panelWrapper = document.querySelector<HTMLElement>('section.panel');
   const fieldOverlay = document.getElementById('field-overlay');
@@ -166,6 +168,7 @@ export function initApp() {
     !authUserEmail ||
     !authSignOut ||
     !playbookSelect ||
+    !playbookRolePill ||
     !playbookMenuToggle ||
     !playbookMenu ||
     !sharePlaybookButton ||
@@ -183,6 +186,7 @@ export function initApp() {
     !sharedPlayBanner ||
     !sharedPlayText ||
     !sharedPlayAction ||
+    !playActions ||
     !playerSelect ||
     !playerMenuToggle ||
     !playerMenu ||
@@ -241,6 +245,7 @@ export function initApp() {
   let historyPast: Play[] = [];
   let historyFuture: Play[] = [];
   let statusTimeout: number | null = null;
+  let rolePillTimeout: number | null = null;
   const contextMenuClosers: Array<(except?: HTMLElement) => void> = [];
 
   const resizeObserver = new ResizeObserver(() => {
@@ -513,6 +518,8 @@ export function initApp() {
     sharePlaybookButton.disabled = !hasPlaybook || currentRole !== 'coach';
     renamePlaybookButton.disabled = !hasPlaybook || currentRole !== 'coach';
     deletePlaybookButton.disabled = !hasPlaybook;
+    setSectionHidden(playActions, disable);
+    updatePlaybookRolePill();
   }
 
   async function loadPlaybooks() {
@@ -691,6 +698,9 @@ export function initApp() {
       placeholder.textContent = 'Sign in to load plays';
     } else if (!selectedPlaybookId) {
       placeholder.textContent = 'Select a playbook';
+    } else if (currentRole && currentRole !== 'coach') {
+      placeholder.textContent = 'Select a play';
+      placeholder.disabled = true;
     } else {
       placeholder.textContent = 'New play';
     }
@@ -717,6 +727,12 @@ export function initApp() {
 
     updateSaveButtonLabel();
     savedPlaysSelect.disabled = !currentUserId || !selectedPlaybookId;
+    updatePlaybookRolePill();
+  }
+
+  function updatePlaybookRolePill() {
+    const isViewer = currentRole === 'player' && !!selectedPlaybookId;
+    playbookRolePill.classList.toggle('is-hidden', !isViewer);
   }
 
   function updateSavedPlaysStorage() {
@@ -3357,6 +3373,19 @@ export function initApp() {
   }
 
   helpTrigger.addEventListener('click', openHelpModal);
+
+  playbookRolePill.addEventListener('click', () => {
+    if (playbookRolePill.classList.contains('is-hidden')) {
+      return;
+    }
+    playbookRolePill.classList.add('is-open');
+    if (rolePillTimeout) {
+      window.clearTimeout(rolePillTimeout);
+    }
+    rolePillTimeout = window.setTimeout(() => {
+      playbookRolePill.classList.remove('is-open');
+    }, 1600);
+  });
   authTrigger.addEventListener('click', openAuthModal);
 
   authAvatar.addEventListener('click', (event) => {

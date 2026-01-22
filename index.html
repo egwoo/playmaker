@@ -95,10 +95,19 @@
             <details class="panel-block collapsible controls-collapsible" data-panel="controls" open>
               <summary>Playbook</summary>
               <div class="panel-content controls-content">
-                <div class="panel-block">
-                  <div class="saved-play-row menu-row">
-                    <select id="playbook-select" aria-label="Playbook"></select>
-                    <div class="menu-wrapper">
+                  <div class="panel-block">
+                    <div class="saved-play-row menu-row">
+                      <select id="playbook-select" aria-label="Playbook"></select>
+                      <button
+                        type="button"
+                        id="playbook-role-pill"
+                        class="role-indicator is-hidden"
+                        aria-label="View only"
+                        data-tooltip="View only"
+                      >
+                        <span data-lucide="eye" aria-hidden="true"></span>
+                      </button>
+                      <div class="menu-wrapper">
                       <button
                         type="button"
                         id="playbook-menu-toggle"
@@ -165,7 +174,7 @@
                       Sign in to save this play
                     </button>
                   </div>
-                  <div class="play-actions">
+                  <div class="play-actions" id="play-actions">
                     <button type="button" id="new-play" class="secondary">New</button>
                     <button type="button" id="flip-play" class="secondary">Flip</button>
                     <div class="split-button" id="save-split">

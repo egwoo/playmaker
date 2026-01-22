@@ -197,10 +197,10 @@ begin
 
   insert into public.playbook_members (playbook_id, user_id, role)
   values (share_row.playbook_id, auth.uid(), share_row.role)
-  on conflict (playbook_id, user_id) do update
+  on conflict on constraint playbook_members_pkey do update
     set role = case
-      when playbook_members.role = 'coach' or excluded.role = 'coach' then 'coach'
-      else playbook_members.role
+      when public.playbook_members.role = 'coach' or excluded.role = 'coach' then 'coach'
+      else public.playbook_members.role
     end;
 
   return query
