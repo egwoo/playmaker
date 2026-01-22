@@ -91,29 +91,51 @@
               <summary>Playbook</summary>
               <div class="panel-content controls-content">
                 <div class="panel-block">
-                  <div class="saved-play-row">
+                  <div class="saved-play-row menu-row">
                     <select id="playbook-select" aria-label="Playbook"></select>
+                    <div class="menu-wrapper">
+                      <button
+                        type="button"
+                        id="playbook-menu-toggle"
+                        class="secondary icon-button"
+                        aria-label="Playbook options"
+                        aria-haspopup="true"
+                        aria-expanded="false"
+                      >
+                        <span data-lucide="more-vertical" aria-hidden="true"></span>
+                      </button>
+                      <div class="split-menu context-menu is-hidden" id="playbook-menu" role="menu">
+                        <button type="button" id="rename-playbook" class="split-menu-item" role="menuitem">
+                          Rename
+                        </button>
+                        <button type="button" id="delete-playbook" class="split-menu-item" role="menuitem">
+                          Delete
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                  <div class="saved-play-row">
+                  <div class="saved-play-row menu-row">
                     <select id="saved-plays-select" aria-label="Saved plays"></select>
-                    <button
-                      type="button"
-                      id="rename-play"
-                      class="secondary icon-button"
-                      aria-label="Rename play"
-                      title="Rename"
-                    >
-                      <span data-lucide="pencil-line" aria-hidden="true"></span>
-                    </button>
-                    <button
-                      type="button"
-                      id="delete-play"
-                      class="secondary icon-button"
-                      aria-label="Delete play"
-                      title="Delete"
-                    >
-                      <span data-lucide="trash-2" aria-hidden="true"></span>
-                    </button>
+                    <div class="menu-wrapper">
+                      <button
+                        type="button"
+                        id="play-menu-toggle"
+                        class="secondary icon-button"
+                        aria-label="Play options"
+                        aria-haspopup="true"
+                        aria-expanded="false"
+                      >
+                        <span data-lucide="more-vertical" aria-hidden="true"></span>
+                      </button>
+                      <div class="split-menu context-menu is-hidden" id="play-menu" role="menu">
+                        <button type="button" id="rename-play" class="split-menu-item" role="menuitem">
+                          Rename
+                        </button>
+                        <button type="button" id="delete-play" class="split-menu-item" role="menuitem">
+                          Delete
+                        </button>
+                      </div>
+                    </div>
                   </div>
                   <div class="play-actions">
                     <button type="button" id="new-play" class="secondary">New</button>
@@ -157,14 +179,32 @@
                   </div>
                 </div>
                 <div class="panel-block">
-                  <label class="field-label">
-                    Player
-                    <select id="selected-player-select" class="player-select"></select>
-                  </label>
-                  <label class="field-label player-name">
-                    Player name
-                    <input id="player-name-input" type="text" maxlength="20" value="" />
-                  </label>
+                  <div class="field-label">
+                    <span>Player</span>
+                    <div class="saved-play-row menu-row">
+                      <select id="selected-player-select" class="player-select"></select>
+                      <div class="menu-wrapper">
+                        <button
+                          type="button"
+                          id="player-menu-toggle"
+                          class="secondary icon-button"
+                          aria-label="Player options"
+                          aria-haspopup="true"
+                          aria-expanded="false"
+                        >
+                          <span data-lucide="more-vertical" aria-hidden="true"></span>
+                        </button>
+                        <div class="split-menu context-menu is-hidden" id="player-menu" role="menu">
+                          <button type="button" id="rename-player" class="split-menu-item" role="menuitem">
+                            Rename
+                          </button>
+                          <button type="button" id="delete-player" class="split-menu-item" role="menuitem">
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                   <div id="coverage-panel" class="coverage-panel">
                     <label class="field-label">
                       Coverage type
@@ -217,7 +257,6 @@
                     <button type="button" id="deselect-player" class="secondary" disabled>
                       Deselect
                     </button>
-                    <button type="button" id="delete-player" class="secondary" disabled>Delete</button>
                   </div>
                   <div class="waypoint-section">
                     <div class="waypoint-header">

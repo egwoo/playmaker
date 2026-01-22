@@ -100,21 +100,28 @@ export function initApp() {
   const authUserEmail = document.getElementById('auth-user-email');
   const authSignOut = document.getElementById('auth-signout') as HTMLButtonElement | null;
   const playbookSelect = document.getElementById('playbook-select') as HTMLSelectElement | null;
+  const playbookMenuToggle = document.getElementById('playbook-menu-toggle') as HTMLButtonElement | null;
+  const playbookMenu = document.getElementById('playbook-menu');
+  const renamePlaybookButton = document.getElementById('rename-playbook') as HTMLButtonElement | null;
+  const deletePlaybookButton = document.getElementById('delete-playbook') as HTMLButtonElement | null;
   const showWaypointsToggle = document.getElementById('show-waypoints-toggle') as
     | HTMLInputElement
     | null;
   const savedPlaysSelect = document.getElementById('saved-plays-select') as HTMLSelectElement | null;
+  const playMenuToggle = document.getElementById('play-menu-toggle') as HTMLButtonElement | null;
+  const playMenu = document.getElementById('play-menu');
   const renamePlayButton = document.getElementById('rename-play') as HTMLButtonElement | null;
   const deletePlayButton = document.getElementById('delete-play') as HTMLButtonElement | null;
   const controlsPanel = document.querySelector<HTMLDetailsElement>('details[data-panel="controls"]');
   const panelWrapper = document.querySelector<HTMLElement>('section.panel');
   const fieldOverlay = document.getElementById('field-overlay');
   const playerSelect = document.getElementById('selected-player-select') as HTMLSelectElement | null;
+  const playerMenuToggle = document.getElementById('player-menu-toggle') as HTMLButtonElement | null;
+  const playerMenu = document.getElementById('player-menu');
+  const renamePlayerButton = document.getElementById('rename-player') as HTMLButtonElement | null;
   const playerActions = document.getElementById('player-actions');
   const waypointSection = document.querySelector<HTMLElement>('.waypoint-section');
   const waypointList = document.getElementById('waypoint-list');
-  const playerNameField = document.querySelector<HTMLElement>('.player-name');
-  const playerNameInput = document.getElementById('player-name-input') as HTMLInputElement | null;
   const coveragePanel = document.getElementById('coverage-panel');
   const coverageTypeSelect = document.getElementById('coverage-type-select') as HTMLSelectElement | null;
   const coverageManSection = document.querySelector<HTMLElement>('.coverage-man');
@@ -152,16 +159,23 @@ export function initApp() {
     !authUserEmail ||
     !authSignOut ||
     !playbookSelect ||
+    !playbookMenuToggle ||
+    !playbookMenu ||
+    !renamePlaybookButton ||
+    !deletePlaybookButton ||
     !savedPlaysSelect ||
+    !playMenuToggle ||
+    !playMenu ||
     !renamePlayButton ||
     !deletePlayButton ||
     !showWaypointsToggle ||
     !playerSelect ||
+    !playerMenuToggle ||
+    !playerMenu ||
+    !renamePlayerButton ||
     !playerActions ||
     !waypointSection ||
     !waypointList ||
-    !playerNameField ||
-    !playerNameInput ||
     !coveragePanel ||
     !coverageTypeSelect ||
     !coverageManSection ||
@@ -302,6 +316,8 @@ export function initApp() {
     if (!player) {
       deletePlayerButton.disabled = true;
       deselectPlayerButton.disabled = true;
+      playerMenuToggle.disabled = true;
+      renamePlayerButton.disabled = true;
       waypointList.replaceChildren();
       const emptyRow = document.createElement('div');
       emptyRow.className = 'waypoint-empty';
@@ -309,8 +325,6 @@ export function initApp() {
       waypointList.append(emptyRow);
       setSectionHidden(playerActions, true);
       setSectionHidden(waypointSection, true);
-      setSectionHidden(playerNameField, true);
-      playerNameInput.disabled = true;
       setSectionHidden(coveragePanel, true);
       return;
     }
@@ -320,15 +334,10 @@ export function initApp() {
     }
 
     deletePlayerButton.disabled = !canEdit;
+    renamePlayerButton.disabled = !canEdit;
+    playerMenuToggle.disabled = !canEdit;
     deselectPlayerButton.disabled = false;
     setSectionHidden(playerActions, false);
-    setSectionHidden(playerNameField, player.team === 'defense');
-    playerNameInput.disabled = player.team === 'defense' || !canEdit;
-    if (player.team === 'offense') {
-      playerNameInput.value = player.label;
-    } else {
-      playerNameInput.value = '';
-    }
     setSectionHidden(waypointSection, player.team === 'defense');
     if (player.team === 'offense') {
       renderWaypointList(player);
@@ -411,9 +420,12 @@ export function initApp() {
     flipPlayButton.disabled = disable;
     savePlayButton.disabled = disable;
     saveMenuToggle.disabled = disable;
+    playMenuToggle.disabled = disable || !selectedSavedPlayId;
     renamePlayButton.disabled = disable || !selectedSavedPlayId;
     deletePlayButton.disabled = disable || !selectedSavedPlayId;
-    playerNameInput.disabled = disable || playerNameInput.disabled;
+    playbookMenuToggle.disabled = disable || !selectedPlaybookId || currentRole !== 'coach';
+    renamePlaybookButton.disabled = disable || !selectedPlaybookId || currentRole !== 'coach';
+    deletePlaybookButton.disabled = disable || !selectedPlaybookId || currentRole !== 'coach';
   }
 
   async function loadPlaybooks() {
@@ -548,6 +560,10 @@ export function initApp() {
       playbookSelect.value = '';
     }
     playbookSelect.disabled = !currentUserId;
+    const canManagePlaybook = currentRole === 'coach' && !!selectedPlaybookId;
+    playbookMenuToggle.disabled = !canManagePlaybook;
+    renamePlaybookButton.disabled = !canManagePlaybook;
+    deletePlaybookButton.disabled = !canManagePlaybook;
   }
 
   async function loadPlaysForPlaybook(playbookId: string) {
@@ -598,16 +614,15 @@ export function initApp() {
       savedPlaysSelect.append(option);
     }
 
-    const canEdit = currentRole === 'coach';
+    const canManage = currentRole === 'coach' && !!selectedSavedPlayId;
     if (selectedSavedPlayId && savedPlays.some((entry) => entry.id === selectedSavedPlayId)) {
       savedPlaysSelect.value = selectedSavedPlayId;
-      renamePlayButton.disabled = !canEdit;
-      deletePlayButton.disabled = !canEdit;
     } else {
       savedPlaysSelect.value = '';
-      renamePlayButton.disabled = true;
-      deletePlayButton.disabled = true;
     }
+    playMenuToggle.disabled = !canManage;
+    renamePlayButton.disabled = !canManage;
+    deletePlayButton.disabled = !canManage;
 
     updateSaveButtonLabel();
     savedPlaysSelect.disabled = !currentUserId || !selectedPlaybookId;
@@ -1740,6 +1755,7 @@ export function initApp() {
   });
 
   deletePlayerButton.addEventListener('click', () => {
+    closePlayerMenu();
     const player = getSelectedPlayer();
     if (!player || !canEdit) {
       return;
@@ -1749,6 +1765,26 @@ export function initApp() {
       selectedPlayerId = null;
       setStatus('Player removed.');
     });
+  });
+
+  renamePlayerButton.addEventListener('click', () => {
+    closePlayerMenu();
+    const player = getSelectedPlayer();
+    if (!player || !canEdit) {
+      return;
+    }
+    const name = promptForPlayName(player.label);
+    if (!name || name === player.label) {
+      return;
+    }
+    applyMutation(() => {
+      const selected = getSelectedPlayer();
+      if (!selected) {
+        return;
+      }
+      selected.label = name;
+    });
+    setStatus(`Renamed to ${name}.`);
   });
 
   deselectPlayerButton.addEventListener('click', () => {
@@ -1976,6 +2012,7 @@ export function initApp() {
   });
 
   renamePlayButton.addEventListener('click', async () => {
+    closePlayMenu();
     if (!selectedSavedPlayId) {
       return;
     }
@@ -2016,6 +2053,7 @@ export function initApp() {
   });
 
   deletePlayButton.addEventListener('click', async () => {
+    closePlayMenu();
     if (!selectedSavedPlayId) {
       return;
     }
@@ -2102,28 +2140,6 @@ export function initApp() {
     selectPlayer(candidate.id);
   });
 
-  playerNameInput.addEventListener('change', () => {
-    const target = getSelectedPlayer();
-    if (!target || target.team !== 'offense' || !canEdit) {
-      return;
-    }
-    const nextLabel = playerNameInput.value.trim();
-    if (!nextLabel) {
-      playerNameInput.value = target.label;
-      return;
-    }
-    if (nextLabel === target.label) {
-      return;
-    }
-    applyMutation(() => {
-      const selected = getSelectedPlayer();
-      if (!selected || selected.team !== 'offense') {
-        return;
-      }
-      selected.label = nextLabel;
-    });
-  });
-
   undoButton.addEventListener('click', handleUndo);
   redoButton.addEventListener('click', handleRedo);
 
@@ -2159,6 +2175,10 @@ export function initApp() {
       render();
     });
   }
+
+  const closePlaybookMenu = setupContextMenu(playbookMenuToggle, playbookMenu as HTMLElement);
+  const closePlayMenu = setupContextMenu(playMenuToggle, playMenu as HTMLElement);
+  const closePlayerMenu = setupContextMenu(playerMenuToggle, playerMenu as HTMLElement);
 
   function closeAuthMenu() {
     authMenu.classList.add('is-hidden');
@@ -2269,20 +2289,29 @@ export function initApp() {
     });
   }
 
-  function openPlaybookModal(defaultName = ''): Promise<string | null> {
+  function openPlaybookModal(options?: {
+    title?: string;
+    subtitle?: string;
+    submitLabel?: string;
+    defaultName?: string;
+  }): Promise<string | null> {
     if (document.querySelector('.auth-modal')) {
       return Promise.resolve(null);
     }
 
     return new Promise((resolve) => {
+      const title = options?.title ?? 'New playbook';
+      const subtitle = options?.subtitle ?? 'Create a fresh playbook to organize plays.';
+      const submitLabel = options?.submitLabel ?? 'Create playbook';
+      const defaultName = options?.defaultName ?? '';
       const overlay = document.createElement('div');
       overlay.className = 'auth-modal';
       overlay.innerHTML = `
         <div class="auth-modal-card" role="dialog" aria-modal="true" aria-label="New playbook">
           <div class="auth-modal-header">
             <div>
-              <p class="auth-modal-title">New playbook</p>
-              <p class="auth-modal-subtitle">Create a fresh playbook to organize plays.</p>
+              <p class="auth-modal-title">${title}</p>
+              ${subtitle ? `<p class="auth-modal-subtitle">${subtitle}</p>` : ''}
             </div>
             <button type="button" class="icon-button" data-playbook-close aria-label="Close">
               <span data-lucide="x" aria-hidden="true"></span>
@@ -2294,7 +2323,7 @@ export function initApp() {
               <input type="text" data-playbook-name placeholder="My playbook" />
             </label>
             <button type="button" class="primary" data-playbook-submit>
-              Create playbook
+              ${submitLabel}
             </button>
           </div>
         </div>
@@ -2342,6 +2371,38 @@ export function initApp() {
         close(name);
       });
     });
+  }
+
+  function setupContextMenu(toggle: HTMLButtonElement, menu: HTMLElement) {
+    const close = () => {
+      menu.classList.add('is-hidden');
+      toggle.setAttribute('aria-expanded', 'false');
+    };
+
+    toggle.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const isHidden = menu.classList.toggle('is-hidden');
+      toggle.setAttribute('aria-expanded', String(!isHidden));
+    });
+
+    document.addEventListener('click', (event) => {
+      if (menu.classList.contains('is-hidden')) {
+        return;
+      }
+      const target = event.target as Node;
+      if (menu.contains(target) || toggle.contains(target)) {
+        return;
+      }
+      close();
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        close();
+      }
+    });
+
+    return close;
   }
 
   async function handleSession(
@@ -2413,7 +2474,9 @@ export function initApp() {
       if (!currentUserId) {
         return;
       }
-      const name = await openPlaybookModal('My playbook');
+      const name = await openPlaybookModal({
+        defaultName: 'My playbook'
+      });
       if (!name) {
         return;
       }
@@ -2451,6 +2514,76 @@ export function initApp() {
     setEditorMode(!currentUserId || currentRole === 'coach');
     updateSelectedPanel();
     await loadPlaysForPlaybook(selectedPlaybookId);
+  });
+
+  renamePlaybookButton.addEventListener('click', async () => {
+    closePlaybookMenu();
+    if (!selectedPlaybookId || currentRole !== 'coach') {
+      return;
+    }
+    const entry = playbooks.find((item) => item.id === selectedPlaybookId);
+    if (!entry) {
+      return;
+    }
+    const name = await openPlaybookModal({
+      title: 'Rename playbook',
+      subtitle: '',
+      submitLabel: 'Rename playbook',
+      defaultName: entry.name
+    });
+    if (!name || name === entry.name) {
+      return;
+    }
+    const { data, error } = await supabase
+      .from('playbooks')
+      .update({ name })
+      .eq('id', entry.id)
+      .select('id, name')
+      .single();
+    if (error || !data) {
+      console.error('Failed to rename playbook', error);
+      setStatus('Unable to rename playbook.');
+      return;
+    }
+    playbooks = playbooks.map((item) =>
+      item.id === entry.id ? { ...item, name: data.name } : item
+    );
+    renderPlaybookSelect();
+    setStatus(`Renamed to ${data.name}.`);
+  });
+
+  deletePlaybookButton.addEventListener('click', async () => {
+    closePlaybookMenu();
+    if (!selectedPlaybookId || currentRole !== 'coach') {
+      return;
+    }
+    const entry = playbooks.find((item) => item.id === selectedPlaybookId);
+    if (!entry) {
+      return;
+    }
+    const { error } = await supabase.from('playbooks').delete().eq('id', entry.id);
+    if (error) {
+      console.error('Failed to delete playbook', error);
+      setStatus('Unable to delete playbook.');
+      return;
+    }
+    playbooks = playbooks.filter((item) => item.id !== entry.id);
+    selectedPlaybookId = playbooks[0]?.id ?? null;
+    selectedSavedPlayId = null;
+    savedPlays = [];
+    if (selectedPlaybookId) {
+      const current = playbooks.find((item) => item.id === selectedPlaybookId);
+      currentRole = current?.role ?? null;
+      setEditorMode(!currentUserId || currentRole === 'coach');
+      renderPlaybookSelect();
+      await loadPlaysForPlaybook(selectedPlaybookId);
+    } else {
+      currentRole = null;
+      setEditorMode(true);
+      renderPlaybookSelect();
+      renderSavedPlaysSelect();
+    }
+    setStatus(`Deleted ${entry.name}.`);
   });
 
   supabase.auth.onAuthStateChange((_event, session) => {

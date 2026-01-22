@@ -552,6 +552,16 @@ button {
   height: 36px;
 }
 
+.menu-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.context-menu {
+  min-width: 150px;
+}
+
 .auth-user {
   font-weight: 600;
   font-size: 0.9rem;
