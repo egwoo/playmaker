@@ -544,6 +544,11 @@ body {
     align-items: stretch;
   }
 
+  .help-dots {
+    width: 100%;
+    justify-content: center;
+  }
+
   .help-actions {
     width: 100%;
   }
@@ -837,6 +842,8 @@ input.toggle:checked::after {
   background: transparent;
   font-weight: 600;
   cursor: pointer;
+  color: var(--ink);
+  -webkit-tap-highlight-color: transparent;
 }
 
 .segmented-button.active {
@@ -901,6 +908,8 @@ select:disabled {
 
 button {
   font-family: 'Outfit', sans-serif;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .primary,
@@ -1240,6 +1249,8 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  color: var(--ink);
+  -webkit-tap-highlight-color: transparent;
 }
 
 .icon-button svg,
