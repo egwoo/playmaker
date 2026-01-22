@@ -2084,18 +2084,18 @@ export function initApp() {
     saveMenuToggle.setAttribute('aria-expanded', 'true');
   }
 
-  async function copyToClipboard(text: string) {
+  async function copyToClipboard(text: string, message = 'Link copied') {
     if (navigator.clipboard?.writeText) {
       try {
         await navigator.clipboard.writeText(text);
-        setStatus('Link copied');
+        setStatus(message);
         return;
       } catch {
         // fall back to prompt below
       }
     }
     window.prompt('Copy link', text);
-    setStatus('Link copied');
+    setStatus(message);
   }
 
   async function copyShareLink() {
@@ -2103,7 +2103,6 @@ export function initApp() {
       setStatus('Sign in as a collaborator to share plays');
       return;
     }
-    setStatus('Generating share link');
     if (!selectedSavedPlayId) {
       const name = await openNameModal({
         title: 'Save play',
@@ -2140,7 +2139,7 @@ export function initApp() {
       return;
     }
     const url = buildShareUrl(data.token, 'share');
-    await copyToClipboard(url);
+    await copyToClipboard(url, 'Play link copied');
   }
 
   async function createPlaybookShareLink(role: 'player' | 'coach'): Promise<string | null> {
@@ -3159,14 +3158,14 @@ export function initApp() {
     viewButton?.addEventListener('click', async () => {
       const link = await getLink('player');
       if (link) {
-        await copyToClipboard(link);
+        await copyToClipboard(link, 'Playbook Viewer link copied');
       }
     });
 
     collabButton?.addEventListener('click', async () => {
       const link = await getLink('coach');
       if (link) {
-        await copyToClipboard(link);
+        await copyToClipboard(link, 'Playbook Collaborator link copied');
       }
     });
   }
