@@ -100,6 +100,7 @@ export function initApp() {
   const authMenu = document.getElementById('auth-menu');
   const authUserEmail = document.getElementById('auth-user-email');
   const authSignOut = document.getElementById('auth-signout') as HTMLButtonElement | null;
+  const fieldSection = document.querySelector<HTMLElement>('section.field');
   const playbookSelect = document.getElementById('playbook-select') as HTMLSelectElement | null;
   const playbookMenuToggle = document.getElementById('playbook-menu-toggle') as HTMLButtonElement | null;
   const playbookMenu = document.getElementById('playbook-menu');
@@ -270,9 +271,11 @@ export function initApp() {
     if (fieldOverlay) {
       fieldOverlay.classList.toggle('is-hidden', isMobile);
     }
+    positionStatusToast();
   }
 
   function setStatus(message: string) {
+    positionStatusToast();
     statusText.textContent = message;
     statusText.classList.remove('is-hidden');
     if (statusTimeout) {
@@ -281,6 +284,22 @@ export function initApp() {
     statusTimeout = window.setTimeout(() => {
       statusText.classList.add('is-hidden');
     }, 2600);
+  }
+
+  function positionStatusToast() {
+    if (!fieldSection) {
+      return;
+    }
+    const isMobile = window.matchMedia('(max-width: 900px)').matches;
+    if (isMobile) {
+      statusText.style.left = '50%';
+      statusText.style.transform = 'translateX(-50%)';
+      return;
+    }
+    const rect = fieldSection.getBoundingClientRect();
+    const center = rect.left + rect.width / 2;
+    statusText.style.left = `${center}px`;
+    statusText.style.transform = 'translateX(-50%)';
   }
 
   function getSelectedPlayer(): Player | null {
@@ -438,7 +457,7 @@ export function initApp() {
     const { data, error } = await supabase.rpc('fetch_play_share', { share_token: token });
     if (error || !data || data.length === 0) {
       console.error('Failed to load shared play', error);
-      setStatus('Unable to load shared play.');
+      setStatus('Unable to load shared play');
       sharedPlayActive = false;
       sharedPlayToken = null;
       updateSharedPlayUI();
@@ -465,7 +484,7 @@ export function initApp() {
     const { data, error } = await supabase.rpc('accept_playbook_share', { share_token: token });
     if (error || !data || data.length === 0) {
       console.error('Failed to accept playbook share', error);
-      setStatus('Unable to accept playbook share.');
+      setStatus('Unable to accept playbook share');
       return;
     }
     const entry = Array.isArray(data) ? data[0] : data;
@@ -475,7 +494,7 @@ export function initApp() {
     clearShareParam('playbook');
     updateSharedPlaybookUI();
     await loadPlaybooks();
-    setStatus('Playbook added to your account.');
+    setStatus('Playbook added to your account');
   }
 
   function setEditorMode(allowEdit: boolean) {
@@ -735,7 +754,7 @@ export function initApp() {
 
   async function savePlayAsNew(name: string) {
     if (!selectedPlaybookId) {
-      setStatus('Sign in to save plays.');
+      setStatus('Sign in to save plays');
       return;
     }
     const payload = {
@@ -752,7 +771,7 @@ export function initApp() {
       .single();
     if (error || !data) {
       console.error('Failed to save play', error);
-      setStatus('Unable to save play.');
+      setStatus('Unable to save play');
       return;
     }
     const entry: RemotePlay = {
@@ -768,7 +787,7 @@ export function initApp() {
     selectedSavedPlayId = entry.id;
     await recordPlayVersion(entry.id, entry.name, entry.play);
     updateSavedPlaysStorage();
-    setStatus('Saved new play.');
+    setStatus('Saved new play');
   }
 
   function flipPlay() {
@@ -802,7 +821,7 @@ export function initApp() {
       .single();
     if (error || !data) {
       console.error('Failed to update play', error);
-      setStatus('Unable to update play.');
+      setStatus('Unable to update play');
       return;
     }
     savedPlays = savedPlays.map((entry) =>
@@ -820,7 +839,7 @@ export function initApp() {
     );
     await recordPlayVersion(data.id, data.name, data.data as Play);
     updateSavedPlaysStorage();
-    setStatus(`${data.name} updated.`);
+    setStatus(`${data.name} updated`);
   }
 
   async function recordPlayVersion(playId: string, name: string, playData: Play) {
@@ -1458,7 +1477,7 @@ export function initApp() {
     }
 
     play.players.push(player);
-    setStatus(`Added ${label}.`);
+    setStatus(`Added ${label}`);
   }
 
   function addWaypointAt(player: Player, point: { x: number; y: number }) {
@@ -1472,7 +1491,7 @@ export function initApp() {
     const leg: RouteLeg = { to: point, speed, delay: 0 };
     route.push(leg);
     player.route = route;
-    setStatus(`Added waypoint for ${player.label}.`);
+    setStatus(`Added waypoint for ${player.label}`);
   }
 
   function startPlayerDrag(pointerId: number, playerId: string, canvasPoint: Vec2) {
@@ -1570,7 +1589,7 @@ export function initApp() {
         selectPlayer(null);
       } else {
         selectPlayer(playerDragState.playerId);
-        setStatus('Player selected. Tap to add waypoints.');
+        setStatus('Player selected — tap to add waypoints');
       }
     }
 
@@ -1858,7 +1877,7 @@ export function initApp() {
     applyMutation(() => {
       play.players = play.players.filter((item) => item.id !== player.id);
       selectedPlayerId = null;
-      setStatus('Player removed.');
+      setStatus('Player removed');
     });
   });
 
@@ -1886,7 +1905,7 @@ export function initApp() {
       }
       selected.label = name;
     });
-    setStatus(`Renamed to ${name}.`);
+    setStatus(`Renamed to ${name}`);
   });
 
   coverageTypeSelect.addEventListener('change', () => {
@@ -2052,22 +2071,22 @@ export function initApp() {
     if (navigator.clipboard?.writeText) {
       try {
         await navigator.clipboard.writeText(text);
-        setStatus('Link copied.');
+        setStatus('Link copied');
         return;
       } catch {
         // fall back to prompt below
       }
     }
     window.prompt('Copy link', text);
-    setStatus('Link copied.');
+    setStatus('Link copied');
   }
 
   async function copyShareLink() {
     if (!currentUserId || currentRole !== 'coach') {
-      setStatus('Sign in as a collaborator to share plays.');
+      setStatus('Sign in as a collaborator to share plays');
       return;
     }
-    setStatus('Generating share link...');
+    setStatus('Generating share link');
     if (!selectedSavedPlayId) {
       const name = await openNameModal({
         title: 'Save play',
@@ -2100,7 +2119,7 @@ export function initApp() {
       .single();
     if (error || !data) {
       console.error('Failed to create play share', error);
-      setStatus('Unable to share play.');
+      setStatus('Unable to share play');
       return;
     }
     const url = buildShareUrl(data.token, 'share');
@@ -2109,7 +2128,7 @@ export function initApp() {
 
   async function createPlaybookShareLink(role: 'player' | 'coach'): Promise<string | null> {
     if (!currentUserId || !selectedPlaybookId || currentRole !== 'coach') {
-      setStatus('Select a playbook you can share.');
+      setStatus('Select a playbook you can share');
       return null;
     }
     const token = generateShareToken();
@@ -2128,7 +2147,7 @@ export function initApp() {
       .single();
     if (error || !data) {
       console.error('Failed to create playbook share', error);
-      setStatus('Unable to share playbook.');
+      setStatus('Unable to share playbook');
       return null;
     }
     return buildShareUrl(data.token, 'playbook');
@@ -2164,7 +2183,7 @@ export function initApp() {
     setEditorMode(currentRole === 'coach');
     renderSavedPlaysSelect();
     scrubberTouched = false;
-    setStatus('Started a new play.');
+    setStatus('Started a new play');
     updateSharedPlayUI();
   });
 
@@ -2172,7 +2191,7 @@ export function initApp() {
     applyMutation(() => {
       flipPlay();
     });
-    setStatus('Flipped play.');
+    setStatus('Flipped play');
   });
 
   saveAsNewButton.addEventListener('click', async () => {
@@ -2224,7 +2243,7 @@ export function initApp() {
       .single();
     if (error || !data) {
       console.error('Failed to rename play', error);
-      setStatus('Unable to rename play.');
+      setStatus('Unable to rename play');
       return;
     }
     savedPlays = savedPlays.map((item) =>
@@ -2241,7 +2260,7 @@ export function initApp() {
         : item
     );
     updateSavedPlaysStorage();
-    setStatus(`Renamed to ${name}.`);
+    setStatus(`Renamed to ${name}`);
   });
 
   deletePlayButton.addEventListener('click', async () => {
@@ -2256,14 +2275,14 @@ export function initApp() {
     const { error } = await supabase.from('plays').delete().eq('id', entry.id);
     if (error) {
       console.error('Failed to delete play', error);
-      setStatus('Unable to delete play.');
+      setStatus('Unable to delete play');
       return;
     }
     savedPlays = savedPlays.filter((item) => item.id !== selectedSavedPlayId);
     selectedSavedPlayId = null;
     updateSavedPlaysStorage();
     persist();
-    setStatus(`Deleted ${entry.name}.`);
+    setStatus(`Deleted ${entry.name}`);
   });
 
   saveMenuToggle.addEventListener('click', (event) => {
@@ -2448,7 +2467,7 @@ export function initApp() {
     emailSubmit?.addEventListener('click', async () => {
       const email = emailInput?.value.trim() ?? '';
       if (!email) {
-        setStatus('Enter an email to receive a magic link.');
+        setStatus('Enter an email to receive a magic link');
         return;
       }
       lastAuthEmail = email;
@@ -2459,10 +2478,10 @@ export function initApp() {
       });
       if (error) {
         console.error('Magic link error', error);
-        setStatus('Unable to send magic link.');
+        setStatus('Unable to send magic link');
         return;
       }
-      setStatus('Magic link sent. Check your email.');
+      setStatus('Magic link sent — check your email');
       close();
     });
 
@@ -2474,7 +2493,7 @@ export function initApp() {
       });
       if (error) {
         console.error('Google auth error', error);
-        setStatus('Unable to sign in with Google.');
+        setStatus('Unable to sign in with Google');
         return;
       }
       close();
@@ -2553,9 +2572,10 @@ export function initApp() {
                 <div class="help-visual help-visual-canvas" data-help-visual="${visual}"></div>
               `
                     : visual === 'share'
-                      ? `
+                    ? `
                 <div class="help-visual help-visual-share" data-help-visual="${visual}">
-                  <div class="help-share-bar">
+                  <div class="help-share-toolbar">
+                    <div class="help-share-dropdown">Playbook</div>
                     <div class="help-share-dots">
                       <span></span><span></span><span></span>
                     </div>
@@ -2777,6 +2797,7 @@ export function initApp() {
         let frameId = 0;
         const start = performance.now();
         const loop = (now: number) => {
+          renderer.resize();
           const elapsed = (now - start) / 1000;
           let playToRender: Play = hikePlay;
           let playTime = elapsed % 4.5;
@@ -2936,7 +2957,7 @@ export function initApp() {
       submitButton?.addEventListener('click', () => {
         const name = nameInput?.value.trim() ?? '';
         if (!name) {
-          setStatus(`Enter a ${label.toLowerCase()}.`);
+          setStatus(`Enter a ${label.toLowerCase()}`);
           return;
         }
         close(name);
@@ -2950,7 +2971,7 @@ export function initApp() {
     }
     const editablePlaybooks = playbooks.filter((book) => book.role === 'coach');
     if (editablePlaybooks.length === 0) {
-      setStatus('Create a playbook you can edit to save this play.');
+      setStatus('Create a playbook you can edit to save this play');
       return Promise.resolve(null);
     }
 
@@ -3029,11 +3050,11 @@ export function initApp() {
         const name = nameInput?.value.trim() ?? '';
         const playbookId = playbookSelectEl?.value ?? '';
         if (!playbookId) {
-          setStatus('Select a playbook.');
+          setStatus('Select a playbook');
           return;
         }
         if (!name) {
-          setStatus('Enter a play name.');
+          setStatus('Enter a play name');
           return;
         }
         close({ playbookId, name });
@@ -3322,7 +3343,7 @@ export function initApp() {
     const { error } = await supabase.auth.signOut();
     if (error) {
       console.error('Sign out error', error);
-      setStatus('Unable to sign out.');
+      setStatus('Unable to sign out');
     }
   });
 
@@ -3385,7 +3406,7 @@ export function initApp() {
         .single();
       if (error || !data) {
         console.error('Failed to create playbook', error);
-        setStatus('Unable to create playbook.');
+        setStatus('Unable to create playbook');
         return;
       }
       const entry: Playbook = { id: data.id, name: data.name, role: 'coach', isOwner: true };
@@ -3447,14 +3468,14 @@ export function initApp() {
       .single();
     if (error || !data) {
       console.error('Failed to rename playbook', error);
-      setStatus('Unable to rename playbook.');
+      setStatus('Unable to rename playbook');
       return;
     }
     playbooks = playbooks.map((item) =>
       item.id === entry.id ? { ...item, name: data.name } : item
     );
     renderPlaybookSelect();
-    setStatus(`Renamed to ${data.name}.`);
+    setStatus(`Renamed to ${data.name}`);
   });
 
   deletePlaybookButton.addEventListener('click', async () => {
@@ -3470,7 +3491,7 @@ export function initApp() {
       const { error } = await supabase.from('playbooks').delete().eq('id', entry.id);
       if (error) {
         console.error('Failed to delete playbook', error);
-        setStatus('Unable to delete playbook.');
+        setStatus('Unable to delete playbook');
         return;
       }
       playbooks = playbooks.filter((item) => item.id !== entry.id);
@@ -3482,7 +3503,7 @@ export function initApp() {
         .eq('user_id', currentUserId);
       if (error) {
         console.error('Failed to leave playbook', error);
-        setStatus('Unable to leave playbook.');
+        setStatus('Unable to leave playbook');
         return;
       }
       playbooks = playbooks.filter((item) => item.id !== entry.id);
@@ -3502,7 +3523,7 @@ export function initApp() {
       renderPlaybookSelect();
       renderSavedPlaysSelect();
     }
-    setStatus(`Deleted ${entry.name}.`);
+    setStatus(`Deleted ${entry.name}`);
   });
 
   playHistoryButton.addEventListener('click', async () => {
@@ -3517,11 +3538,11 @@ export function initApp() {
       .order('created_at', { ascending: false });
     if (error || !data) {
       console.error('Failed to load play history', error);
-      setStatus('Unable to load play history.');
+      setStatus('Unable to load play history');
       return;
     }
     if (data.length === 0) {
-      setStatus('No history yet.');
+      setStatus('No history yet');
       return;
     }
     const versions = data.map((row) => ({
