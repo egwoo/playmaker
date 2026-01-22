@@ -241,6 +241,7 @@ export function initApp() {
   let historyPast: Play[] = [];
   let historyFuture: Play[] = [];
   let statusTimeout: number | null = null;
+  const contextMenuClosers: Array<(except?: HTMLElement) => void> = [];
 
   const resizeObserver = new ResizeObserver(() => {
     renderer.resize();
@@ -2574,18 +2575,22 @@ export function initApp() {
                     : visual === 'share'
                     ? `
                 <div class="help-visual help-visual-share" data-help-visual="${visual}">
-                  <div class="help-share-toolbar">
-                    <div class="help-share-dropdown">Playbook</div>
-                    <div class="help-share-dots">
-                      <span></span><span></span><span></span>
+                  <div class="help-share-wrapper">
+                    <div class="help-share-toolbar">
+                      <div class="help-share-group">
+                        <div class="help-share-dropdown">My Playbook</div>
+                        <div class="help-share-dots">
+                          <span></span><span></span><span></span>
+                        </div>
+                        <div class="help-share-menu">
+                          <div class="help-share-item help-share-item-share">Share</div>
+                          <div class="help-share-item">Rename</div>
+                          <div class="help-share-item">Delete</div>
+                        </div>
+                      </div>
                     </div>
+                    <div class="help-share-cursor"></div>
                   </div>
-                  <div class="help-share-menu">
-                    <div class="help-share-item help-share-item-share">Share</div>
-                    <div class="help-share-item">Rename</div>
-                    <div class="help-share-item">Delete</div>
-                  </div>
-                  <div class="help-share-cursor"></div>
                 </div>
               `
                       : `
@@ -2717,11 +2722,11 @@ export function initApp() {
             id: 'motion-wr',
             label: 'WR',
             team: 'offense',
-            start: { x: 0.2, y: 0.62 },
+            start: { x: 0.22, y: 0.66 },
             startDelay: -1,
             route: [
               {
-                to: { x: 0.8, y: 0.62 },
+                to: { x: 0.82, y: 0.9 },
                 speed: 6
               }
             ]
@@ -2743,7 +2748,7 @@ export function initApp() {
           start: { x: 0.65, y: 0.7 }
         };
         const baseLeg = {
-          to: { x: 0.47, y: 0.58 },
+          to: { x: 0.52, y: 0.82 },
           speed: 8
         };
         return [
@@ -3247,16 +3252,35 @@ export function initApp() {
     });
   }
 
+  function closeAllContextMenus(except?: HTMLElement) {
+    contextMenuClosers.forEach((close) => close(except));
+  }
+
   function setupContextMenu(toggle: HTMLButtonElement, menu: HTMLElement) {
     const close = () => {
       menu.classList.add('is-hidden');
       toggle.setAttribute('aria-expanded', 'false');
     };
 
+    const closeIfNot = (except?: HTMLElement) => {
+      if (except && menu === except) {
+        return;
+      }
+      close();
+    };
+
+    contextMenuClosers.push(closeIfNot);
+
     toggle.addEventListener('click', (event) => {
       event.stopPropagation();
-      const isHidden = menu.classList.toggle('is-hidden');
-      toggle.setAttribute('aria-expanded', String(!isHidden));
+      const isHidden = menu.classList.contains('is-hidden');
+      closeAllContextMenus(menu);
+      if (isHidden) {
+        menu.classList.remove('is-hidden');
+        toggle.setAttribute('aria-expanded', 'true');
+      } else {
+        close();
+      }
     });
 
     document.addEventListener('click', (event) => {

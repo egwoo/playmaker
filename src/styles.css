@@ -202,14 +202,21 @@ body {
   padding: 8px 14px;
 }
 
+.help-modal-card .auth-modal-header {
+  align-items: flex-start;
+  justify-content: flex-end;
+  margin-top: -6px;
+  margin-bottom: -6px;
+}
+
 .help-carousel {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
 }
 
 .help-slides {
-  min-height: 180px;
+  min-height: 160px;
 }
 
 .help-slide {
@@ -298,43 +305,58 @@ body {
 
 .help-visual-share {
   background: #fffdf7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.help-share-wrapper {
+  position: relative;
+  width: min(320px, 80%);
+  height: 140px;
 }
 
 .help-share-toolbar {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   align-items: center;
-  gap: 8px;
-  padding: 10px;
+  padding: 10px 0;
+}
+
+.help-share-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .help-share-dropdown {
-  padding: 6px 12px;
-  border-radius: 10px;
+  padding: 8px 14px;
+  border-radius: 12px;
   border: 1px solid rgba(26, 32, 27, 0.18);
   background: #fffdf7;
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   color: var(--muted);
   position: relative;
-  min-width: 90px;
+  min-width: 140px;
 }
 
 .help-share-dropdown::after {
   content: '';
   position: absolute;
-  right: 10px;
+  right: 12px;
   top: 50%;
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-right: 2px solid rgba(26, 32, 27, 0.5);
   border-bottom: 2px solid rgba(26, 32, 27, 0.5);
   transform: translateY(-60%) rotate(45deg);
 }
 
 .help-share-dots {
-  width: 26px;
-  height: 26px;
-  border-radius: 10px;
+  width: 30px;
+  height: 30px;
+  border-radius: 12px;
   border: 1px solid rgba(26, 32, 27, 0.18);
   display: flex;
   flex-direction: column;
@@ -353,8 +375,8 @@ body {
 
 .help-share-menu {
   position: absolute;
-  top: 48px;
-  right: 10px;
+  top: 42px;
+  right: 0;
   background: #fffdf7;
   border-radius: 12px;
   border: 1px solid rgba(26, 32, 27, 0.12);
@@ -362,17 +384,17 @@ body {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  min-width: 110px;
+  min-width: 130px;
   opacity: 0;
   transform: translateY(-6px);
   animation: helpShareMenu 6s ease-in-out infinite;
 }
 
 .help-share-item {
-  padding: 6px 10px;
+  padding: 8px 12px;
   border-radius: 8px;
   font-weight: 600;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
 }
 
 .help-share-item-share {
@@ -471,27 +493,27 @@ body {
 @keyframes helpShareCursor {
   0% {
     opacity: 0;
-    left: 22px;
-    top: 126px;
+    left: 40px;
+    top: 110px;
   }
   15% {
     opacity: 1;
   }
   40% {
-    left: calc(100% - 46px);
-    top: 22px;
+    left: calc(50% + 76px);
+    top: 12px;
   }
   60% {
-    left: calc(100% - 70px);
-    top: 82px;
+    left: calc(50% + 52px);
+    top: 66px;
   }
   80% {
     opacity: 0;
   }
   100% {
     opacity: 0;
-    left: 22px;
-    top: 126px;
+    left: 40px;
+    top: 110px;
   }
 }
 
