@@ -139,6 +139,16 @@ body {
   justify-content: space-between;
 }
 
+.auth-modal-header .icon-button {
+  border-color: transparent;
+  background: transparent;
+}
+
+.auth-modal-header .icon-button:hover {
+  border-color: rgba(26, 32, 27, 0.14);
+  background: #f7f0e4;
+}
+
 .auth-modal-title {
   margin: 0;
   font-size: 1.2rem;
