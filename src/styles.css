@@ -198,6 +198,7 @@ body {
   width: min(560px, 92vw);
   position: relative;
   padding: 16px;
+  height: min(560px, 90vh);
 }
 
 .help-button {
@@ -226,10 +227,13 @@ body {
   flex-direction: column;
   gap: 12px;
   margin-top: 0;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .help-slides {
-  min-height: 160px;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .help-slide {
@@ -237,7 +241,10 @@ body {
 }
 
 .help-slide.is-active {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: 100%;
 }
 
 .help-slide-title {
@@ -253,12 +260,13 @@ body {
 }
 
 .help-visual {
-  margin-top: 14px;
+  margin-top: 12px;
   border-radius: 16px;
   overflow: hidden;
   border: 1px solid rgba(26, 32, 27, 0.12);
   background: #184434;
-  height: 180px;
+  flex: 1 1 auto;
+  min-height: 180px;
   position: relative;
 }
 
@@ -326,7 +334,7 @@ body {
 .help-share-wrapper {
   position: relative;
   width: min(360px, 88%);
-  height: 160px;
+  height: 100%;
 }
 
 .help-share-toolbar {
