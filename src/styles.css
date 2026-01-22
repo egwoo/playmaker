@@ -41,21 +41,29 @@ body {
 .layout-header {
   display: grid;
   grid-template-columns: minmax(260px, 320px) 1fr auto;
+  grid-template-areas: 'title toolbar account';
   gap: 18px;
   align-items: center;
 }
 
+.layout-title {
+  grid-area: title;
+}
+
 .layout-toolbar {
+  grid-area: toolbar;
   display: flex;
   justify-content: flex-end;
   align-items: center;
 }
 
 .layout-account {
+  grid-area: account;
   position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
+  justify-self: end;
 }
 
 .avatar-button {
@@ -888,7 +896,10 @@ button {
   }
 
   .layout-header {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      'title account'
+      'toolbar toolbar';
     gap: 10px;
   }
 
