@@ -57,6 +57,11 @@ type PlayerDragState = {
   initialSelectedId: string | null;
 };
 
+type ReorderState = {
+  playId: string;
+  pointerId: number;
+};
+
 type Settings = {
   showWaypointMarkers: boolean;
 };
@@ -76,6 +81,7 @@ type RemotePlay = {
   tags: string[];
   createdAt: number;
   updatedAt: number;
+  sortOrder: number;
 };
 
 export function initApp() {
@@ -278,6 +284,7 @@ export function initApp() {
   let dragState: DragState | null = null;
   let zoneDragState: ZoneDragState | null = null;
   let playerDragState: PlayerDragState | null = null;
+  let reorderState: ReorderState | null = null;
   let historyPast: Play[] = [];
   let historyFuture: Play[] = [];
   let statusTimeout: number | null = null;
@@ -607,8 +614,13 @@ export function initApp() {
       return;
     }
 
-    const sorted = [...savedPlays].sort((a, b) => b.updatedAt - a.updatedAt);
-    for (const entry of sorted) {
+    const ordered = getOrderedPlays();
+    const canReorder = currentRole === 'coach' && !sharedPlayActive;
+    for (const entry of ordered) {
+      const row = document.createElement('div');
+      row.className = 'game-play-row';
+      row.dataset.playId = entry.id;
+
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'game-play-item';
@@ -617,8 +629,40 @@ export function initApp() {
       }
       button.textContent = entry.name;
       button.addEventListener('click', () => selectSavedPlayById(entry.id));
-      gamePlayList.append(button);
+      row.append(button);
+
+      if (canReorder) {
+        const handle = document.createElement('button');
+        handle.type = 'button';
+        handle.className = 'icon-button play-reorder-handle';
+        handle.setAttribute('aria-label', 'Reorder play');
+        handle.innerHTML = '<span data-lucide="grip-vertical" aria-hidden="true"></span>';
+        handle.addEventListener('pointerdown', (event) => {
+          if (event.button !== 0) {
+            return;
+          }
+          handle.setPointerCapture(event.pointerId);
+          reorderState = { playId: entry.id, pointerId: event.pointerId };
+        });
+        handle.addEventListener('pointerup', (event) => {
+          if (!reorderState || reorderState.pointerId !== event.pointerId) {
+            return;
+          }
+          handle.releasePointerCapture(event.pointerId);
+          finalizeReorder(event.clientY);
+        });
+        handle.addEventListener('pointercancel', (event) => {
+          if (reorderState && reorderState.pointerId === event.pointerId) {
+            handle.releasePointerCapture(event.pointerId);
+            reorderState = null;
+          }
+        });
+        row.append(handle);
+      }
+
+      gamePlayList.append(row);
     }
+    renderIcons(gamePlayList);
   }
 
   function updateModeUI() {
@@ -637,6 +681,62 @@ export function initApp() {
     playMode = nextMode;
     updateModeUI();
     syncEditorMode();
+  }
+
+  function applyPlayOrder(orderedIds: string[]) {
+    const total = orderedIds.length;
+    const orderMap = new Map<string, number>();
+    orderedIds.forEach((id, index) => {
+      orderMap.set(id, total - index);
+    });
+    savedPlays = savedPlays.map((entry) => ({
+      ...entry,
+      sortOrder: orderMap.get(entry.id) ?? entry.sortOrder
+    }));
+    renderSavedPlaysSelect();
+    renderGamePlayList();
+  }
+
+  async function persistPlayOrder(orderedIds: string[]) {
+    if (!selectedPlaybookId) {
+      return;
+    }
+    const total = orderedIds.length;
+    const updates = orderedIds.map((id, index) => ({
+      id,
+      sort_order: total - index
+    }));
+    const { error } = await supabase.from('plays').upsert(updates, { onConflict: 'id' });
+    if (error) {
+      console.error('Failed to update play order', error);
+      setStatus('Unable to save play order');
+    }
+  }
+
+  function finalizeReorder(clientY: number) {
+    if (!reorderState) {
+      return;
+    }
+    const currentOrder = getOrderedPlays().map((entry) => entry.id);
+    const startIndex = currentOrder.indexOf(reorderState.playId);
+    reorderState = null;
+    if (startIndex === -1 || currentOrder.length < 2) {
+      return;
+    }
+    const rows = Array.from(gamePlayList.querySelectorAll<HTMLElement>('.game-play-row'));
+    const targetIndex = rows.findIndex((row) => {
+      const rect = row.getBoundingClientRect();
+      return clientY < rect.top + rect.height / 2;
+    });
+    const clampedIndex = targetIndex === -1 ? rows.length - 1 : targetIndex;
+    if (clampedIndex === startIndex) {
+      return;
+    }
+    const nextOrder = [...currentOrder];
+    const [moved] = nextOrder.splice(startIndex, 1);
+    nextOrder.splice(clampedIndex, 0, moved);
+    applyPlayOrder(nextOrder);
+    void persistPlayOrder(nextOrder);
   }
 
   async function loadSharedPlayByToken(token: string) {
@@ -901,8 +1001,9 @@ export function initApp() {
   async function loadPlaysForPlaybook(playbookId: string) {
     const { data, error } = await supabase
       .from('plays')
-      .select('id, name, data, notes, tags, created_at, updated_at')
+      .select('id, name, data, notes, tags, sort_order, created_at, updated_at')
       .eq('playbook_id', playbookId)
+      .order('sort_order', { ascending: false, nullsFirst: false })
       .order('updated_at', { ascending: false });
     if (error) {
       console.error('Failed to load plays', error);
@@ -916,6 +1017,7 @@ export function initApp() {
       play: row.data as Play,
       notes: row.notes ?? '',
       tags: row.tags ?? [],
+      sortOrder: row.sort_order ?? 0,
       createdAt: new Date(row.created_at).getTime(),
       updatedAt: new Date(row.updated_at).getTime()
     }));
@@ -947,8 +1049,8 @@ export function initApp() {
     }
     savedPlaysSelect.append(placeholder);
 
-    const sorted = [...savedPlays].sort((a, b) => b.updatedAt - a.updatedAt);
-    for (const entry of sorted) {
+    const ordered = getOrderedPlays();
+    for (const entry of ordered) {
       const option = document.createElement('option');
       option.value = entry.id;
       option.textContent = entry.name;
@@ -970,6 +1072,16 @@ export function initApp() {
     savedPlaysSelect.disabled = !currentUserId || !selectedPlaybookId;
     updatePlaybookRolePill();
     renderGamePlayList();
+  }
+
+  function getOrderedPlays(): RemotePlay[] {
+    return [...savedPlays].sort((a, b) => {
+      const orderDelta = (b.sortOrder ?? 0) - (a.sortOrder ?? 0);
+      if (orderDelta !== 0) {
+        return orderDelta;
+      }
+      return b.updatedAt - a.updatedAt;
+    });
   }
 
   function selectSavedPlayById(value: string | null) {
@@ -1066,7 +1178,7 @@ export function initApp() {
     const { data, error } = await supabase
       .from('plays')
       .insert(payload)
-      .select('id, name, data, notes, tags, created_at, updated_at')
+      .select('id, name, data, notes, tags, sort_order, created_at, updated_at')
       .single();
     if (error || !data) {
       console.error('Failed to save play', error);
@@ -1079,6 +1191,7 @@ export function initApp() {
       play: data.data as Play,
       notes: data.notes ?? '',
       tags: data.tags ?? [],
+      sortOrder: data.sort_order ?? 0,
       createdAt: new Date(data.created_at).getTime(),
       updatedAt: new Date(data.updated_at).getTime()
     };
@@ -1117,7 +1230,7 @@ export function initApp() {
       .from('plays')
       .update(payload)
       .eq('id', selectedSavedPlayId)
-      .select('id, name, data, notes, tags, created_at, updated_at')
+      .select('id, name, data, notes, tags, sort_order, created_at, updated_at')
       .single();
     if (error || !data) {
       console.error('Failed to update play', error);
@@ -1132,6 +1245,7 @@ export function initApp() {
             play: data.data as Play,
             notes: data.notes ?? '',
             tags: data.tags ?? [],
+            sortOrder: data.sort_order ?? entry.sortOrder ?? 0,
             createdAt: new Date(data.created_at).getTime(),
             updatedAt: new Date(data.updated_at).getTime()
           }
@@ -2564,7 +2678,7 @@ export function initApp() {
       .from('plays')
       .update({ name })
       .eq('id', entry.id)
-      .select('id, name, data, notes, tags, created_at, updated_at')
+      .select('id, name, data, notes, tags, sort_order, created_at, updated_at')
       .single();
     if (error || !data) {
       console.error('Failed to rename play', error);
@@ -2579,6 +2693,7 @@ export function initApp() {
             play: data.data as Play,
             notes: data.notes ?? '',
             tags: data.tags ?? [],
+            sortOrder: data.sort_order ?? item.sortOrder ?? 0,
             createdAt: new Date(data.created_at).getTime(),
             updatedAt: new Date(data.updated_at).getTime()
           }

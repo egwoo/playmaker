@@ -22,9 +22,45 @@ create table if not exists public.plays (
   data jsonb not null,
   notes text,
   tags text[] not null default '{}',
+  sort_order bigint,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.plays add column if not exists sort_order bigint;
+
+create or replace function public.set_play_sort_order()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.sort_order is null then
+    select coalesce(max(sort_order), 0) + 1
+      into new.sort_order
+      from public.plays
+      where playbook_id = new.playbook_id;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists set_play_sort_order on public.plays;
+create trigger set_play_sort_order
+before insert on public.plays
+for each row execute function public.set_play_sort_order();
+
+with ranked as (
+  select
+    id,
+    row_number() over (partition by playbook_id order by updated_at desc) as rn,
+    count(*) over (partition by playbook_id) as total
+  from public.plays
+)
+update public.plays p
+set sort_order = ranked.total - ranked.rn + 1
+from ranked
+where p.id = ranked.id
+  and p.sort_order is null;
 
 create table if not exists public.play_shares (
   id uuid primary key default gen_random_uuid(),

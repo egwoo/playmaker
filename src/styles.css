@@ -837,6 +837,13 @@ input.toggle:checked::after {
   gap: 10px;
 }
 
+.game-play-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
 .game-play-item {
   border: 1px solid var(--panel-border);
   border-radius: 14px;
@@ -852,6 +859,18 @@ input.toggle:checked::after {
   background: #141815;
   border-color: #141815;
   color: #fff;
+}
+
+.play-reorder-handle {
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: #fffdf7;
+  cursor: grab;
+  touch-action: none;
+}
+
+.play-reorder-handle:active {
+  cursor: grabbing;
 }
 
 .game-play-empty {
