@@ -135,6 +135,8 @@ export function initApp() {
   const sharedPlayAction = document.getElementById('shared-play-action') as HTMLButtonElement | null;
   const playActions = document.getElementById('play-actions');
   const fieldHint = document.getElementById('field-hint');
+  const teamPanel = document.getElementById('team-panel');
+  const playerPanel = document.getElementById('player-panel');
   const controlsPanel = document.querySelector<HTMLDetailsElement>('details[data-panel="controls"]');
   const panelWrapper = document.querySelector<HTMLElement>('section.panel');
   const fieldOverlay = document.getElementById('field-overlay');
@@ -213,6 +215,8 @@ export function initApp() {
     !sharedPlayAction ||
     !playActions ||
     !fieldHint ||
+    !teamPanel ||
+    !playerPanel ||
     !playerSelect ||
     !playerMenuToggle ||
     !playerMenu ||
@@ -621,6 +625,8 @@ export function initApp() {
     });
     setSectionHidden(designPlaySection, playMode === 'game');
     setSectionHidden(gamePlaySection, playMode === 'design');
+    setSectionHidden(teamPanel, playMode === 'game');
+    setSectionHidden(playerPanel, playMode === 'game');
     editModeToggle.classList.toggle('is-hidden', playMode === 'game');
     renderGamePlayList();
   }
