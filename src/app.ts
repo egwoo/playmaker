@@ -320,6 +320,7 @@ export function initApp() {
       if (toolbar.parentElement !== fieldToolbarOverlay) {
         fieldToolbarOverlay.append(toolbar);
       }
+      playToggle.focus();
     } else if (toolbar.parentElement !== toolbarHost) {
       toolbarHost.prepend(toolbar);
     }
