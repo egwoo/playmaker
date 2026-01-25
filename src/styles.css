@@ -1463,7 +1463,8 @@ button {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 0 12px;
+  height: 38px;
   border-radius: 999px;
   border: 1px solid var(--panel-border);
   background: rgba(255, 250, 242, 0.94);
@@ -1486,15 +1487,16 @@ button {
 }
 
 .field-mode-toggle.is-collapsed {
-  padding: 8px;
-  width: 36px;
-  height: 36px;
+  padding: 0;
+  width: 38px;
   justify-content: center;
+  gap: 0;
 }
 
 .field-mode-toggle.is-collapsed .field-mode-label {
   max-width: 0;
   opacity: 0;
+  display: none;
 }
 
 .field-mode-toggle:disabled {
