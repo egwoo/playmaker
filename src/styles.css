@@ -1576,6 +1576,16 @@ body.field-fullscreen .field-mode-toggle {
   display: none;
 }
 
+body.field-fullscreen .field-toolbar-overlay .icon-button,
+body.field-fullscreen .field-toolbar-overlay .secondary {
+  color: #fdfcf9;
+  border-color: rgba(253, 252, 249, 0.5);
+}
+
+body.field-fullscreen .field-toolbar-overlay .secondary {
+  background: rgba(253, 252, 249, 0.08);
+}
+
 @media (max-width: 900px) {
   #app {
     padding: 12px;
