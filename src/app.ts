@@ -627,17 +627,20 @@ export function initApp() {
       if (entry.id === selectedSavedPlayId) {
         button.classList.add('is-active');
       }
-      button.textContent = entry.name;
+      const label = document.createElement('span');
+      label.className = 'game-play-label';
+      label.textContent = entry.name;
+      button.append(label);
       button.addEventListener('click', () => selectSavedPlayById(entry.id));
-      row.append(button);
 
-      if (canReorder) {
-        const handle = document.createElement('button');
-        handle.type = 'button';
-        handle.className = 'icon-button play-reorder-handle';
+      if (canReorder && entry.id === selectedSavedPlayId) {
+        const handle = document.createElement('span');
+        handle.className = 'play-reorder-handle';
         handle.setAttribute('aria-label', 'Reorder play');
-        handle.innerHTML = '<span data-lucide="grip-vertical" aria-hidden="true"></span>';
+        handle.innerHTML = '<span data-lucide="grip-horizontal" aria-hidden="true"></span>';
         handle.addEventListener('pointerdown', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
           if (event.button !== 0) {
             return;
           }
@@ -645,6 +648,8 @@ export function initApp() {
           reorderState = { playId: entry.id, pointerId: event.pointerId };
         });
         handle.addEventListener('pointerup', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
           if (!reorderState || reorderState.pointerId !== event.pointerId) {
             return;
           }
@@ -652,14 +657,17 @@ export function initApp() {
           finalizeReorder(event.clientY);
         });
         handle.addEventListener('pointercancel', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
           if (reorderState && reorderState.pointerId === event.pointerId) {
             handle.releasePointerCapture(event.pointerId);
             reorderState = null;
           }
         });
-        row.append(handle);
+        button.append(handle);
       }
 
+      row.append(button);
       gamePlayList.append(row);
     }
     renderIcons(gamePlayList);
@@ -704,6 +712,7 @@ export function initApp() {
     const total = orderedIds.length;
     const updates = orderedIds.map((id, index) => ({
       id,
+      playbook_id: selectedPlaybookId,
       sort_order: total - index
     }));
     const { error } = await supabase.from('plays').upsert(updates, { onConflict: 'id' });

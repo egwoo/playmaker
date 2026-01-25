@@ -1,6 +1,6 @@
 import {
   ChevronDown,
-  GripVertical,
+  GripHorizontal,
   Lock,
   Maximize2,
   Minimize2,
@@ -28,7 +28,7 @@ const ICONS = {
   Play,
   X,
   MoreVertical,
-  GripVertical,
+  GripHorizontal,
   Redo,
   RotateCcw,
   Trash2,

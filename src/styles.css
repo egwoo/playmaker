@@ -843,13 +843,15 @@ input.toggle:checked::after {
 }
 
 .game-play-row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px;
-  align-items: center;
+  display: flex;
 }
 
 .game-play-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   border: 1px solid var(--panel-border);
   border-radius: 14px;
   padding: 10px 12px;
@@ -860,6 +862,10 @@ input.toggle:checked::after {
   color: var(--ink);
 }
 
+.game-play-label {
+  flex: 1;
+}
+
 .game-play-item.is-active {
   background: #141815;
   border-color: #141815;
@@ -867,9 +873,12 @@ input.toggle:checked::after {
 }
 
 .play-reorder-handle {
-  border: 1px solid var(--panel-border);
-  border-radius: 12px;
-  background: #fffdf7;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: inherit;
   cursor: grab;
   touch-action: none;
 }
