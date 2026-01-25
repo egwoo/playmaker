@@ -360,9 +360,11 @@ export function initApp() {
     }
     syncFullscreenUI();
     requestAnimationFrame(() => {
-      renderer.resize();
-      render();
-      positionStatusToast();
+      requestAnimationFrame(() => {
+        renderer.resize();
+        render();
+        positionStatusToast();
+      });
     });
   }
 
@@ -710,12 +712,16 @@ export function initApp() {
       return;
     }
     const total = orderedIds.length;
-    const updates = orderedIds.map((id, index) => ({
-      id,
-      playbook_id: selectedPlaybookId,
-      sort_order: total - index
-    }));
-    const { error } = await supabase.from('plays').upsert(updates, { onConflict: 'id' });
+    const results = await Promise.all(
+      orderedIds.map((id, index) =>
+        supabase
+          .from('plays')
+          .update({ sort_order: total - index })
+          .eq('id', id)
+          .eq('playbook_id', selectedPlaybookId)
+      )
+    );
+    const error = results.find((result) => result.error)?.error;
     if (error) {
       console.error('Failed to update play order', error);
       setStatus('Unable to save play order');

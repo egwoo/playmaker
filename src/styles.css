@@ -16,13 +16,17 @@
 }
 
 html {
+  height: 100%;
   background: radial-gradient(circle at top right, #f8f0d8 0%, #efe7d8 45%, #e5dfd4 100%);
+  background-color: #efe7d8;
 }
 
 body {
+  height: 100%;
   margin: 0;
   font-family: 'Outfit', system-ui, sans-serif;
   background: radial-gradient(circle at top right, #f8f0d8 0%, #efe7d8 45%, #e5dfd4 100%);
+  background-color: #efe7d8;
   color: var(--ink);
   overflow-y: scroll;
   scrollbar-gutter: stable;
@@ -35,6 +39,12 @@ body {
   flex-direction: column;
   gap: 12px;
   padding: 18px;
+}
+
+@supports (height: 100svh) {
+  #app {
+    min-height: 100svh;
+  }
 }
 
 .main {
