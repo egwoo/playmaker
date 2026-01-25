@@ -60,6 +60,11 @@ type PlayerDragState = {
 type ReorderState = {
   playId: string;
   pointerId: number;
+  row: HTMLElement;
+  handle: HTMLElement;
+  startY: number;
+  latestY: number;
+  rafId: number | null;
 };
 
 type Settings = {
@@ -644,6 +649,7 @@ export function initApp() {
       if (canReorder && entry.id === selectedSavedPlayId) {
         const handle = document.createElement('span');
         handle.className = 'play-reorder-handle';
+        handle.setAttribute('role', 'button');
         handle.setAttribute('aria-label', 'Reorder play');
         handle.innerHTML = '<span data-lucide="grip-horizontal" aria-hidden="true"></span>';
         handle.addEventListener('pointerdown', (event) => {
@@ -653,24 +659,56 @@ export function initApp() {
             return;
           }
           handle.setPointerCapture(event.pointerId);
-          reorderState = { playId: entry.id, pointerId: event.pointerId };
+          reorderState = {
+            playId: entry.id,
+            pointerId: event.pointerId,
+            row,
+            handle,
+            startY: event.clientY,
+            latestY: event.clientY,
+            rafId: null
+          };
+          row.classList.add('is-dragging');
         });
-        handle.addEventListener('pointerup', (event) => {
-          event.preventDefault();
-          event.stopPropagation();
+        handle.addEventListener('pointermove', (event) => {
           if (!reorderState || reorderState.pointerId !== event.pointerId) {
             return;
           }
-          handle.releasePointerCapture(event.pointerId);
-          finalizeReorder(event.clientY);
-        });
-        handle.addEventListener('pointercancel', (event) => {
           event.preventDefault();
           event.stopPropagation();
-          if (reorderState && reorderState.pointerId === event.pointerId) {
-            handle.releasePointerCapture(event.pointerId);
-            reorderState = null;
+          reorderState.latestY = event.clientY;
+          if (reorderState.rafId !== null) {
+            return;
           }
+          reorderState.rafId = requestAnimationFrame(() => {
+            if (!reorderState) {
+              return;
+            }
+            const delta = reorderState.latestY - reorderState.startY;
+            reorderState.row.style.transform = `translateY(${delta}px)`;
+            reorderState.rafId = null;
+          });
+        });
+        const endDrag = (event: PointerEvent) => {
+          if (!reorderState || reorderState.pointerId !== event.pointerId) {
+            return;
+          }
+          event.preventDefault();
+          event.stopPropagation();
+          handle.releasePointerCapture(event.pointerId);
+          reorderState.row.classList.remove('is-dragging');
+          reorderState.row.style.transform = '';
+          if (reorderState.rafId !== null) {
+            cancelAnimationFrame(reorderState.rafId);
+          }
+          reorderState = null;
+          finalizeReorder(entry.id, event.clientY);
+        };
+        handle.addEventListener('pointerup', endDrag);
+        handle.addEventListener('pointercancel', endDrag);
+        handle.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
         });
         button.append(handle);
       }
@@ -734,13 +772,9 @@ export function initApp() {
     }
   }
 
-  function finalizeReorder(clientY: number) {
-    if (!reorderState) {
-      return;
-    }
+  function finalizeReorder(playId: string, clientY: number) {
     const currentOrder = getOrderedPlays().map((entry) => entry.id);
-    const startIndex = currentOrder.indexOf(reorderState.playId);
-    reorderState = null;
+    const startIndex = currentOrder.indexOf(playId);
     if (startIndex === -1 || currentOrder.length < 2) {
       return;
     }

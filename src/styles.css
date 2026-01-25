@@ -866,6 +866,16 @@ input.toggle:checked::after {
   display: flex;
 }
 
+.game-play-row.is-dragging {
+  position: relative;
+  z-index: 2;
+}
+
+.game-play-row.is-dragging .game-play-item {
+  box-shadow: 0 14px 28px rgba(17, 18, 14, 0.18);
+  transform: scale(1.01);
+}
+
 .game-play-item {
   width: 100%;
   display: flex;
