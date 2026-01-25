@@ -352,9 +352,11 @@ export function initApp() {
       syncEditorMode();
     }
     syncFullscreenUI();
-    renderer.resize();
-    render();
-    positionStatusToast();
+    requestAnimationFrame(() => {
+      renderer.resize();
+      render();
+      positionStatusToast();
+    });
   }
 
   function setStatus(message: string) {

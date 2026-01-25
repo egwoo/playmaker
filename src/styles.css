@@ -1596,6 +1596,10 @@ body.field-fullscreen .field-toolbar-overlay {
   border-radius: 999px;
   background: rgba(8, 10, 9, 0.78);
   box-shadow: 0 10px 30px rgba(5, 6, 6, 0.35);
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  width: min(900px, calc(100% - 32px));
 }
 
 body.field-fullscreen #undo-action,
