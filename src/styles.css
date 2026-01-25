@@ -1455,6 +1455,17 @@ button {
   box-shadow: var(--shadow);
 }
 
+.field-toolbar-overlay {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  right: 72px;
+  display: none;
+  align-items: center;
+  gap: 12px;
+  z-index: 2;
+}
+
 .field-mode-toggle {
   position: absolute;
   top: 16px;
@@ -1549,6 +1560,10 @@ body.field-fullscreen .field-surface {
   height: 100%;
   min-height: 0;
   aspect-ratio: auto;
+}
+
+body.field-fullscreen .field-toolbar-overlay {
+  display: flex;
 }
 
 @media (max-width: 900px) {

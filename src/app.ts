@@ -101,6 +101,9 @@ export function initApp() {
   const authMenu = document.getElementById('auth-menu');
   const authUserEmail = document.getElementById('auth-user-email');
   const authSignOut = document.getElementById('auth-signout') as HTMLButtonElement | null;
+  const toolbar = document.querySelector<HTMLElement>('.field-toolbar');
+  const toolbarHost = document.querySelector<HTMLElement>('.layout-toolbar');
+  const fieldToolbarOverlay = document.getElementById('field-toolbar-overlay') as HTMLDivElement | null;
   const editModeToggle = document.getElementById('edit-mode-toggle') as HTMLButtonElement | null;
   const editModeLabel = editModeToggle?.querySelector<HTMLElement>('.field-mode-label') ?? null;
   const fieldSection = document.querySelector<HTMLElement>('section.field');
@@ -124,6 +127,7 @@ export function initApp() {
   const sharedPlayText = document.getElementById('shared-play-text');
   const sharedPlayAction = document.getElementById('shared-play-action') as HTMLButtonElement | null;
   const playActions = document.getElementById('play-actions');
+  const fieldHint = document.getElementById('field-hint');
   const controlsPanel = document.querySelector<HTMLDetailsElement>('details[data-panel="controls"]');
   const panelWrapper = document.querySelector<HTMLElement>('section.panel');
   const fieldOverlay = document.getElementById('field-overlay');
@@ -133,6 +137,7 @@ export function initApp() {
   const renamePlayerButton = document.getElementById('rename-player') as HTMLButtonElement | null;
   const playerActions = document.getElementById('player-actions');
   const waypointSection = document.querySelector<HTMLElement>('.waypoint-section');
+  const waypointHint = document.getElementById('waypoint-hint');
   const waypointList = document.getElementById('waypoint-list');
   const coveragePanel = document.getElementById('coverage-panel');
   const coverageTypeSelect = document.getElementById('coverage-type-select') as HTMLSelectElement | null;
@@ -171,6 +176,9 @@ export function initApp() {
     !authMenu ||
     !authUserEmail ||
     !authSignOut ||
+    !toolbar ||
+    !toolbarHost ||
+    !fieldToolbarOverlay ||
     !editModeToggle ||
     !editModeLabel ||
     !playbookSelect ||
@@ -193,12 +201,14 @@ export function initApp() {
     !sharedPlayText ||
     !sharedPlayAction ||
     !playActions ||
+    !fieldHint ||
     !playerSelect ||
     !playerMenuToggle ||
     !playerMenu ||
     !renamePlayerButton ||
     !playerActions ||
     !waypointSection ||
+    !waypointHint ||
     !waypointList ||
     !coveragePanel ||
     !coverageTypeSelect ||
@@ -304,6 +314,13 @@ export function initApp() {
     fullscreenActive = active;
     fieldSection?.classList.toggle('is-fullscreen', active);
     document.body.classList.toggle('field-fullscreen', active);
+    if (fullscreenActive) {
+      if (toolbar.parentElement !== fieldToolbarOverlay) {
+        fieldToolbarOverlay.append(toolbar);
+      }
+    } else if (toolbar.parentElement !== toolbarHost) {
+      toolbarHost.prepend(toolbar);
+    }
     syncFullscreenUI();
     renderer.resize();
     render();
@@ -573,6 +590,18 @@ export function initApp() {
     const editingActive = editable && editMode;
     const disable = !editingActive;
     canEdit = editingActive;
+    if (canEdit) {
+      fieldHint.textContent = 'Tap on the field to place a player.';
+      fieldHint.classList.remove('is-hidden');
+      waypointHint.classList.remove('is-hidden');
+    } else if (editable) {
+      fieldHint.textContent = 'Tap the unlock icon to edit the play.';
+      fieldHint.classList.remove('is-hidden');
+      waypointHint.classList.add('is-hidden');
+    } else {
+      fieldHint.classList.add('is-hidden');
+      waypointHint.classList.add('is-hidden');
+    }
     newPlayButton.disabled = disable;
     flipPlayButton.disabled = disable;
     savePlayButton.disabled = disable;
