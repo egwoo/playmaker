@@ -359,13 +359,19 @@ export function initApp() {
       syncEditorMode();
     }
     syncFullscreenUI();
+    const syncResize = () => {
+      renderer.resize();
+      render();
+      positionStatusToast();
+    };
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        renderer.resize();
-        render();
-        positionStatusToast();
+        syncResize();
       });
     });
+    window.setTimeout(() => {
+      syncResize();
+    }, 300);
   }
 
   function setStatus(message: string) {
