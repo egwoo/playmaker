@@ -1564,6 +1564,16 @@ body.field-fullscreen .field-surface {
 
 body.field-fullscreen .field-toolbar-overlay {
   display: flex;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(8, 10, 9, 0.78);
+  box-shadow: 0 10px 30px rgba(5, 6, 6, 0.35);
+}
+
+body.field-fullscreen #undo-action,
+body.field-fullscreen #redo-action,
+body.field-fullscreen .field-mode-toggle {
+  display: none;
 }
 
 @media (max-width: 900px) {

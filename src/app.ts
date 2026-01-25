@@ -250,6 +250,7 @@ export function initApp() {
   let playbookLoadPromise: Promise<void> | null = null;
   let editMode = false;
   let editModeTimeout: number | null = null;
+  let editModeBeforeFullscreen: boolean | null = null;
   let canEdit = false;
   let fullscreenActive = false;
   let selectedPlayerId: string | null = null;
@@ -311,6 +312,7 @@ export function initApp() {
   }
 
   function setFullscreen(active: boolean) {
+    const wasFullscreen = fullscreenActive;
     fullscreenActive = active;
     fieldSection?.classList.toggle('is-fullscreen', active);
     document.body.classList.toggle('field-fullscreen', active);
@@ -320,6 +322,17 @@ export function initApp() {
       }
     } else if (toolbar.parentElement !== toolbarHost) {
       toolbarHost.prepend(toolbar);
+    }
+    if (active && !wasFullscreen) {
+      editModeBeforeFullscreen = editMode;
+      editMode = false;
+      syncEditorMode();
+    } else if (!active && wasFullscreen) {
+      if (editModeBeforeFullscreen !== null) {
+        editMode = editModeBeforeFullscreen;
+        editModeBeforeFullscreen = null;
+      }
+      syncEditorMode();
     }
     syncFullscreenUI();
     renderer.resize();
