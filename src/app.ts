@@ -3277,6 +3277,75 @@ export function initApp() {
     });
   }
 
+  function openConfirmModal(options: {
+    title: string;
+    subtitle?: string;
+    confirmLabel: string;
+    cancelLabel?: string;
+  }): Promise<boolean> {
+    if (document.querySelector('.auth-modal')) {
+      return Promise.resolve(false);
+    }
+
+    return new Promise((resolve) => {
+      const title = options.title;
+      const subtitle = options.subtitle ?? '';
+      const confirmLabel = options.confirmLabel;
+      const cancelLabel = options.cancelLabel ?? 'Cancel';
+      const overlay = document.createElement('div');
+      overlay.className = 'auth-modal';
+      overlay.innerHTML = `
+        <div class="auth-modal-card" role="dialog" aria-modal="true" aria-label="${title}">
+          <div class="auth-modal-header">
+            <div>
+              <p class="auth-modal-title">${title}</p>
+              ${subtitle ? `<p class="auth-modal-subtitle">${subtitle}</p>` : ''}
+            </div>
+            <button type="button" class="icon-button" data-confirm-close aria-label="Close">
+              <span data-lucide="x" aria-hidden="true"></span>
+            </button>
+          </div>
+          <div class="auth-email-row">
+            <div class="button-row">
+              <button type="button" class="secondary" data-confirm-cancel>${cancelLabel}</button>
+              <button type="button" class="primary" data-confirm-submit>${confirmLabel}</button>
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.body.append(overlay);
+      renderIcons(overlay);
+
+      const close = (value: boolean) => {
+        overlay.remove();
+        document.removeEventListener('keydown', onKey);
+        resolve(value);
+      };
+
+      const onKey = (event: KeyboardEvent) => {
+        if (event.key === 'Escape') {
+          close(false);
+        }
+      };
+      document.addEventListener('keydown', onKey);
+
+      const closeButton = overlay.querySelector('[data-confirm-close]') as HTMLButtonElement | null;
+      const cancelButton = overlay.querySelector('[data-confirm-cancel]') as HTMLButtonElement | null;
+      const submitButton = overlay.querySelector('[data-confirm-submit]') as HTMLButtonElement | null;
+
+      overlay.addEventListener('click', (event) => {
+        if (event.target === overlay) {
+          close(false);
+        }
+      });
+
+      closeButton?.addEventListener('click', () => close(false));
+      cancelButton?.addEventListener('click', () => close(false));
+      submitButton?.addEventListener('click', () => close(true));
+    });
+  }
+
   function openSharedSaveModal(defaultName: string): Promise<{ playbookId: string; name: string } | null> {
     if (document.querySelector('.auth-modal')) {
       return Promise.resolve(null);
@@ -3836,6 +3905,17 @@ export function initApp() {
     }
     const entry = playbooks.find((item) => item.id === selectedPlaybookId);
     if (!entry) {
+      return;
+    }
+    const isOwner = entry.isOwner;
+    const confirmed = await openConfirmModal({
+      title: isOwner ? 'Delete playbook' : 'Remove playbook',
+      subtitle: isOwner
+        ? `This will permanently delete "${entry.name}" for everyone.`
+        : `Remove "${entry.name}" from your playbooks?`,
+      confirmLabel: isOwner ? 'Delete playbook' : 'Remove playbook'
+    });
+    if (!confirmed) {
       return;
     }
     if (entry.isOwner) {
