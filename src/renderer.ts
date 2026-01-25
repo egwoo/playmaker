@@ -37,6 +37,9 @@ const TEAM_STYLES: Record<Team, { fill: string; stroke: string; route: string }>
   }
 };
 const DEFENSE_HALO_PX = 2;
+const PLAYER_HIT_SLOP_PX = 10;
+const WAYPOINT_HIT_SLOP_PX = 10;
+const ZONE_HANDLE_HIT_RADIUS = 14;
 
 export function createRenderer(canvas: HTMLCanvasElement) {
   const context = canvas.getContext('2d');
@@ -403,7 +406,7 @@ export function createRenderer(canvas: HTMLCanvasElement) {
       const player = play.players[i];
       const point = worldToCanvas(getPlayerPositionWithDefense(play, player, playTime, defenseOptions));
       const distance = Math.hypot(canvasPoint.x - point.x, canvasPoint.y - point.y);
-      if (distance <= radius + 4) {
+      if (distance <= radius + PLAYER_HIT_SLOP_PX) {
         return player.id;
       }
     }
@@ -428,7 +431,7 @@ export function createRenderer(canvas: HTMLCanvasElement) {
     for (let i = route.length - 1; i >= 0; i -= 1) {
       const point = worldToCanvas(route[i].to);
       const distance = Math.hypot(canvasPoint.x - point.x, canvasPoint.y - point.y);
-      if (distance <= radius + 6) {
+      if (distance <= radius + WAYPOINT_HIT_SLOP_PX) {
         return i;
       }
     }
@@ -452,7 +455,7 @@ export function createRenderer(canvas: HTMLCanvasElement) {
     const center = worldToCanvas(player.start);
     const radiusX = (player.assignment.radiusX / FIELD_WIDTH_YARDS) * field.width;
     const radiusY = (player.assignment.radiusY / FIELD_LENGTH_YARDS) * field.height;
-    const handleRadius = 10;
+    const handleRadius = ZONE_HANDLE_HIT_RADIUS;
 
     const handleX = { x: center.x + radiusX, y: center.y };
     const handleY = { x: center.x, y: center.y + radiusY };

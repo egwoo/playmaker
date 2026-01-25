@@ -80,6 +80,7 @@ export function initApp() {
   const canvas = document.getElementById('field-canvas') as HTMLCanvasElement | null;
   const statusText = document.getElementById('status-text');
   const scrubber = document.getElementById('scrubber') as HTMLInputElement | null;
+  const fullscreenToggle = document.getElementById('fullscreen-toggle') as HTMLButtonElement | null;
   const playToggle = document.getElementById('play-toggle') as HTMLButtonElement | null;
   const deletePlayerButton = document.getElementById('delete-player') as HTMLButtonElement | null;
   const undoButton = document.getElementById('undo-action') as HTMLButtonElement | null;
@@ -100,6 +101,8 @@ export function initApp() {
   const authMenu = document.getElementById('auth-menu');
   const authUserEmail = document.getElementById('auth-user-email');
   const authSignOut = document.getElementById('auth-signout') as HTMLButtonElement | null;
+  const editModeToggle = document.getElementById('edit-mode-toggle') as HTMLButtonElement | null;
+  const editModeLabel = editModeToggle?.querySelector<HTMLElement>('.field-mode-label') ?? null;
   const fieldSection = document.querySelector<HTMLElement>('section.field');
   const playbookSelect = document.getElementById('playbook-select') as HTMLSelectElement | null;
   const playbookRolePill = document.getElementById('playbook-role-pill');
@@ -147,6 +150,7 @@ export function initApp() {
     !canvas ||
     !statusText ||
     !scrubber ||
+    !fullscreenToggle ||
     !playToggle ||
     !deletePlayerButton ||
     !undoButton ||
@@ -167,6 +171,8 @@ export function initApp() {
     !authMenu ||
     !authUserEmail ||
     !authSignOut ||
+    !editModeToggle ||
+    !editModeLabel ||
     !playbookSelect ||
     !playbookRolePill ||
     !playbookMenuToggle ||
@@ -232,7 +238,10 @@ export function initApp() {
   let lastAuthEmail = '';
   let lastSessionUserId: string | null = null;
   let playbookLoadPromise: Promise<void> | null = null;
-  let canEdit = true;
+  let editMode = false;
+  let editModeTimeout: number | null = null;
+  let canEdit = false;
+  let fullscreenActive = false;
   let selectedPlayerId: string | null = null;
   let activeTeam: Team = 'offense';
   let playTime = 0;
@@ -277,6 +286,27 @@ export function initApp() {
     if (fieldOverlay) {
       fieldOverlay.classList.toggle('is-hidden', isMobile);
     }
+    positionStatusToast();
+  }
+
+  function syncFullscreenUI() {
+    const label = fullscreenActive ? 'Exit fullscreen' : 'Enter fullscreen';
+    fullscreenToggle.setAttribute('aria-label', label);
+    fullscreenToggle.title = fullscreenActive ? 'Exit fullscreen' : 'Fullscreen';
+    const icon = fullscreenToggle.querySelector('[data-lucide]') as HTMLElement | null;
+    if (icon) {
+      icon.setAttribute('data-lucide', fullscreenActive ? 'minimize-2' : 'maximize-2');
+      renderIcons(fullscreenToggle);
+    }
+  }
+
+  function setFullscreen(active: boolean) {
+    fullscreenActive = active;
+    fieldSection?.classList.toggle('is-fullscreen', active);
+    document.body.classList.toggle('field-fullscreen', active);
+    syncFullscreenUI();
+    renderer.resize();
+    render();
     positionStatusToast();
   }
 
@@ -478,7 +508,8 @@ export function initApp() {
     historyPast = [];
     historyFuture = [];
     resetPlayback();
-    setEditorMode(false);
+    editMode = false;
+    syncEditorMode();
     updateSelectedPanel();
     updateTimelineUI();
     updateSaveButtonLabel();
@@ -503,9 +534,45 @@ export function initApp() {
     setStatus('Playbook added to your account');
   }
 
-  function setEditorMode(allowEdit: boolean) {
-    const disable = !allowEdit || sharedPlayActive;
-    canEdit = allowEdit && !sharedPlayActive;
+  function canUserEdit() {
+    return !sharedPlayActive && (!currentUserId || currentRole === 'coach');
+  }
+
+  function updateEditModeToggle() {
+    const editable = canUserEdit();
+    const editingActive = editable && editMode;
+    editModeToggle.disabled = !editable;
+    editModeToggle.setAttribute('aria-pressed', editingActive ? 'true' : 'false');
+    editModeToggle.setAttribute('aria-label', editingActive ? 'Edit mode' : 'View mode');
+    editModeLabel.textContent = editingActive ? 'Edit mode' : 'View mode';
+    const icon = editModeToggle.querySelector<HTMLElement>('[data-lucide]');
+    if (icon) {
+      icon.setAttribute('data-lucide', editingActive ? 'unlock' : 'lock');
+    } else {
+      const freshIcon = document.createElement('span');
+      freshIcon.className = 'field-mode-icon';
+      freshIcon.setAttribute('data-lucide', editingActive ? 'unlock' : 'lock');
+      freshIcon.setAttribute('aria-hidden', 'true');
+      editModeToggle.append(freshIcon);
+    }
+    renderIcons(editModeToggle);
+  }
+
+  function showEditModeLabel() {
+    editModeToggle.classList.remove('is-collapsed');
+    if (editModeTimeout) {
+      window.clearTimeout(editModeTimeout);
+    }
+    editModeTimeout = window.setTimeout(() => {
+      editModeToggle.classList.add('is-collapsed');
+    }, 2200);
+  }
+
+  function syncEditorMode() {
+    const editable = canUserEdit();
+    const editingActive = editable && editMode;
+    const disable = !editingActive;
+    canEdit = editingActive;
     newPlayButton.disabled = disable;
     flipPlayButton.disabled = disable;
     savePlayButton.disabled = disable;
@@ -520,6 +587,9 @@ export function initApp() {
     deletePlaybookButton.disabled = !hasPlaybook;
     setSectionHidden(playActions, disable);
     updatePlaybookRolePill();
+    updateEditModeToggle();
+    updateSaveButtonLabel();
+    updateSelectedPanel();
   }
 
   async function loadPlaybooks() {
@@ -579,7 +649,7 @@ export function initApp() {
     if (selectedPlaybookId) {
       const current = playbooks.find((item) => item.id === selectedPlaybookId);
       currentRole = current?.role ?? null;
-      setEditorMode(currentRole === 'coach');
+      syncEditorMode();
       updateSelectedPanel();
       await loadPlaysForPlaybook(selectedPlaybookId);
     }
@@ -741,7 +811,7 @@ export function initApp() {
 
   function updateSaveButtonLabel() {
     savePlayButton.textContent = selectedSavedPlayId ? 'Update' : 'Save';
-    const canSave = currentRole === 'coach' && !sharedPlayActive;
+    const canSave = canEdit && currentRole === 'coach' && !sharedPlayActive;
     savePlayButton.disabled = !canSave;
     saveMenuToggle.disabled = !canSave;
     sharePlayButton.disabled = !canSave;
@@ -1885,6 +1955,31 @@ export function initApp() {
     resetPlayback();
   });
 
+  fullscreenToggle.addEventListener('click', async () => {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+      return;
+    }
+    if (fieldSection?.requestFullscreen) {
+      await fieldSection.requestFullscreen();
+      return;
+    }
+    setFullscreen(!fullscreenActive);
+  });
+
+  document.addEventListener('fullscreenchange', () => {
+    setFullscreen(document.fullscreenElement === fieldSection);
+  });
+
+  editModeToggle.addEventListener('click', () => {
+    if (editModeToggle.disabled) {
+      return;
+    }
+    editMode = !editMode;
+    syncEditorMode();
+    showEditModeLabel();
+  });
+
   deletePlayerButton.addEventListener('click', () => {
     closePlayerMenu();
     const player = getSelectedPlayer();
@@ -2196,7 +2291,7 @@ export function initApp() {
     selectedSavedPlayId = null;
     sharedPlayActive = false;
     sharedPlayToken = null;
-    setEditorMode(currentRole === 'coach');
+    syncEditorMode();
     renderSavedPlaysSelect();
     scrubberTouched = false;
     setStatus('Started a new play');
@@ -2336,7 +2431,7 @@ export function initApp() {
     if (selectedEntry) {
       sharedPlayActive = false;
       sharedPlayToken = null;
-      setEditorMode(currentRole === 'coach');
+      syncEditorMode();
       play = clonePlay(selectedEntry.play);
       currentNotes = selectedEntry.notes ?? '';
       currentTags = selectedEntry.tags ?? [];
@@ -3346,7 +3441,7 @@ export function initApp() {
       savedPlays = [];
       selectedSavedPlayId = null;
     currentRole = null;
-    setEditorMode(true);
+    syncEditorMode();
     renderPlaybookSelect();
     renderSavedPlaysSelect();
     updateSelectedPanel();
@@ -3429,7 +3524,7 @@ export function initApp() {
     clearShareParam('share');
     sharedPlayActive = false;
     sharedPlayToken = null;
-    setEditorMode(currentRole === 'coach');
+    syncEditorMode();
     updateSharedPlayUI();
   });
 
@@ -3476,7 +3571,7 @@ export function initApp() {
       playbooks = [entry, ...playbooks];
       selectedPlaybookId = entry.id;
       currentRole = entry.role;
-      setEditorMode(true);
+      syncEditorMode();
       renderPlaybookSelect();
       await loadPlaysForPlaybook(entry.id);
       return;
@@ -3488,12 +3583,12 @@ export function initApp() {
     renderSavedPlaysSelect();
     if (!selectedPlaybookId) {
       currentRole = null;
-      setEditorMode(true);
+      syncEditorMode();
       return;
     }
     const current = playbooks.find((item) => item.id === selectedPlaybookId);
     currentRole = current?.role ?? null;
-    setEditorMode(!currentUserId || currentRole === 'coach');
+    syncEditorMode();
     updateSelectedPanel();
     await loadPlaysForPlaybook(selectedPlaybookId);
   });
@@ -3577,12 +3672,12 @@ export function initApp() {
     if (selectedPlaybookId) {
       const current = playbooks.find((item) => item.id === selectedPlaybookId);
       currentRole = current?.role ?? null;
-      setEditorMode(!currentUserId || currentRole === 'coach');
+      syncEditorMode();
       renderPlaybookSelect();
       await loadPlaysForPlaybook(selectedPlaybookId);
     } else {
       currentRole = null;
-      setEditorMode(true);
+      syncEditorMode();
       renderPlaybookSelect();
       renderSavedPlaysSelect();
     }
@@ -3637,6 +3732,8 @@ export function initApp() {
   renderPlaybookSelect();
   updateSharedPlayUI();
   updateSharedPlaybookUI();
+  syncEditorMode();
+  syncFullscreenUI();
   if (sharedPlayToken) {
     loadSharedPlayByToken(sharedPlayToken);
   }

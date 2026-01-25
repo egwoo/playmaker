@@ -4,126 +4,325 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Playmaker</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="./favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="icon" href="./favicon-16.png" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" sizes="180x180" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap"
       rel="stylesheet"
     />
-    <script type="module" crossorigin src="./assets/index-BvUH7kie.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-BCvjXwel.css">
+    <script type="module" crossorigin src="./assets/index-Bv2zvvTa.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-CYntaPbu.css">
   </head>
   <body>
     <div id="app">
-      <header class="topbar">
-        <div>
-          <p class="eyebrow">Flag Football Lab</p>
-          <h1>Playmaker</h1>
-          <p class="subtitle">Sketch a play, set timing, and watch it move.</p>
+      <main class="main">
+        <div class="layout-header">
+          <div class="layout-title">
+            <h1>Playmaker</h1>
+          </div>
+          <div class="layout-toolbar">
+            <div class="field-toolbar">
+              <div class="toolbar-group">
+                <button
+                  type="button"
+                  id="undo-action"
+                  class="secondary icon-button"
+                  aria-label="Undo"
+                  title="Undo"
+                  disabled
+                >
+                  <span data-lucide="undo" aria-hidden="true"></span>
+                </button>
+                <button
+                  type="button"
+                  id="redo-action"
+                  class="secondary icon-button"
+                  aria-label="Redo"
+                  title="Redo"
+                  disabled
+                >
+                  <span data-lucide="redo" aria-hidden="true"></span>
+                </button>
+              </div>
+              <div class="toolbar-group toolbar-playback">
+                <button type="button" id="play-toggle" class="primary icon-only" aria-label="Play">
+                  <span data-lucide="play" aria-hidden="true"></span>
+                </button>
+                <button
+                  type="button"
+                  id="reset-time"
+                  class="secondary icon-button"
+                  aria-label="Reset play time"
+                  title="Reset to start"
+                >
+                  <span data-lucide="rotate-ccw" aria-hidden="true"></span>
+                </button>
+                <label class="field-label toolbar-scrubber">
+                  <div class="scrubber-row">
+                    <input id="scrubber" type="range" min="0" max="0" step="0.01" value="0" />
+                  </div>
+                </label>
+                <button
+                  type="button"
+                  id="fullscreen-toggle"
+                  class="secondary icon-button"
+                  aria-label="Enter fullscreen"
+                  title="Fullscreen"
+                >
+                  <span data-lucide="maximize-2" aria-hidden="true"></span>
+                </button>
+              </div>
+            </div>
+            <div class="status is-hidden" id="status-text">Ready</div>
+          </div>
+          <div class="layout-account">
+            <button type="button" id="help-trigger" class="secondary help-button">Help</button>
+            <button type="button" id="auth-trigger" class="secondary">Sign in</button>
+            <button
+              type="button"
+              id="auth-avatar"
+              class="icon-button avatar-button is-hidden"
+              aria-label="Account menu"
+              title="Account"
+            >
+              <img id="auth-avatar-img" class="avatar-img is-hidden" alt="" />
+              <span id="auth-avatar-fallback" class="avatar-fallback">
+                <span data-lucide="user" aria-hidden="true"></span>
+              </span>
+            </button>
+            <div class="auth-menu is-hidden" id="auth-menu" role="menu">
+              <div class="auth-user" id="auth-user-email"></div>
+              <button type="button" id="auth-signout" class="secondary">Sign out</button>
+            </div>
+          </div>
         </div>
-        <div class="status" id="status-text">Ready.</div>
-      </header>
 
-      <main class="layout">
-        <section class="panel" aria-label="Controls">
-          <div class="panel-block">
-            <h2>Roster</h2>
-            <p class="hint">Click on the field to place a player.</p>
-            <div class="segmented" role="group" aria-label="Team selection">
-              <button type="button" data-team="offense" class="segmented-button active">
-                Offense
-              </button>
-              <button type="button" data-team="defense" class="segmented-button">
-                Defense
-              </button>
-            </div>
-            <button type="button" class="secondary" id="clear-play">Clear play</button>
-          </div>
-
-          <div class="panel-block">
-            <h2>Selected Player</h2>
-            <div id="player-card" class="player-card empty">Select a player</div>
-            <label class="field-label route-speed">
-              New leg speed (yd/s)
-              <input id="speed-input" type="number" min="0.1" step="0.1" value="6" />
-            </label>
-            <label class="field-label player-name">
-              Player name
-              <input id="player-name-input" type="text" maxlength="20" value="" />
-            </label>
-            <label class="field-label start-action">
-              Start action (time 0)
-              <select id="start-action-select"></select>
-            </label>
-            <div id="coverage-panel" class="coverage-panel">
-              <label class="field-label">
-                Coverage type
-                <select id="coverage-type-select"></select>
-              </label>
-              <div class="coverage-man">
-                <label class="field-label">
-                  Coverage assignment
-                  <select id="coverage-target-select"></select>
-                </label>
-                <label class="field-label">
-                  Defender speed (yd/s)
-                  <input id="coverage-speed-input" type="number" min="0.1" step="0.1" value="6" />
-                </label>
+        <div class="layout">
+          <section class="panel" aria-label="Playbook">
+            <details class="panel-block collapsible controls-collapsible" data-panel="controls" open>
+              <summary>Playbook</summary>
+              <div class="panel-content controls-content">
+                  <div class="panel-block">
+                    <div class="saved-play-row menu-row">
+                      <select id="playbook-select" aria-label="Playbook"></select>
+                      <button
+                        type="button"
+                        id="playbook-role-pill"
+                        class="role-indicator is-hidden"
+                        aria-label="View only"
+                        data-tooltip="View only"
+                      >
+                        <span data-lucide="eye" aria-hidden="true"></span>
+                      </button>
+                      <div class="menu-wrapper">
+                      <button
+                        type="button"
+                        id="playbook-menu-toggle"
+                        class="secondary icon-button"
+                        aria-label="Playbook options"
+                        aria-haspopup="true"
+                        aria-expanded="false"
+                      >
+                        <span data-lucide="more-vertical" aria-hidden="true"></span>
+                      </button>
+                      <div class="split-menu context-menu is-hidden" id="playbook-menu" role="menu">
+                        <button type="button" id="share-playbook" class="split-menu-item" role="menuitem">
+                          Share
+                        </button>
+                        <button type="button" id="rename-playbook" class="split-menu-item" role="menuitem">
+                          Rename
+                        </button>
+                        <button type="button" id="delete-playbook" class="split-menu-item" role="menuitem">
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="share-banner is-hidden" id="shared-playbook-banner">
+                    <div class="share-banner-text" id="shared-playbook-text">
+                      Shared playbook link.
+                    </div>
+                    <button type="button" id="shared-playbook-action" class="secondary">
+                      Sign in to access
+                    </button>
+                  </div>
+                  <div class="saved-play-row menu-row">
+                    <select id="saved-plays-select" aria-label="Saved plays"></select>
+                    <div class="menu-wrapper">
+                      <button
+                        type="button"
+                        id="play-menu-toggle"
+                        class="secondary icon-button"
+                        aria-label="Play options"
+                        aria-haspopup="true"
+                        aria-expanded="false"
+                      >
+                        <span data-lucide="more-vertical" aria-hidden="true"></span>
+                      </button>
+                      <div class="split-menu context-menu is-hidden" id="play-menu" role="menu">
+                        <button type="button" id="share-play" class="split-menu-item" role="menuitem">
+                          Share
+                        </button>
+                        <button type="button" id="rename-play" class="split-menu-item" role="menuitem">
+                          Rename
+                        </button>
+                        <button type="button" id="delete-play" class="split-menu-item" role="menuitem">
+                          Delete
+                        </button>
+                        <button type="button" id="play-history" class="split-menu-item" role="menuitem">
+                          History
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="share-banner is-hidden" id="shared-play-banner">
+                    <div class="share-banner-text" id="shared-play-text">Shared play link.</div>
+                    <button type="button" id="shared-play-action" class="secondary">
+                      Sign in to save this play
+                    </button>
+                  </div>
+                  <div class="play-actions" id="play-actions">
+                    <button type="button" id="new-play" class="secondary">New</button>
+                    <button type="button" id="flip-play" class="secondary">Flip</button>
+                    <div class="split-button" id="save-split">
+                      <button type="button" id="save-play" class="secondary">Save</button>
+                      <button
+                        type="button"
+                        id="save-menu-toggle"
+                        class="secondary icon-button"
+                        aria-label="Save options"
+                        aria-haspopup="true"
+                        aria-expanded="false"
+                      >
+                        <span data-lucide="chevron-down" aria-hidden="true"></span>
+                      </button>
+                      <div class="split-menu is-hidden" id="save-menu" role="menu">
+                        <button type="button" id="save-as-new" class="split-menu-item" role="menuitem">
+                          Save as new
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="panel-block">
+                  <p class="hint">Tap on the field to place a player.</p>
+                  <div class="segmented" role="group" aria-label="Team selection">
+                    <button type="button" data-team="offense" class="segmented-button active">
+                      Offense
+                    </button>
+                    <button type="button" data-team="defense" class="segmented-button">
+                      Defense
+                    </button>
+                  </div>
+                </div>
+                <div class="panel-block">
+                  <div class="field-label">
+                    <span>Player</span>
+                    <div class="saved-play-row menu-row">
+                      <select id="selected-player-select" class="player-select"></select>
+                      <div class="menu-wrapper">
+                        <button
+                          type="button"
+                          id="player-menu-toggle"
+                          class="secondary icon-button"
+                          aria-label="Player options"
+                          aria-haspopup="true"
+                          aria-expanded="false"
+                        >
+                          <span data-lucide="more-vertical" aria-hidden="true"></span>
+                        </button>
+                        <div class="split-menu context-menu is-hidden" id="player-menu" role="menu">
+                          <button type="button" id="rename-player" class="split-menu-item" role="menuitem">
+                            Rename
+                          </button>
+                          <button type="button" id="delete-player" class="split-menu-item" role="menuitem">
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div id="coverage-panel" class="coverage-panel">
+                    <label class="field-label">
+                      Coverage type
+                      <select id="coverage-type-select"></select>
+                    </label>
+                    <div class="coverage-man">
+                      <label class="field-label">
+                        Coverage assignment
+                        <select id="coverage-target-select"></select>
+                      </label>
+                      <label class="field-label">
+                        Defender speed (yd/s)
+                        <input
+                          id="coverage-speed-input"
+                          type="number"
+                          min="0.1"
+                          step="0.1"
+                          value="6"
+                        />
+                      </label>
+                    </div>
+                    <div class="coverage-zone">
+                      <label class="field-label">
+                        Zone horizontal (yd)
+                        <input
+                          id="zone-radius-x-input"
+                          type="number"
+                          min="0.5"
+                          step="0.5"
+                          value="10"
+                        />
+                      </label>
+                      <label class="field-label">
+                        Zone vertical (yd)
+                        <input
+                          id="zone-radius-y-input"
+                          type="number"
+                          min="0.5"
+                          step="0.5"
+                          value="5"
+                        />
+                      </label>
+                      <label class="field-label">
+                        Defender speed (yd/s)
+                        <input id="zone-speed-input" type="number" min="0.1" step="0.1" value="6" />
+                      </label>
+                    </div>
+                  </div>
+                  <div class="button-row player-actions" id="player-actions"></div>
+                  <div class="waypoint-section">
+                    <div class="waypoint-header">
+                      <span>Waypoints</span>
+                      <span class="hint">Tap field to add</span>
+                    </div>
+                    <div id="waypoint-list" class="waypoint-list"></div>
+                  </div>
+                </div>
               </div>
-              <div class="coverage-zone">
-                <label class="field-label">
-                  Zone horizontal (yd)
-                  <input id="zone-radius-x-input" type="number" min="0.5" step="0.5" value="10" />
-                </label>
-                <label class="field-label">
-                  Zone vertical (yd)
-                  <input id="zone-radius-y-input" type="number" min="0.5" step="0.5" value="5" />
-                </label>
-                <label class="field-label">
-                  Defender speed (yd/s)
-                  <input id="zone-speed-input" type="number" min="0.1" step="0.1" value="6" />
-                </label>
-              </div>
-            </div>
-            <div class="button-row">
-              <button type="button" id="deselect-player" class="secondary" disabled>Deselect</button>
-              <button type="button" id="delete-player" class="secondary" disabled>Delete</button>
-            </div>
-            <div class="waypoint-section">
-              <div class="waypoint-header">
-                <span>Waypoints</span>
-                <span class="hint">Tap field to add</span>
-              </div>
-              <div id="waypoint-list" class="waypoint-list"></div>
-            </div>
-          </div>
-
-          <div class="panel-block">
-            <h2>Playback</h2>
-            <div class="playback-controls">
-              <button type="button" id="play-toggle" class="primary">Play</button>
-              <label class="field-label">
-                Timeline
-                <input id="scrubber" type="range" min="0" max="0" step="0.01" value="0" />
-              </label>
-              <div class="time-readout" id="time-readout">0.0s / 0.0s</div>
-              <div class="ball-status" id="ball-status">No ball carrier yet.</div>
-            </div>
-          </div>
-        </section>
+            </details>
+          </section>
 
         <section class="field" aria-label="Field canvas">
-          <div class="field-toolbar">
-            <button type="button" id="undo-action" class="secondary" disabled>Undo</button>
-            <button type="button" id="redo-action" class="secondary" disabled>Redo</button>
-          </div>
           <div class="field-surface">
             <canvas id="field-canvas"></canvas>
-            <div class="field-overlay" id="field-overlay">
-              Tap to add players. Select a player, then tap to add waypoints.
-            </div>
+            <button
+              type="button"
+              id="edit-mode-toggle"
+              class="field-mode-toggle is-collapsed"
+              aria-pressed="false"
+              aria-label="View mode"
+            >
+              <span class="field-mode-label">View mode</span>
+              <span class="field-mode-icon" data-lucide="lock" aria-hidden="true"></span>
+            </button>
           </div>
         </section>
+        </div>
       </main>
     </div>
 
