@@ -24,6 +24,9 @@ const DEFAULT_ZONE_RADIUS_X = 10;
 const DEFAULT_ZONE_RADIUS_Y = 5;
 const MIN_ZONE_RADIUS = 1;
 const HELP_SEEN_KEY = 'playmaker.help.seen.v1';
+const LAST_SELECTED_PLAY_KEY = 'playmaker.lastSelectedPlay.v1';
+
+type PlayMode = 'design' | 'game';
 
 type DragState = {
   playerId: string;
@@ -111,6 +114,10 @@ export function initApp() {
   const playbookRolePill = document.getElementById('playbook-role-pill');
   const playbookMenuToggle = document.getElementById('playbook-menu-toggle') as HTMLButtonElement | null;
   const playbookMenu = document.getElementById('playbook-menu');
+  const modeButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-mode]'));
+  const designPlaySection = document.getElementById('design-play-section');
+  const gamePlaySection = document.getElementById('game-play-section');
+  const gamePlayList = document.getElementById('game-play-list');
   const sharePlaybookButton = document.getElementById('share-playbook') as HTMLButtonElement | null;
   const renamePlaybookButton = document.getElementById('rename-playbook') as HTMLButtonElement | null;
   const deletePlaybookButton = document.getElementById('delete-playbook') as HTMLButtonElement | null;
@@ -185,6 +192,10 @@ export function initApp() {
     !playbookRolePill ||
     !playbookMenuToggle ||
     !playbookMenu ||
+    modeButtons.length === 0 ||
+    !designPlaySection ||
+    !gamePlaySection ||
+    !gamePlayList ||
     !sharePlaybookButton ||
     !renamePlaybookButton ||
     !deletePlaybookButton ||
@@ -241,6 +252,7 @@ export function initApp() {
   let playbooks: Playbook[] = [];
   let selectedPlaybookId: string | null = null;
   let currentRole: Playbook['role'] | null = null;
+  let playMode: PlayMode = 'design';
   let currentNotes = '';
   let currentTags: string[] = [];
   let currentUserId: string | null = null;
@@ -520,6 +532,105 @@ export function initApp() {
     }
   }
 
+  function loadLastSelectedPlayMap(): Record<string, string> {
+    try {
+      const raw = localStorage.getItem(LAST_SELECTED_PLAY_KEY);
+      if (!raw) {
+        return {};
+      }
+      const parsed = JSON.parse(raw) as Record<string, string>;
+      if (parsed && typeof parsed === 'object') {
+        return parsed;
+      }
+    } catch {
+      // ignore storage failures
+    }
+    return {};
+  }
+
+  function saveLastSelectedPlayMap(map: Record<string, string>) {
+    try {
+      localStorage.setItem(LAST_SELECTED_PLAY_KEY, JSON.stringify(map));
+    } catch {
+      // ignore storage failures
+    }
+  }
+
+  function setLastSelectedPlay(playbookId: string | null, playId: string | null) {
+    if (!playbookId) {
+      return;
+    }
+    const map = loadLastSelectedPlayMap();
+    if (!playId) {
+      delete map[playbookId];
+    } else {
+      map[playbookId] = playId;
+    }
+    saveLastSelectedPlayMap(map);
+  }
+
+  function getLastSelectedPlay(playbookId: string | null): string | null {
+    if (!playbookId) {
+      return null;
+    }
+    const map = loadLastSelectedPlayMap();
+    return map[playbookId] ?? null;
+  }
+
+  function renderGamePlayList() {
+    gamePlayList.replaceChildren();
+    if (!currentUserId) {
+      const empty = document.createElement('div');
+      empty.className = 'game-play-empty';
+      empty.textContent = 'Sign in to load plays.';
+      gamePlayList.append(empty);
+      return;
+    }
+    if (!selectedPlaybookId) {
+      const empty = document.createElement('div');
+      empty.className = 'game-play-empty';
+      empty.textContent = 'Select a playbook.';
+      gamePlayList.append(empty);
+      return;
+    }
+    if (savedPlays.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'game-play-empty';
+      empty.textContent = 'No plays yet.';
+      gamePlayList.append(empty);
+      return;
+    }
+
+    const sorted = [...savedPlays].sort((a, b) => b.updatedAt - a.updatedAt);
+    for (const entry of sorted) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'game-play-item';
+      if (entry.id === selectedSavedPlayId) {
+        button.classList.add('is-active');
+      }
+      button.textContent = entry.name;
+      button.addEventListener('click', () => selectSavedPlayById(entry.id));
+      gamePlayList.append(button);
+    }
+  }
+
+  function updateModeUI() {
+    modeButtons.forEach((button) => {
+      button.classList.toggle('active', button.dataset.mode === playMode);
+    });
+    setSectionHidden(designPlaySection, playMode === 'game');
+    setSectionHidden(gamePlaySection, playMode === 'design');
+    editModeToggle.classList.toggle('is-hidden', playMode === 'game');
+    renderGamePlayList();
+  }
+
+  function setPlayMode(nextMode: PlayMode) {
+    playMode = nextMode;
+    updateModeUI();
+    syncEditorMode();
+  }
+
   async function loadSharedPlayByToken(token: string) {
     const { data, error } = await supabase.rpc('fetch_play_share', { share_token: token });
     if (error || !data || data.length === 0) {
@@ -566,7 +677,7 @@ export function initApp() {
   }
 
   function canUserEdit() {
-    return !sharedPlayActive && (!currentUserId || currentRole === 'coach');
+    return playMode === 'design' && !sharedPlayActive && (!currentUserId || currentRole === 'coach');
   }
 
   function updateEditModeToggle() {
@@ -604,7 +715,10 @@ export function initApp() {
     const editingActive = editable && editMode;
     const disable = !editingActive;
     canEdit = editingActive;
-    if (canEdit) {
+    if (playMode === 'game') {
+      fieldHint.classList.add('is-hidden');
+      waypointHint.classList.add('is-hidden');
+    } else if (canEdit) {
       fieldHint.textContent = 'Tap on the field to place a player.';
       fieldHint.classList.remove('is-hidden');
       waypointHint.classList.remove('is-hidden');
@@ -800,7 +914,13 @@ export function initApp() {
     selectedSavedPlayId = null;
     currentNotes = '';
     currentTags = [];
+    const lastSelected = getLastSelectedPlay(playbookId);
+    if (lastSelected && savedPlays.some((entry) => entry.id === lastSelected)) {
+      selectSavedPlayById(lastSelected);
+      return;
+    }
     renderSavedPlaysSelect();
+    renderGamePlayList();
   }
 
   function renderSavedPlaysSelect() {
@@ -841,6 +961,47 @@ export function initApp() {
     updateSaveButtonLabel();
     savedPlaysSelect.disabled = !currentUserId || !selectedPlaybookId;
     updatePlaybookRolePill();
+    renderGamePlayList();
+  }
+
+  function selectSavedPlayById(value: string | null) {
+    if (!value) {
+      selectedSavedPlayId = null;
+      currentNotes = '';
+      currentTags = [];
+      updateSaveButtonLabel();
+      renderSavedPlaysSelect();
+      renderGamePlayList();
+      return;
+    }
+
+    selectedSavedPlayId = value;
+    const selectedEntry = savedPlays.find((entry) => entry.id === value);
+    if (!selectedEntry) {
+      setLastSelectedPlay(selectedPlaybookId, null);
+      updateSaveButtonLabel();
+      renderSavedPlaysSelect();
+      renderGamePlayList();
+      return;
+    }
+    setLastSelectedPlay(selectedPlaybookId, value);
+    sharedPlayActive = false;
+    sharedPlayToken = null;
+    syncEditorMode();
+    play = clonePlay(selectedEntry.play);
+    currentNotes = selectedEntry.notes ?? '';
+    currentTags = selectedEntry.tags ?? [];
+    resetPlayback();
+    historyPast = [];
+    historyFuture = [];
+    updateHistoryUI();
+    updateSelectedPanel();
+    render();
+    persist();
+    updateSaveButtonLabel();
+    renderSavedPlaysSelect();
+    renderGamePlayList();
+    updateSharedPlayUI();
   }
 
   function updatePlaybookRolePill() {
@@ -915,6 +1076,7 @@ export function initApp() {
     };
     savedPlays = [entry, ...savedPlays];
     selectedSavedPlayId = entry.id;
+    setLastSelectedPlay(selectedPlaybookId, entry.id);
     await recordPlayVersion(entry.id, entry.name, entry.play);
     updateSavedPlaysStorage();
     setStatus('Saved new play');
@@ -967,6 +1129,7 @@ export function initApp() {
           }
         : entry
     );
+    setLastSelectedPlay(selectedPlaybookId, selectedSavedPlayId);
     await recordPlayVersion(data.id, data.name, data.data as Play);
     updateSavedPlaysStorage();
     setStatus(`${data.name} updated`);
@@ -2434,6 +2597,7 @@ export function initApp() {
     }
     savedPlays = savedPlays.filter((item) => item.id !== selectedSavedPlayId);
     selectedSavedPlayId = null;
+    setLastSelectedPlay(selectedPlaybookId, null);
     updateSavedPlaysStorage();
     persist();
     setStatus(`Deleted ${entry.name}`);
@@ -2461,34 +2625,7 @@ export function initApp() {
 
   savedPlaysSelect.addEventListener('change', () => {
     const value = savedPlaysSelect.value;
-    if (!value) {
-      selectedSavedPlayId = null;
-      currentNotes = '';
-      currentTags = [];
-      updateSaveButtonLabel();
-      renderSavedPlaysSelect();
-      return;
-    }
-    selectedSavedPlayId = value;
-    const selectedEntry = savedPlays.find((entry) => entry.id === value);
-    if (selectedEntry) {
-      sharedPlayActive = false;
-      sharedPlayToken = null;
-      syncEditorMode();
-      play = clonePlay(selectedEntry.play);
-      currentNotes = selectedEntry.notes ?? '';
-      currentTags = selectedEntry.tags ?? [];
-      resetPlayback();
-      historyPast = [];
-      historyFuture = [];
-      updateHistoryUI();
-      updateSelectedPanel();
-      render();
-      persist();
-    }
-    updateSaveButtonLabel();
-    renderSavedPlaysSelect();
-    updateSharedPlayUI();
+    selectSavedPlayById(value || null);
   });
 
   playerSelect.addEventListener('change', () => {
@@ -3511,6 +3648,13 @@ export function initApp() {
 
   helpTrigger.addEventListener('click', openHelpModal);
 
+  modeButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const nextMode = button.dataset.mode === 'game' ? 'game' : 'design';
+      setPlayMode(nextMode);
+    });
+  });
+
   playbookRolePill.addEventListener('click', () => {
     if (playbookRolePill.classList.contains('is-hidden')) {
       return;
@@ -3775,6 +3919,7 @@ export function initApp() {
   renderPlaybookSelect();
   updateSharedPlayUI();
   updateSharedPlaybookUI();
+  updateModeUI();
   syncEditorMode();
   syncFullscreenUI();
   if (sharedPlayToken) {

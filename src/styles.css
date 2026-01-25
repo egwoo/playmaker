@@ -831,6 +831,34 @@ input.toggle:checked::after {
   gap: 16px;
 }
 
+.game-play-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.game-play-item {
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: #f7f0e4;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  color: var(--ink);
+}
+
+.game-play-item.is-active {
+  background: #141815;
+  border-color: #141815;
+  color: #fff;
+}
+
+.game-play-empty {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 .hint {
   margin: 0;
   color: var(--muted);
