@@ -15,6 +15,10 @@
   box-sizing: border-box;
 }
 
+html {
+  background: radial-gradient(circle at top right, #f8f0d8 0%, #efe7d8 45%, #e5dfd4 100%);
+}
+
 body {
   margin: 0;
   font-family: 'Outfit', system-ui, sans-serif;
@@ -22,6 +26,7 @@ body {
   color: var(--ink);
   overflow-y: scroll;
   scrollbar-gutter: stable;
+  overscroll-behavior-y: none;
 }
 
 #app {
