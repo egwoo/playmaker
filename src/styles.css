@@ -1461,6 +1461,7 @@ button {
   right: 16px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   padding: 8px 12px;
   border-radius: 999px;
@@ -1486,6 +1487,9 @@ button {
 
 .field-mode-toggle.is-collapsed {
   padding: 8px;
+  width: 36px;
+  height: 36px;
+  justify-content: center;
 }
 
 .field-mode-toggle.is-collapsed .field-mode-label {
