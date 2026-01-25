@@ -256,7 +256,7 @@ export function initApp() {
   let playbooks: Playbook[] = [];
   let selectedPlaybookId: string | null = null;
   let currentRole: Playbook['role'] | null = null;
-  let playMode: PlayMode = 'design';
+  let playMode: PlayMode = 'game';
   let currentNotes = '';
   let currentTags: string[] = [];
   let currentUserId: string | null = null;
