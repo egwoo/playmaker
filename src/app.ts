@@ -119,6 +119,9 @@ export function initApp() {
   const toolbarHost = document.querySelector<HTMLElement>('.layout-toolbar');
   const fieldToolbarOverlay = document.getElementById('field-toolbar-overlay') as HTMLDivElement | null;
   const pageScroll = document.querySelector<HTMLElement>('.page-scroll');
+  const layoutRoot = document.querySelector<HTMLElement>('.layout');
+  const layoutHeader = document.querySelector<HTMLElement>('.layout-header');
+  const panelRoot = document.querySelector<HTMLElement>('.panel');
   const editModeToggle = document.getElementById('edit-mode-toggle') as HTMLButtonElement | null;
   const editModeLabel = editModeToggle?.querySelector<HTMLElement>('.field-mode-label') ?? null;
   const fieldSection = document.querySelector<HTMLElement>('section.field');
@@ -199,6 +202,9 @@ export function initApp() {
     !authSignOut ||
     !toolbar ||
     !pageScroll ||
+    !layoutRoot ||
+    !layoutHeader ||
+    !panelRoot ||
     !toolbarHost ||
     !fieldToolbarOverlay ||
     !editModeToggle ||
@@ -303,16 +309,16 @@ export function initApp() {
   const resizeObserver = new ResizeObserver(() => {
     renderer.resize();
     render();
-    updateDebugOverlay();
+    updateLayoutMetrics();
   });
   resizeObserver.observe(canvas);
   renderer.resize();
-  updateDebugOverlay();
+  updateLayoutMetrics();
   if (document.fonts?.ready) {
     document.fonts.ready.then(() => {
       renderer.resize();
       render();
-      updateDebugOverlay();
+      updateLayoutMetrics();
     });
   }
   if (!sharedPlayToken) {
@@ -377,10 +383,12 @@ export function initApp() {
       syncEditorMode();
     }
     syncFullscreenUI();
+    syncLayoutSizing();
     const syncResize = () => {
       renderer.resize();
       render();
       positionStatusToast();
+      updateLayoutMetrics();
     };
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -412,6 +420,8 @@ export function initApp() {
     const bodyRect = document.body.getBoundingClientRect();
     const fieldRect = fieldSection?.getBoundingClientRect();
     const canvasRect = canvas.getBoundingClientRect();
+    const layoutRect = layoutRoot.getBoundingClientRect();
+    const panelRect = panelRoot.getBoundingClientRect();
     const viewport = window.visualViewport;
     debugOverlay.textContent = [
       `innerHeight: ${window.innerHeight}`,
@@ -422,12 +432,40 @@ export function initApp() {
             viewport.offsetTop
           )})`
         : 'visualViewport: n/a',
+      `layout: ${Math.round(layoutRect.width)}x${Math.round(layoutRect.height)} (${getComputedStyle(
+        layoutRoot
+      ).display})`,
+      `grid: ${getComputedStyle(layoutRoot).gridTemplateColumns}`,
+      `panel: ${Math.round(panelRect.width)}x${Math.round(panelRect.height)}`,
       fieldRect
         ? `field: ${Math.round(fieldRect.height)}x${Math.round(fieldRect.width)}`
         : 'field: n/a',
       `canvas: ${Math.round(canvasRect.height)}x${Math.round(canvasRect.width)}`,
-      `fullscreen: ${fullscreenActive}`
+      `fullscreen: ${fullscreenActive} / class ${document.body.classList.contains('field-fullscreen')}`
     ].join('\n');
+  }
+
+  function syncLayoutSizing() {
+    if (fullscreenActive) {
+      layoutRoot.style.display = '';
+      layoutRoot.style.gridTemplateColumns = '';
+      return;
+    }
+    if (window.matchMedia('(max-width: 900px)').matches) {
+      layoutRoot.style.display = '';
+      layoutRoot.style.gridTemplateColumns = '';
+      return;
+    }
+    layoutRoot.style.display = 'grid';
+    layoutRoot.style.gridTemplateColumns = 'minmax(260px, 320px) 1fr';
+  }
+
+  function updateLayoutMetrics() {
+    const headerRect = layoutHeader.getBoundingClientRect();
+    const offset = headerRect.height + 12 + 18;
+    document.documentElement.style.setProperty('--layout-offset', `${offset}px`);
+    syncLayoutSizing();
+    updateDebugOverlay();
   }
 
   function positionStatusToast() {
@@ -1846,7 +1884,7 @@ export function initApp() {
       showWaypointMarkers: settings.showWaypointMarkers
     });
     updateTimelineUI();
-    updateDebugOverlay();
+    updateLayoutMetrics();
   }
 
   function persist() {
@@ -4210,15 +4248,20 @@ export function initApp() {
   updateTimelineUI();
   setPlayToggleState(isPlaying ? 'pause' : 'play');
   controlsPanel.addEventListener('toggle', syncControlsCollapse);
-  window.addEventListener('resize', syncControlsCollapse);
+  window.addEventListener('resize', () => {
+    syncControlsCollapse();
+    updateLayoutMetrics();
+  });
   window.visualViewport?.addEventListener('resize', () => {
     renderer.resize();
     render();
+    updateLayoutMetrics();
   });
   window.addEventListener('orientationchange', () => {
     requestAnimationFrame(() => {
       renderer.resize();
       render();
+      updateLayoutMetrics();
     });
   });
   collapsePanelsForMobile();

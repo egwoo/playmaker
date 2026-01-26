@@ -755,7 +755,7 @@ h1 {
   .panel {
     position: sticky;
     top: 18px;
-    max-height: calc(100vh - 36px);
+    max-height: calc(100svh - var(--layout-offset, 0px) - 18px);
     overflow-y: auto;
     overscroll-behavior: contain;
   }
