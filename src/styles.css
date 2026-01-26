@@ -34,7 +34,9 @@ body {
 
 .page-scroll {
   height: 100%;
+  width: 100%;
   overflow-y: auto;
+  overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   background: radial-gradient(circle at top right, #f8f0d8 0%, #efe7d8 45%, #e5dfd4 100%);
   overscroll-behavior-y: none;
@@ -738,6 +740,10 @@ h1 {
   grid-template-columns: minmax(260px, 320px) 1fr;
   gap: 24px;
   align-items: start;
+}
+
+.layout > * {
+  min-width: 0;
 }
 
 .panel {
@@ -1504,6 +1510,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-width: 0;
 }
 
 .field-toolbar {

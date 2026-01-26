@@ -427,6 +427,7 @@ export function initApp() {
       `innerHeight: ${window.innerHeight}`,
       `docEl: ${Math.round(htmlRect.height)}x${Math.round(htmlRect.width)}`,
       `body: ${Math.round(bodyRect.height)}x${Math.round(bodyRect.width)}`,
+      `pageScroll: ${pageScroll.scrollWidth}x${pageScroll.scrollHeight}`,
       viewport
         ? `visualViewport: ${Math.round(viewport.height)}x${Math.round(viewport.width)} (offset ${Math.round(
             viewport.offsetTop
@@ -436,6 +437,7 @@ export function initApp() {
         layoutRoot
       ).display})`,
       `grid: ${getComputedStyle(layoutRoot).gridTemplateColumns}`,
+      `layout scroll: ${layoutRoot.scrollWidth}x${layoutRoot.scrollHeight}`,
       `panel: ${Math.round(panelRect.width)}x${Math.round(panelRect.height)}`,
       fieldRect
         ? `field: ${Math.round(fieldRect.height)}x${Math.round(fieldRect.width)}`
