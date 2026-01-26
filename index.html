@@ -106,7 +106,7 @@
               <summary>Playbook</summary>
               <div class="panel-content controls-content">
                   <div class="panel-block">
-                    <div class="saved-play-row menu-row">
+                    <div class="saved-play-row menu-row" id="playbook-row">
                       <select id="playbook-select" aria-label="Playbook"></select>
                       <button
                         type="button"
@@ -141,6 +141,14 @@
                       </div>
                     </div>
                   </div>
+                  <div class="share-banner is-hidden" id="shared-playbook-banner">
+                    <div class="share-banner-text" id="shared-playbook-text">
+                      Shared playbook link.
+                    </div>
+                    <button type="button" id="shared-playbook-action" class="secondary">
+                      Sign in to access
+                    </button>
+                  </div>
                   <div class="panel-block">
                     <div class="segmented" role="group" aria-label="Mode selection">
                       <button type="button" class="segmented-button active" data-mode="game">
@@ -150,14 +158,6 @@
                     </div>
                   </div>
                   <div id="design-play-section" class="panel-block">
-                  <div class="share-banner is-hidden" id="shared-playbook-banner">
-                    <div class="share-banner-text" id="shared-playbook-text">
-                      Shared playbook link.
-                    </div>
-                    <button type="button" id="shared-playbook-action" class="secondary">
-                      Sign in to access
-                    </button>
-                  </div>
                   <div class="saved-play-row menu-row">
                     <select id="saved-plays-select" aria-label="Saved plays"></select>
                     <div class="menu-wrapper">

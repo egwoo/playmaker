@@ -126,6 +126,7 @@ export function initApp() {
   const editModeLabel = editModeToggle?.querySelector<HTMLElement>('.field-mode-label') ?? null;
   const fieldSection = document.querySelector<HTMLElement>('section.field');
   const playbookSelect = document.getElementById('playbook-select') as HTMLSelectElement | null;
+  const playbookRow = document.getElementById('playbook-row');
   const playbookRolePill = document.getElementById('playbook-role-pill');
   const playbookMenuToggle = document.getElementById('playbook-menu-toggle') as HTMLButtonElement | null;
   const playbookMenu = document.getElementById('playbook-menu');
@@ -210,6 +211,7 @@ export function initApp() {
     !editModeToggle ||
     !editModeLabel ||
     !playbookSelect ||
+    !playbookRow ||
     !playbookRolePill ||
     !playbookMenuToggle ||
     !playbookMenu ||
@@ -625,6 +627,7 @@ export function initApp() {
   function updateSharedPlaybookUI() {
     const shouldShow = !!sharedPlaybookToken && !sharedPlaybookAccepted;
     sharedPlaybookBanner.classList.toggle('is-hidden', !shouldShow);
+    playbookRow.classList.toggle('is-hidden', shouldShow);
     if (!shouldShow) {
       return;
     }
@@ -3020,7 +3023,7 @@ export function initApp() {
         return;
       }
       lastAuthEmail = email;
-      const redirectTo = `${window.location.origin}${window.location.pathname}`;
+      const redirectTo = window.location.href;
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: { emailRedirectTo: redirectTo }
@@ -3035,7 +3038,7 @@ export function initApp() {
     });
 
     googleButton?.addEventListener('click', async () => {
-      const redirectTo = `${window.location.origin}${window.location.pathname}`;
+      const redirectTo = window.location.href;
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: { redirectTo }
