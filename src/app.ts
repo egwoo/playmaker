@@ -118,6 +118,7 @@ export function initApp() {
   const toolbar = document.querySelector<HTMLElement>('.field-toolbar');
   const toolbarHost = document.querySelector<HTMLElement>('.layout-toolbar');
   const fieldToolbarOverlay = document.getElementById('field-toolbar-overlay') as HTMLDivElement | null;
+  const pageScroll = document.querySelector<HTMLElement>('.page-scroll');
   const editModeToggle = document.getElementById('edit-mode-toggle') as HTMLButtonElement | null;
   const editModeLabel = editModeToggle?.querySelector<HTMLElement>('.field-mode-label') ?? null;
   const fieldSection = document.querySelector<HTMLElement>('section.field');
@@ -197,6 +198,7 @@ export function initApp() {
     !authUserEmail ||
     !authSignOut ||
     !toolbar ||
+    !pageScroll ||
     !toolbarHost ||
     !fieldToolbarOverlay ||
     !editModeToggle ||
@@ -295,21 +297,32 @@ export function initApp() {
   let statusTimeout: number | null = null;
   let rolePillTimeout: number | null = null;
   const contextMenuClosers: Array<(except?: HTMLElement) => void> = [];
+  const debugEnabled = new URLSearchParams(window.location.search).has('debug');
+  let debugOverlay: HTMLDivElement | null = null;
 
   const resizeObserver = new ResizeObserver(() => {
     renderer.resize();
     render();
+    updateDebugOverlay();
   });
   resizeObserver.observe(canvas);
   renderer.resize();
+  updateDebugOverlay();
   if (document.fonts?.ready) {
     document.fonts.ready.then(() => {
       renderer.resize();
       render();
+      updateDebugOverlay();
     });
   }
   if (!sharedPlayToken) {
     saveDraftPlay(play);
+  }
+
+  if (debugEnabled) {
+    debugOverlay = document.createElement('div');
+    debugOverlay.className = 'debug-overlay';
+    document.body.append(debugOverlay);
   }
 
   function collapsePanelsForMobile() {
@@ -389,6 +402,32 @@ export function initApp() {
     statusTimeout = window.setTimeout(() => {
       statusText.classList.add('is-hidden');
     }, 2600);
+  }
+
+  function updateDebugOverlay() {
+    if (!debugOverlay) {
+      return;
+    }
+    const htmlRect = document.documentElement.getBoundingClientRect();
+    const bodyRect = document.body.getBoundingClientRect();
+    const fieldRect = fieldSection?.getBoundingClientRect();
+    const canvasRect = canvas.getBoundingClientRect();
+    const viewport = window.visualViewport;
+    debugOverlay.textContent = [
+      `innerHeight: ${window.innerHeight}`,
+      `docEl: ${Math.round(htmlRect.height)}x${Math.round(htmlRect.width)}`,
+      `body: ${Math.round(bodyRect.height)}x${Math.round(bodyRect.width)}`,
+      viewport
+        ? `visualViewport: ${Math.round(viewport.height)}x${Math.round(viewport.width)} (offset ${Math.round(
+            viewport.offsetTop
+          )})`
+        : 'visualViewport: n/a',
+      fieldRect
+        ? `field: ${Math.round(fieldRect.height)}x${Math.round(fieldRect.width)}`
+        : 'field: n/a',
+      `canvas: ${Math.round(canvasRect.height)}x${Math.round(canvasRect.width)}`,
+      `fullscreen: ${fullscreenActive}`
+    ].join('\n');
   }
 
   function positionStatusToast() {
@@ -1807,6 +1846,7 @@ export function initApp() {
       showWaypointMarkers: settings.showWaypointMarkers
     });
     updateTimelineUI();
+    updateDebugOverlay();
   }
 
   function persist() {
@@ -4171,6 +4211,16 @@ export function initApp() {
   setPlayToggleState(isPlaying ? 'pause' : 'play');
   controlsPanel.addEventListener('toggle', syncControlsCollapse);
   window.addEventListener('resize', syncControlsCollapse);
+  window.visualViewport?.addEventListener('resize', () => {
+    renderer.resize();
+    render();
+  });
+  window.addEventListener('orientationchange', () => {
+    requestAnimationFrame(() => {
+      renderer.resize();
+      render();
+    });
+  });
   collapsePanelsForMobile();
   syncControlsCollapse();
   renderSavedPlaysSelect();
