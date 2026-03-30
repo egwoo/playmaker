@@ -380,6 +380,15 @@ export function initApp() {
     }
   }
 
+  function syncFullscreenToolbarOffset() {
+    if (!fullscreenActive) {
+      fieldSurface.style.removeProperty('--fullscreen-toolbar-stack-offset');
+      return;
+    }
+    const offset = fieldToolbarOverlay.offsetHeight > 0 ? fieldToolbarOverlay.offsetHeight + 12 : 0;
+    fieldSurface.style.setProperty('--fullscreen-toolbar-stack-offset', `${offset}px`);
+  }
+
   function setFullscreen(active: boolean) {
     const wasFullscreen = fullscreenActive;
     fullscreenActive = active;
@@ -561,6 +570,7 @@ export function initApp() {
     const offset = headerRect.height + 12 + 18;
     document.documentElement.style.setProperty('--layout-offset', `${offset}px`);
     syncLayoutSizing();
+    syncFullscreenToolbarOffset();
     updateDebugOverlay();
     if (isAllPlaysViewActive()) {
       renderAllPlaysGallery();
