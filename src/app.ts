@@ -364,15 +364,18 @@ export function initApp() {
 
   const resizeObserver = new ResizeObserver(() => {
     renderer.resize();
+    syncFieldChromeMetrics();
     render();
     updateLayoutMetrics();
   });
   resizeObserver.observe(canvas);
   renderer.resize();
+  syncFieldChromeMetrics();
   updateLayoutMetrics();
   if (document.fonts?.ready) {
     document.fonts.ready.then(() => {
       renderer.resize();
+      syncFieldChromeMetrics();
       render();
       updateLayoutMetrics();
     });
@@ -412,6 +415,20 @@ export function initApp() {
       icon.setAttribute('data-lucide', fullscreenActive ? 'minimize-2' : 'maximize-2');
       renderIcons(fullscreenToggle);
     }
+  }
+
+  function syncFieldChromeMetrics() {
+    const bounds = renderer.getFieldBounds();
+    const insetLeft = Math.max(0, bounds.x);
+    const insetTop = Math.max(0, bounds.y);
+    const insetRight = Math.max(0, canvas.clientWidth - bounds.x - bounds.width);
+    const insetBottom = Math.max(0, canvas.clientHeight - bounds.y - bounds.height);
+    const controlOffset = Math.min(insetLeft, insetTop, insetRight, insetBottom, 16);
+    fieldSurface.style.setProperty('--field-inset-left', `${insetLeft}px`);
+    fieldSurface.style.setProperty('--field-inset-top', `${insetTop}px`);
+    fieldSurface.style.setProperty('--field-inset-right', `${insetRight}px`);
+    fieldSurface.style.setProperty('--field-inset-bottom', `${insetBottom}px`);
+    fieldSurface.style.setProperty('--field-control-offset', `${controlOffset}px`);
   }
 
   function syncFullscreenToolbarOffset() {

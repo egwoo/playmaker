@@ -1901,11 +1901,16 @@ button {
 }
 
 .field-surface {
+  --field-inset-left: 16px;
+  --field-inset-top: 16px;
+  --field-inset-right: 16px;
+  --field-inset-bottom: 16px;
+  --field-control-offset: var(--field-inset-top);
   position: relative;
   border-radius: 18px;
   overflow: hidden;
   background: linear-gradient(135deg, #2f6c4a 0%, #1b4a35 100%);
-  aspect-ratio: 50 / 30;
+  aspect-ratio: 41 / 25;
   min-height: 420px;
   box-shadow: var(--shadow);
 }
@@ -1946,7 +1951,7 @@ button {
 .all-play-card-canvas {
   display: block;
   width: 100%;
-  aspect-ratio: 50 / 30;
+  aspect-ratio: 41 / 25;
   border-radius: 14px;
   background: linear-gradient(135deg, #2f6c4a 0%, #1b4a35 100%);
 }
@@ -1990,10 +1995,6 @@ button {
 }
 
 .field-toolbar-overlay {
-  position: absolute;
-  top: 16px;
-  left: 16px;
-  right: 72px;
   display: none;
   align-items: center;
   gap: 12px;
@@ -2002,8 +2003,8 @@ button {
 
 .field-canvas-button {
   position: absolute;
-  top: 16px;
-  left: 16px;
+  top: calc(var(--field-inset-top) + var(--field-control-offset));
+  left: calc(var(--field-inset-left) + var(--field-control-offset));
   width: 40px;
   height: 40px;
   display: inline-flex;
@@ -2028,8 +2029,8 @@ button {
 
 .field-mode-toggle {
   position: absolute;
-  top: 16px;
-  right: 16px;
+  top: calc(var(--field-inset-top) + var(--field-control-offset));
+  right: calc(var(--field-inset-right) + var(--field-control-offset));
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2109,29 +2110,36 @@ body.field-fullscreen .layout {
 }
 
 body.field-fullscreen .field {
+  --fullscreen-toolbar-height: 56px;
+  --fullscreen-field-width: min(100%, calc((100dvh - 120px) * 41 / 25));
   position: fixed;
   inset: 0;
   padding: 24px;
   background: #101310;
   z-index: 80;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
 }
 
 body.field-fullscreen .field-surface {
-  height: 100%;
+  flex: 0 1 auto;
+  width: var(--fullscreen-field-width);
+  max-width: 100%;
   min-height: 0;
-  aspect-ratio: auto;
+  aspect-ratio: 41 / 25;
 }
 
 body.field-fullscreen .field-toolbar-overlay {
   display: flex;
+  align-self: center;
   padding: 8px 12px;
   border-radius: 999px;
   background: rgba(8, 10, 9, 0.78);
   box-shadow: 0 10px 30px rgba(5, 6, 6, 0.35);
-  left: 50%;
-  right: auto;
-  transform: translateX(-50%);
-  width: min(900px, calc(100% - 32px));
+  width: var(--fullscreen-field-width);
+  max-width: 100%;
 }
 
 body.field-fullscreen #undo-action,
@@ -2151,14 +2159,8 @@ body.field-fullscreen .field-toolbar-overlay .secondary {
 }
 
 body.field-fullscreen .field-canvas-button {
-  top: 16px;
-  left: 16px;
-}
-
-@media (max-width: 700px) {
-  body.field-fullscreen .field-canvas-button {
-    top: calc(16px + var(--fullscreen-toolbar-stack-offset, 0px));
-  }
+  top: calc(var(--field-inset-top) + var(--field-control-offset));
+  left: calc(var(--field-inset-left) + var(--field-control-offset));
 }
 
 @media (max-width: 900px) {

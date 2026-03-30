@@ -102,27 +102,13 @@ export function createRenderer(canvas: HTMLCanvasElement) {
     );
     gradient.addColorStop(0, '#205a41');
     gradient.addColorStop(1, '#123a2a');
+    const cornerRadius = getFieldCornerRadius(metrics);
 
     ctx.save();
+    traceRoundedRect(ctx, metrics.x, metrics.y, metrics.width, metrics.height, cornerRadius);
+    ctx.clip();
     ctx.fillStyle = gradient;
     ctx.fillRect(metrics.x, metrics.y, metrics.width, metrics.height);
-
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.moveTo(metrics.x, metrics.y);
-    ctx.lineTo(metrics.x + metrics.width, metrics.y);
-    ctx.moveTo(metrics.x, metrics.y + metrics.height);
-    ctx.lineTo(metrics.x + metrics.width, metrics.y + metrics.height);
-    ctx.stroke();
-
-    ctx.lineWidth = 0.6;
-    ctx.beginPath();
-    ctx.moveTo(metrics.x, metrics.y);
-    ctx.lineTo(metrics.x, metrics.y + metrics.height);
-    ctx.moveTo(metrics.x + metrics.width, metrics.y);
-    ctx.lineTo(metrics.x + metrics.width, metrics.y + metrics.height);
-    ctx.stroke();
 
     const stripeCount = Math.max(1, Math.round(FIELD_LENGTH_YARDS / 5));
     for (let i = 1; i < stripeCount; i += 1) {
@@ -147,6 +133,39 @@ export function createRenderer(canvas: HTMLCanvasElement) {
     ctx.setLineDash([]);
 
     ctx.restore();
+
+    ctx.save();
+    traceRoundedRect(ctx, metrics.x, metrics.y, metrics.width, metrics.height, cornerRadius);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function getFieldCornerRadius(metrics: FieldMetrics): number {
+    return Math.max(10, Math.min(18, Math.min(metrics.width, metrics.height) * 0.035));
+  }
+
+  function traceRoundedRect(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius: number
+  ) {
+    const clamped = Math.max(0, Math.min(radius, width / 2, height / 2));
+    ctx.beginPath();
+    ctx.moveTo(x + clamped, y);
+    ctx.lineTo(x + width - clamped, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + clamped);
+    ctx.lineTo(x + width, y + height - clamped);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - clamped, y + height);
+    ctx.lineTo(x + clamped, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - clamped);
+    ctx.lineTo(x, y + clamped);
+    ctx.quadraticCurveTo(x, y, x + clamped, y);
+    ctx.closePath();
   }
 
   function drawRoutes(ctx: CanvasRenderingContext2D, state: RenderState) {
