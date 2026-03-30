@@ -35,31 +35,26 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'Method not allowed' }, { status: 405 });
   }
 
+  let userId: string | null = null;
   const authHeader = req.headers.get('Authorization');
-  if (!authHeader) {
-    return json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
   const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
   const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
-  const authClient = createClient(supabaseUrl, supabaseAnonKey, {
-    global: {
-      headers: {
-        Authorization: authHeader
+  if (authHeader) {
+    const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: authHeader
+        }
       }
-    }
-  });
+    });
 
-  const token = authHeader.replace(/^Bearer\s+/i, '');
-  const {
-    data: { user },
-    error: userError
-  } = await authClient.auth.getUser(token);
-
-  if (userError || !user) {
-    return json({ error: 'Unauthorized' }, { status: 401 });
+    const token = authHeader.replace(/^Bearer\s+/i, '');
+    const {
+      data: { user }
+    } = await authClient.auth.getUser(token);
+    userId = user?.id ?? null;
   }
 
   let payload: FeedbackPayload;
@@ -76,7 +71,7 @@ Deno.serve(async (req: Request) => {
 
   const admin = createClient(supabaseUrl, supabaseServiceRoleKey);
   const { error: insertError } = await admin.from('feedback_submissions').insert({
-    auth_user_id: user.id,
+    auth_user_id: userId,
     user_role: payload.currentRole ?? null,
     playbook_id: payload.playbookId ?? null,
     play_id: payload.playId ?? null,
@@ -103,7 +98,7 @@ Deno.serve(async (req: Request) => {
     message,
     '',
     '---',
-    `User ID: ${user.id}`,
+    `User ID: ${userId ?? 'anonymous'}`,
     `Role: ${payload.currentRole ?? 'none'}`,
     `Playbook ID: ${payload.playbookId ?? 'none'}`,
     `Play ID: ${payload.playId ?? 'none'}`,

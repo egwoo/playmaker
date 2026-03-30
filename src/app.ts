@@ -1372,10 +1372,6 @@ Sharing a playbook with assistants is confusing."
         setStatus('Enter feedback before submitting');
         return;
       }
-      if (!currentUserId) {
-        setStatus('Sign in to send feedback');
-        return;
-      }
       if (!submitButton) {
         return;
       }
