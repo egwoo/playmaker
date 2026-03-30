@@ -27,6 +27,7 @@ const DEFAULT_ZONE_RADIUS_Y = 5;
 const MIN_ZONE_RADIUS = 1;
 const HELP_SEEN_KEY = 'playmaker.help.seen.v1';
 const LAST_SELECTED_PLAY_KEY = 'playmaker.lastSelectedPlay.v1';
+const LOCKED_STATE_KEY = 'playmaker.locked.v1';
 
 type PlayMode = 'design' | 'game';
 
@@ -108,6 +109,8 @@ const DEFAULT_PLAYBOOK_TAGS = [
   { name: 'Pass', color: '#3b82f6', sortOrder: 20 }
 ];
 
+const TAG_COLOR_PRESETS = ['#d48418', '#3b82f6', '#22c55e', '#ec4899', '#8b5cf6', '#14b8a6', '#ef4444', '#0ea5e9'];
+
 export function initApp() {
   const NEW_PLAYBOOK_VALUE = '__new__';
   const canvas = document.getElementById('field-canvas') as HTMLCanvasElement | null;
@@ -171,10 +174,11 @@ export function initApp() {
   const playHistoryButton = document.getElementById('play-history') as HTMLButtonElement | null;
   const renamePlayButton = document.getElementById('rename-play') as HTMLButtonElement | null;
   const deletePlayButton = document.getElementById('delete-play') as HTMLButtonElement | null;
+  const lockedToggleRow = document.getElementById('locked-toggle-row');
+  const lockedToggle = document.getElementById('locked-toggle') as HTMLInputElement | null;
   const playTagsSection = document.getElementById('play-tags-section');
-  const manageTagsButton = document.getElementById('manage-tags') as HTMLButtonElement | null;
   const selectedPlayTags = document.getElementById('selected-play-tags');
-  const playTagOptions = document.getElementById('play-tag-options');
+  const playTagPicker = document.getElementById('play-tag-picker');
   const sharedPlayBanner = document.getElementById('shared-play-banner');
   const sharedPlayText = document.getElementById('shared-play-text');
   const sharedPlayAction = document.getElementById('shared-play-action') as HTMLButtonElement | null;
@@ -182,6 +186,8 @@ export function initApp() {
   const fieldHint = document.getElementById('field-hint');
   const teamPanel = document.getElementById('team-panel');
   const playerPanel = document.getElementById('player-panel');
+  const playerSelectRow = document.getElementById('player-select-row');
+  const playerEmptyHint = document.getElementById('player-empty-hint');
   const controlsPanel = document.querySelector<HTMLDetailsElement>('details[data-panel="controls"]');
   const panelWrapper = document.querySelector<HTMLElement>('section.panel');
   const fieldOverlay = document.getElementById('field-overlay');
@@ -266,10 +272,11 @@ export function initApp() {
     !playHistoryButton ||
     !renamePlayButton ||
     !deletePlayButton ||
+    !lockedToggleRow ||
+    !lockedToggle ||
     !playTagsSection ||
-    !manageTagsButton ||
     !selectedPlayTags ||
-    !playTagOptions ||
+    !playTagPicker ||
     !sharedPlayBanner ||
     !sharedPlayText ||
     !sharedPlayAction ||
@@ -277,6 +284,8 @@ export function initApp() {
     !fieldHint ||
     !teamPanel ||
     !playerPanel ||
+    !playerSelectRow ||
+    !playerEmptyHint ||
     !playerSelect ||
     !playerMenuToggle ||
     !playerMenu ||
@@ -322,12 +331,13 @@ export function initApp() {
   let currentTags: string[] = [];
   let playbookTags: PlaybookTag[] = [];
   let activeTagFilters: string[] = [];
+  let tagPickerOpen = false;
   let currentUserId: string | null = null;
   let currentAvatarUrl: string | null = null;
   let lastAuthEmail = '';
   let lastSessionUserId: string | null = null;
   let playbookLoadPromise: Promise<void> | null = null;
-  let editMode = false;
+  let editMode = !loadLockedPreference();
   let editModeTimeout: number | null = null;
   let editModeBeforeFullscreen: boolean | null = null;
   let restoreAllPlaysOnFullscreenExit = false;
@@ -643,6 +653,9 @@ export function initApp() {
   }
 
   function updateSelectedPanel() {
+    const hasAnyPlayers = play.players.length > 0;
+    setSectionHidden(playerSelectRow, !hasAnyPlayers);
+    setSectionHidden(playerEmptyHint, hasAnyPlayers);
     const selected = getSelectedPlayer();
     if (selected && selected.team !== activeTeam) {
       selectedPlayerId = null;
@@ -814,6 +827,22 @@ export function initApp() {
     return map[playbookId] ?? null;
   }
 
+  function loadLockedPreference(): boolean {
+    try {
+      return localStorage.getItem(LOCKED_STATE_KEY) === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  function saveLockedPreference(locked: boolean) {
+    try {
+      localStorage.setItem(LOCKED_STATE_KEY, locked ? '1' : '0');
+    } catch {
+      // ignore persistence errors
+    }
+  }
+
   function normalizeTagName(name: string): string {
     return name.trim().replace(/\s+/g, ' ');
   }
@@ -899,10 +928,37 @@ export function initApp() {
     return `rgba(${parseInt(r, 16)}, ${parseInt(g, 16)}, ${parseInt(b, 16)}, ${alpha})`;
   }
 
+  function parseHexColor(color: string): [number, number, number] {
+    const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(color);
+    if (!match) {
+      return [90, 97, 87];
+    }
+    const [, r, g, b] = match;
+    return [parseInt(r, 16), parseInt(g, 16), parseInt(b, 16)];
+  }
+
+  function mixColor(color: string, target: [number, number, number], amount: number): string {
+    const [r, g, b] = parseHexColor(color);
+    const [tr, tg, tb] = target;
+    const clamp = Math.max(0, Math.min(1, amount));
+    const mix = (from: number, to: number) => Math.round(from + (to - from) * clamp);
+    return `rgb(${mix(r, tr)}, ${mix(g, tg)}, ${mix(b, tb)})`;
+  }
+
+  function getMutedTagTextColor(color: string): string {
+    const [r, g, b] = parseHexColor(color);
+    const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+    return luminance > 0.6 ? mixColor(color, [53, 58, 52], 0.72) : mixColor(color, [90, 97, 87], 0.62);
+  }
+
   function applyTagTone(element: HTMLElement, color: string, active = false) {
-    element.style.backgroundColor = hexToRgba(color, active ? 0.22 : 0.12);
-    element.style.borderColor = hexToRgba(color, active ? 0.52 : 0.24);
-    element.style.color = '#1b1f1a';
+    element.style.backgroundColor = hexToRgba(color, active ? 0.32 : 0.09);
+    element.style.borderColor = hexToRgba(color, active ? 0.72 : 0.22);
+    element.style.color = active ? '#141815' : getMutedTagTextColor(color);
+    element.style.filter = active ? 'saturate(1.08)' : 'saturate(0.52)';
+    element.style.boxShadow = active
+      ? `inset 0 0 0 1px ${hexToRgba(color, 0.22)}`
+      : 'inset 0 0 0 1px rgba(255, 250, 242, 0.28)';
   }
 
   function createTagBadge(name: string, options: { active?: boolean } = {}) {
@@ -927,15 +983,64 @@ export function initApp() {
     return button;
   }
 
+  function renderColorPalette(
+    host: HTMLElement,
+    selectedColor: string,
+    options: { disabled?: boolean; onSelect: (color: string) => void }
+  ) {
+    host.replaceChildren();
+    host.className = 'tag-color-palette';
+    const normalizedSelected = selectedColor.toLowerCase();
+    TAG_COLOR_PRESETS.forEach((color) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'tag-color-swatch';
+      button.setAttribute('aria-label', `Select ${color}`);
+      button.style.backgroundColor = color;
+      button.classList.toggle('is-active', color.toLowerCase() === normalizedSelected);
+      button.disabled = options.disabled ?? false;
+      button.addEventListener('click', () => options.onSelect(color));
+      host.append(button);
+    });
+
+    const customInput = document.createElement('input');
+    customInput.type = 'color';
+    customInput.className = 'tag-color-custom-input';
+    customInput.value = selectedColor;
+    customInput.disabled = options.disabled ?? false;
+    customInput.addEventListener('input', () => {
+      options.onSelect(customInput.value);
+    });
+
+    const customButton = document.createElement('button');
+    customButton.type = 'button';
+    customButton.className = 'tag-color-swatch tag-color-swatch-custom';
+    customButton.setAttribute('aria-label', 'Choose custom color');
+    const isCustomSelected = !TAG_COLOR_PRESETS.some((color) => color.toLowerCase() === normalizedSelected);
+    customButton.classList.toggle('is-active', isCustomSelected);
+    if (isCustomSelected) {
+      customButton.style.backgroundColor = selectedColor;
+      customButton.style.color = '#fffdf7';
+    }
+    customButton.textContent = '+';
+    customButton.disabled = options.disabled ?? false;
+    customButton.addEventListener('click', () => {
+      customInput.click();
+    });
+
+    host.append(customButton, customInput);
+  }
+
   function getFilteredPlays(): RemotePlay[] {
     const ordered = getOrderedPlays();
     if (activeTagFilters.length === 0) {
       return ordered;
     }
     const activeSet = new Set(activeTagFilters.map((tag) => tag.toLowerCase()));
-    return ordered.filter((entry) =>
-      entry.tags.some((tag) => activeSet.has(normalizeTagName(tag).toLowerCase()))
-    );
+    return ordered.filter((entry) => {
+      const playTags = new Set(entry.tags.map((tag) => normalizeTagName(tag).toLowerCase()));
+      return Array.from(activeSet).every((tag) => playTags.has(tag));
+    });
   }
 
   function renderPlayTagsPanel() {
@@ -943,54 +1048,85 @@ export function initApp() {
     setSectionHidden(playTagsSection, !showPanel);
     if (!showPanel) {
       selectedPlayTags.replaceChildren();
-      playTagOptions.replaceChildren();
+      playTagPicker.replaceChildren();
+      tagPickerOpen = false;
       return;
     }
 
     const editable = canEdit;
-    manageTagsButton.disabled = !selectedPlaybookId || currentRole !== 'coach';
 
     selectedPlayTags.replaceChildren();
-    if (currentTags.length === 0) {
-      const empty = document.createElement('div');
-      empty.className = 'tag-empty';
-      empty.textContent = 'No tags on this play yet.';
-      selectedPlayTags.append(empty);
-    } else {
-      currentTags.forEach((tagName) => {
-        selectedPlayTags.append(createTagBadge(tagName, { active: true }));
-      });
+    const selectedTagsGroup = document.createElement('div');
+    selectedTagsGroup.className = 'tag-selected-group';
+    currentTags.forEach((tagName) => {
+      selectedTagsGroup.append(createTagBadge(tagName, { active: true }));
+    });
+    selectedPlayTags.append(selectedTagsGroup);
+
+    const addTagButton = document.createElement('button');
+    addTagButton.type = 'button';
+    addTagButton.className = 'tag-inline-action';
+    addTagButton.textContent = '+ Tag';
+    addTagButton.disabled = !editable;
+    addTagButton.addEventListener('click', () => {
+      if (!editable) {
+        return;
+      }
+      tagPickerOpen = !tagPickerOpen;
+      renderPlayTagsPanel();
+    });
+    selectedPlayTags.append(addTagButton);
+
+    playTagPicker.replaceChildren();
+    setSectionHidden(playTagPicker, !tagPickerOpen);
+    if (!tagPickerOpen) {
+      return;
     }
 
-    playTagOptions.replaceChildren();
+    const options = document.createElement('div');
+    options.className = 'tag-picker-options';
     if (playbookTags.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'tag-empty';
       empty.textContent = 'Create tags to organize this playbook.';
-      playTagOptions.append(empty);
-      return;
+      options.append(empty);
+    } else {
+      playbookTags.forEach((tag) => {
+        const active = currentTags.some((value) => value.toLowerCase() === tag.name.toLowerCase());
+        options.append(
+          createTagButton(tag.name, {
+            active,
+            disabled: !editable,
+            onClick: () => {
+              if (!canEdit) {
+                return;
+              }
+              if (active) {
+                currentTags = currentTags.filter((value) => value.toLowerCase() !== tag.name.toLowerCase());
+              } else {
+                currentTags = orderTagNames([...currentTags, tag.name]);
+              }
+              renderPlayTagsPanel();
+            }
+          })
+        );
+      });
     }
 
-    playbookTags.forEach((tag) => {
-      const active = currentTags.some((value) => value.toLowerCase() === tag.name.toLowerCase());
-      playTagOptions.append(
-        createTagButton(tag.name, {
-          active,
-          disabled: !editable,
-          onClick: () => {
-            if (!canEdit) {
-              return;
-            }
-            if (active) {
-              currentTags = currentTags.filter((value) => value.toLowerCase() !== tag.name.toLowerCase());
-            } else {
-              currentTags = orderTagNames([...currentTags, tag.name]);
-            }
-            renderPlayTagsPanel();
-          }
-        })
-      );
+    const footer = document.createElement('div');
+    footer.className = 'tag-picker-footer';
+    const manageButton = document.createElement('button');
+    manageButton.type = 'button';
+    manageButton.className = 'tag-picker-manage';
+    manageButton.textContent = 'Manage tags';
+    manageButton.addEventListener('click', () => {
+      tagPickerOpen = false;
+      renderPlayTagsPanel();
+      openTagManagerModal();
     });
+    footer.append(manageButton);
+
+    playTagPicker.append(options, footer);
   }
 
   function renderAllPlaysFilters() {
@@ -1002,19 +1138,6 @@ export function initApp() {
     allPlaysFilters.replaceChildren();
     if (!showFilters) {
       return;
-    }
-
-    if (activeTagFilters.length > 0) {
-      const clearButton = document.createElement('button');
-      clearButton.type = 'button';
-      clearButton.className = 'secondary';
-      clearButton.textContent = 'Clear filters';
-      clearButton.addEventListener('click', () => {
-        activeTagFilters = [];
-        renderAllPlaysFilters();
-        renderAllPlaysGallery();
-      });
-      allPlaysFilters.append(clearButton);
     }
 
     availableTags.forEach((tag) => {
@@ -1036,6 +1159,19 @@ export function initApp() {
       });
       allPlaysFilters.append(button);
     });
+
+    if (activeTagFilters.length > 0) {
+      const clearButton = document.createElement('button');
+      clearButton.type = 'button';
+      clearButton.className = 'secondary all-plays-clear-button';
+      clearButton.textContent = 'Clear filters';
+      clearButton.addEventListener('click', () => {
+        activeTagFilters = [];
+        renderAllPlaysFilters();
+        renderAllPlaysGallery();
+      });
+      allPlaysFilters.append(clearButton);
+    }
   }
 
   function renderGamePlayList() {
@@ -1285,6 +1421,7 @@ export function initApp() {
     setSectionHidden(gamePlaySection, playMode === 'design');
     setSectionHidden(teamPanel, playMode === 'game');
     setSectionHidden(playerPanel, playMode === 'game');
+    setSectionHidden(lockedToggleRow, playMode === 'game');
     editModeToggle.classList.toggle('is-hidden', playMode === 'game');
     renderGamePlayList();
     syncFieldPresentation();
@@ -1423,6 +1560,8 @@ export function initApp() {
       editModeToggle.append(freshIcon);
     }
     renderIcons(editModeToggle);
+    lockedToggle.checked = !editingActive;
+    lockedToggle.disabled = !editable;
   }
 
   function showEditModeLabel() {
@@ -1444,13 +1583,8 @@ export function initApp() {
       fieldHint.classList.add('is-hidden');
       waypointHint.classList.add('is-hidden');
     } else if (canEdit) {
-      fieldHint.textContent = 'Tap on the field to place a player.';
-      fieldHint.classList.remove('is-hidden');
+      fieldHint.classList.add('is-hidden');
       waypointHint.classList.remove('is-hidden');
-    } else if (editable) {
-      fieldHint.textContent = 'Tap the unlock icon to edit the play.';
-      fieldHint.classList.remove('is-hidden');
-      waypointHint.classList.add('is-hidden');
     } else {
       fieldHint.classList.add('is-hidden');
       waypointHint.classList.add('is-hidden');
@@ -1466,7 +1600,6 @@ export function initApp() {
     sharePlaybookButton.disabled = !hasPlaybook || currentRole !== 'coach';
     renamePlaybookButton.disabled = !hasPlaybook || currentRole !== 'coach';
     deletePlaybookButton.disabled = !hasPlaybook;
-    setSectionHidden(playActions, disable);
     updatePlaybookRolePill();
     updateEditModeToggle();
     updateSaveButtonLabel();
@@ -3113,6 +3246,17 @@ export function initApp() {
       return;
     }
     editMode = !editMode;
+    saveLockedPreference(!editMode);
+    syncEditorMode();
+    showEditModeLabel();
+  });
+
+  lockedToggle.addEventListener('change', () => {
+    if (lockedToggle.disabled) {
+      return;
+    }
+    editMode = !lockedToggle.checked;
+    saveLockedPreference(lockedToggle.checked);
     syncEditorMode();
     showEditModeLabel();
   });
@@ -4320,16 +4464,18 @@ export function initApp() {
           </button>
         </div>
         <div class="tag-manager-body">
-          <div class="tag-manager-create">
-            <label class="field-label">
-              Tag name
-              <input type="text" data-tag-create-name placeholder="Play Action" />
-            </label>
-            <label class="field-label">
-              Color
-              <input type="color" class="tag-color-input" data-tag-create-color value="#5a6157" />
-            </label>
-            <button type="button" class="primary" data-tag-create-submit>Add tag</button>
+          <div class="tag-manager-create-section">
+            <div class="tag-manager-create">
+              <label class="field-label">
+                Tag name
+                <input type="text" data-tag-create-name placeholder="Play Action" />
+              </label>
+              <button type="button" class="primary" data-tag-create-submit>Add tag</button>
+            </div>
+            <div class="tag-manager-create-colors">
+              <div class="field-label">Color</div>
+              <div data-tag-create-colors></div>
+            </div>
           </div>
           <div class="tag-manager-list" data-tag-manager-list></div>
         </div>
@@ -4354,8 +4500,22 @@ export function initApp() {
     const closeButton = overlay.querySelector('[data-tag-close]') as HTMLButtonElement | null;
     const list = overlay.querySelector('[data-tag-manager-list]');
     const createInput = overlay.querySelector('[data-tag-create-name]') as HTMLInputElement | null;
-    const createColorInput = overlay.querySelector('[data-tag-create-color]') as HTMLInputElement | null;
+    const createColors = overlay.querySelector('[data-tag-create-colors]') as HTMLElement | null;
     const createButton = overlay.querySelector('[data-tag-create-submit]') as HTMLButtonElement | null;
+    let draftColor = TAG_COLOR_PRESETS[0];
+    let expandedColorTagId: string | null = null;
+
+    const renderCreatePalette = () => {
+      if (!createColors) {
+        return;
+      }
+      renderColorPalette(createColors, draftColor, {
+        onSelect: (color) => {
+          draftColor = color;
+          renderCreatePalette();
+        }
+      });
+    };
 
     const renderList = () => {
       if (!list) {
@@ -4374,6 +4534,9 @@ export function initApp() {
         const row = document.createElement('div');
         row.className = 'tag-manager-item';
 
+        const main = document.createElement('div');
+        main.className = 'tag-manager-item-main';
+
         const name = document.createElement('div');
         name.className = 'tag-manager-name';
         const dot = document.createElement('span');
@@ -4384,14 +4547,13 @@ export function initApp() {
         label.textContent = tag.name;
         name.append(dot, label);
 
-        const colorInput = document.createElement('input');
-        colorInput.type = 'color';
-        colorInput.className = 'tag-color-input';
-        colorInput.value = tag.color;
-        colorInput.addEventListener('input', async () => {
-          colorInput.disabled = true;
-          await updatePlaybookTagColor(tag.id, colorInput.value);
-          colorInput.disabled = false;
+        const colorButton = document.createElement('button');
+        colorButton.type = 'button';
+        colorButton.className = 'tag-manager-color-button';
+        colorButton.setAttribute('aria-label', `Change ${tag.name} color`);
+        colorButton.style.backgroundColor = tag.color;
+        colorButton.addEventListener('click', () => {
+          expandedColorTagId = expandedColorTagId === tag.id ? null : tag.id;
           renderList();
         });
 
@@ -4410,7 +4572,33 @@ export function initApp() {
           renderList();
         });
 
-        row.append(name, colorInput, deleteButton);
+        main.append(name, colorButton, deleteButton);
+        row.append(main);
+
+        if (expandedColorTagId === tag.id) {
+          const colors = document.createElement('div');
+          colors.className = 'tag-manager-item-colors';
+          const colorsLabel = document.createElement('div');
+          colorsLabel.className = 'tag-manager-item-label';
+          colorsLabel.textContent = 'Color';
+          const palette = document.createElement('div');
+          renderColorPalette(palette, tag.color, {
+            onSelect: async (color) => {
+              if (color.toLowerCase() === tag.color.toLowerCase()) {
+                return;
+              }
+              palette.querySelectorAll('button').forEach((button) => {
+                (button as HTMLButtonElement).disabled = true;
+              });
+              await updatePlaybookTagColor(tag.id, color);
+              expandedColorTagId = tag.id;
+              renderList();
+            }
+          });
+          colors.append(colorsLabel, palette);
+          row.append(colors);
+        }
+
         list.append(row);
       });
       renderIcons(list);
@@ -4423,18 +4611,20 @@ export function initApp() {
     });
 
     closeButton?.addEventListener('click', close);
+    renderCreatePalette();
     createButton?.addEventListener('click', async () => {
-      if (!createInput || !createColorInput) {
+      if (!createInput) {
         return;
       }
       createButton.disabled = true;
-      const created = await createPlaybookTag(createInput.value, createColorInput.value);
+      const created = await createPlaybookTag(createInput.value, draftColor);
       createButton.disabled = false;
       if (!created) {
         return;
       }
       createInput.value = '';
-      createColorInput.value = '#5a6157';
+      draftColor = TAG_COLOR_PRESETS[0];
+      renderCreatePalette();
       renderList();
       createInput.focus();
     });
@@ -4822,7 +5012,30 @@ export function initApp() {
   }
 
   helpTrigger.addEventListener('click', openHelpModal);
-  manageTagsButton.addEventListener('click', openTagManagerModal);
+
+  playTagsSection.addEventListener('click', (event) => {
+    event.stopPropagation();
+  });
+
+  document.addEventListener('click', (event) => {
+    if (!tagPickerOpen) {
+      return;
+    }
+    const target = event.target as Node | null;
+    if (target && playTagsSection.contains(target)) {
+      return;
+    }
+    tagPickerOpen = false;
+    renderPlayTagsPanel();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !tagPickerOpen) {
+      return;
+    }
+    tagPickerOpen = false;
+    renderPlayTagsPanel();
+  });
 
   modeButtons.forEach((button) => {
     button.addEventListener('click', () => {

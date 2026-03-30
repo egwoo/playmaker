@@ -200,6 +200,10 @@
                       Sign in to save this play
                     </button>
                   </div>
+                  <label class="toggle-row" id="locked-toggle-row">
+                    <span>Locked</span>
+                    <input type="checkbox" id="locked-toggle" class="toggle" />
+                  </label>
                   <div class="play-actions" id="play-actions">
                     <button type="button" id="new-play" class="secondary">New</button>
                     <div class="split-button" id="save-split">
@@ -222,23 +226,19 @@
                     </div>
                   </div>
                   <div class="play-tags-panel" id="play-tags-section">
-                    <div class="play-tags-header">
-                      <span>Tags</span>
-                      <button type="button" id="manage-tags" class="tertiary">Manage</button>
-                    </div>
                     <div id="selected-play-tags" class="tag-chip-list"></div>
-                    <div id="play-tag-options" class="tag-option-list"></div>
+                    <div id="play-tag-picker" class="tag-picker is-hidden"></div>
                   </div>
                 </div>
                 </div>
                 <div id="game-play-section" class="panel-block is-hidden">
                   <button type="button" id="all-plays-button" class="secondary all-plays-button">
-                    All plays
+                    Play Grid View
                   </button>
                   <div id="game-play-list" class="game-play-list"></div>
                 </div>
                 <div class="panel-block" id="team-panel">
-                  <p class="hint" id="field-hint">Tap on the field to place a player.</p>
+                  <p class="hint is-hidden" id="field-hint"></p>
                   <div class="segmented" role="group" aria-label="Team selection">
                     <button type="button" data-team="offense" class="segmented-button active">
                       Offense
@@ -249,7 +249,7 @@
                   </div>
                 </div>
                 <div class="panel-block" id="player-panel">
-                  <div class="field-label">
+                  <div class="field-label" id="player-select-row">
                     <span>Player</span>
                     <div class="saved-play-row menu-row">
                       <select id="selected-player-select" class="player-select"></select>
@@ -275,6 +275,7 @@
                       </div>
                     </div>
                   </div>
+                  <p class="hint is-hidden" id="player-empty-hint">Tap on the field to place a player.</p>
                   <div id="coverage-panel" class="coverage-panel">
                     <label class="field-label">
                       Coverage type
