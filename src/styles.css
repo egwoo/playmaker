@@ -2248,11 +2248,25 @@ body.field-fullscreen .field-canvas-button {
 
   .panel.controls-collapsed {
     gap: 0;
-    padding-bottom: 12px;
+    padding-top: 10px;
+    padding-bottom: 10px;
   }
 
   .panel.controls-collapsed .controls-content {
     display: none;
+  }
+
+  .panel.controls-collapsed .panel-block.controls-collapsible {
+    gap: 0;
+  }
+
+  .panel.controls-collapsed .panel-block.controls-collapsible summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    min-height: 40px;
+    padding: 0;
+    align-items: center;
+    line-height: 1;
   }
 
   .panel-block.collapsible summary::after {
