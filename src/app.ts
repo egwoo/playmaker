@@ -17,6 +17,7 @@ import { createRenderer } from './renderer';
 import { loadDraftPlay, saveDraftPlay } from './storage';
 import { renderIcons } from './icons';
 import { supabase } from './supabase';
+import { resolveSelectedPlaybookId } from './ui-state';
 
 declare const __APP_BUILD_ID__: string;
 
@@ -350,7 +351,7 @@ export function initApp() {
   let selectedSavedPlayId: string | null = null;
   let showPlayGridView = false;
   let playbooks: Playbook[] = [];
-  let selectedPlaybookId: string | null = null;
+  let selectedPlaybookId: string | null = loadLastSelectedPlaybook();
   let currentRole: Playbook['role'] | null = null;
   let playMode: PlayMode = loadPersistedPlayMode();
   let currentNotes = '';
@@ -387,6 +388,8 @@ export function initApp() {
   const contextMenuClosers: Array<(except?: HTMLElement) => void> = [];
   const debugEnabled = new URLSearchParams(window.location.search).has('debug');
   let debugOverlay: HTMLDivElement | null = null;
+
+  showPlayGridView = loadPlayGridViewPreference(selectedPlaybookId);
 
   const resizeObserver = new ResizeObserver(() => {
     renderer.resize();
@@ -2236,13 +2239,11 @@ Sharing a playbook with assistants is confusing."
         playbooks = [created];
       }
     }
-    const hasSelectedPlaybook =
-      !!selectedPlaybookId && playbooks.some((item) => item.id === selectedPlaybookId);
-    if (!hasSelectedPlaybook) {
-      const lastSelectedPlaybook = loadLastSelectedPlaybook();
-      selectedPlaybookId =
-        playbooks.find((item) => item.id === lastSelectedPlaybook)?.id ?? playbooks[0]?.id ?? null;
-    }
+    selectedPlaybookId = resolveSelectedPlaybookId(
+      playbooks,
+      selectedPlaybookId,
+      loadLastSelectedPlaybook()
+    );
     if (selectedPlaybookId) {
       saveLastSelectedPlaybook(selectedPlaybookId);
     }
@@ -5653,11 +5654,11 @@ Sharing a playbook with assistants is confusing."
     }
     if (!session) {
       playbooks = [];
-      selectedPlaybookId = null;
       savedPlays = [];
       selectedSavedPlayId = null;
       playbookTags = [];
-      setPlayGridFilters([]);
+      activeTagFilters = [];
+      showPlayGridView = false;
       currentRole = null;
       syncEditorMode();
       renderPlaybookSelect();
