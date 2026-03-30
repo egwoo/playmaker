@@ -5744,7 +5744,8 @@ Sharing a playbook with assistants is confusing."
   });
 
   authSignOut.addEventListener('click', async () => {
-    const { error } = await supabase.auth.signOut();
+    closeAuthMenu();
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
     if (error) {
       console.error('Sign out error', error);
       setStatus('Unable to sign out');
