@@ -1345,7 +1345,7 @@ button {
 }
 
 .shared-playbook-gate-actions .primary {
-  min-width: 220px;
+  width: 100%;
 }
 
 .shared-play-gate-actions .primary {
