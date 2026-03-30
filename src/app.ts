@@ -28,8 +28,10 @@ const MIN_ZONE_RADIUS = 1;
 const HELP_SEEN_KEY = 'playmaker.help.seen.v1';
 const LAST_SELECTED_PLAY_KEY = 'playmaker.lastSelectedPlay.v1';
 const LOCKED_STATE_KEY = 'playmaker.locked.v1';
+const PLAY_GRID_FILTER_MODE_KEY = 'playmaker.playGridFilterMode.v1';
 
 type PlayMode = 'design' | 'game';
+type PlayGridFilterMode = 'all' | 'any';
 
 type DragState = {
   playerId: string;
@@ -331,6 +333,7 @@ export function initApp() {
   let currentTags: string[] = [];
   let playbookTags: PlaybookTag[] = [];
   let activeTagFilters: string[] = [];
+  let playGridFilterMode: PlayGridFilterMode = loadPlayGridFilterMode();
   let tagPickerOpen = false;
   let currentUserId: string | null = null;
   let currentAvatarUrl: string | null = null;
@@ -852,6 +855,22 @@ export function initApp() {
     }
   }
 
+  function loadPlayGridFilterMode(): PlayGridFilterMode {
+    try {
+      return localStorage.getItem(PLAY_GRID_FILTER_MODE_KEY) === 'any' ? 'any' : 'all';
+    } catch {
+      return 'all';
+    }
+  }
+
+  function savePlayGridFilterMode(mode: PlayGridFilterMode) {
+    try {
+      localStorage.setItem(PLAY_GRID_FILTER_MODE_KEY, mode);
+    } catch {
+      // Ignore storage write failures.
+    }
+  }
+
   function saveLockedPreference(locked: boolean) {
     try {
       localStorage.setItem(LOCKED_STATE_KEY, locked ? '1' : '0');
@@ -1056,7 +1075,9 @@ export function initApp() {
     const activeSet = new Set(activeTagFilters.map((tag) => tag.toLowerCase()));
     return ordered.filter((entry) => {
       const playTags = new Set(entry.tags.map((tag) => normalizeTagName(tag).toLowerCase()));
-      return Array.from(activeSet).every((tag) => playTags.has(tag));
+      return playGridFilterMode === 'all'
+        ? Array.from(activeSet).every((tag) => playTags.has(tag))
+        : Array.from(activeSet).some((tag) => playTags.has(tag));
     });
   }
 
@@ -1177,6 +1198,9 @@ export function initApp() {
       allPlaysFilters.append(button);
     });
 
+    const actions = document.createElement('div');
+    actions.className = 'all-plays-filter-actions';
+
     if (activeTagFilters.length > 0) {
       const clearButton = document.createElement('button');
       clearButton.type = 'button';
@@ -1187,8 +1211,88 @@ export function initApp() {
         renderAllPlaysFilters();
         renderAllPlaysGallery();
       });
-      allPlaysFilters.append(clearButton);
+      actions.append(clearButton);
     }
+
+    const settingsButton = document.createElement('button');
+    settingsButton.type = 'button';
+    settingsButton.className = 'secondary icon-button all-plays-filter-settings';
+    settingsButton.setAttribute('aria-label', 'Play grid filter settings');
+    settingsButton.title = 'Filter settings';
+    settingsButton.innerHTML = '<span data-lucide="settings-2" aria-hidden="true"></span>';
+    settingsButton.addEventListener('click', () => {
+      openPlayGridFilterSettingsModal();
+    });
+    actions.append(settingsButton);
+    allPlaysFilters.append(actions);
+    renderIcons(actions);
+  }
+
+  function openPlayGridFilterSettingsModal() {
+    if (document.querySelector('.auth-modal')) {
+      return;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'auth-modal';
+    overlay.innerHTML = `
+      <div class="auth-modal-card play-grid-filter-modal" role="dialog" aria-modal="true" aria-label="Filter settings">
+        <div class="auth-modal-header">
+          <div>
+            <p class="auth-modal-title">Filter settings</p>
+            <p class="auth-modal-subtitle">When more than one tag is selected in Play Grid View:</p>
+          </div>
+          <button type="button" class="icon-button" data-filter-close aria-label="Close">
+            <span data-lucide="x" aria-hidden="true"></span>
+          </button>
+        </div>
+        <div class="play-grid-filter-options">
+          <button type="button" class="play-grid-filter-option${playGridFilterMode === 'all' ? ' is-active' : ''}" data-filter-mode="all">
+            <span class="play-grid-filter-option-title">Match all selected tags</span>
+            <span class="play-grid-filter-option-copy">Show only plays that include every selected tag.</span>
+          </button>
+          <button type="button" class="play-grid-filter-option${playGridFilterMode === 'any' ? ' is-active' : ''}" data-filter-mode="any">
+            <span class="play-grid-filter-option-title">Match any selected tag</span>
+            <span class="play-grid-filter-option-copy">Show plays that include at least one selected tag.</span>
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.body.append(overlay);
+    renderIcons(overlay);
+
+    const close = () => {
+      overlay.remove();
+      document.removeEventListener('keydown', onKey);
+    };
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        close();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) {
+        close();
+      }
+    });
+
+    const closeButton = overlay.querySelector('[data-filter-close]') as HTMLButtonElement | null;
+    closeButton?.addEventListener('click', close);
+
+    overlay.querySelectorAll<HTMLElement>('[data-filter-mode]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const mode = button.getAttribute('data-filter-mode') === 'any' ? 'any' : 'all';
+        playGridFilterMode = mode;
+        savePlayGridFilterMode(mode);
+        renderAllPlaysFilters();
+        renderAllPlaysGallery();
+        close();
+      });
+    });
   }
 
   function renderGamePlayList() {
