@@ -139,7 +139,8 @@
                         id="playbook-role-pill"
                         class="role-indicator is-hidden"
                         aria-label="View only"
-                        data-tooltip="View only"
+                        aria-haspopup="true"
+                        aria-expanded="false"
                       >
                         <span data-lucide="eye" aria-hidden="true"></span>
                       </button>
@@ -155,6 +156,15 @@
                         <span data-lucide="more-vertical" aria-hidden="true"></span>
                       </button>
                       <div class="split-menu context-menu is-hidden" id="playbook-menu" role="menu">
+                        <button
+                          type="button"
+                          id="playbook-view-only"
+                          class="split-menu-item split-menu-label is-hidden"
+                          role="menuitem"
+                          disabled
+                        >
+                          View only
+                        </button>
                         <button type="button" id="share-playbook" class="split-menu-item" role="menuitem">
                           Share
                         </button>

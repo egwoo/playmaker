@@ -169,8 +169,11 @@ export function initApp() {
   const playbookRow = document.getElementById('playbook-row');
   const playbookRolePill = document.getElementById('playbook-role-pill');
   const playbookMenuToggle = document.getElementById('playbook-menu-toggle') as HTMLButtonElement | null;
+  const playbookMenuWrapper = playbookMenuToggle?.closest<HTMLElement>('.menu-wrapper') ?? null;
   const playbookMenu = document.getElementById('playbook-menu');
+  const playbookViewOnlyItem = document.getElementById('playbook-view-only') as HTMLButtonElement | null;
   const modeButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-mode]'));
+  const modeToggleBlock = modeButtons[0]?.closest<HTMLElement>('.panel-block') ?? null;
   const designPlaySection = document.getElementById('design-play-section');
   const gamePlaySection = document.getElementById('game-play-section');
   const playGridButton = document.getElementById('all-plays-button') as HTMLButtonElement | null;
@@ -271,6 +274,7 @@ export function initApp() {
     !playbookRolePill ||
     !playbookMenuToggle ||
     !playbookMenu ||
+    !playbookViewOnlyItem ||
     modeButtons.length === 0 ||
     !designPlaySection ||
     !gamePlaySection ||
@@ -379,7 +383,6 @@ export function initApp() {
   let historyPast: Play[] = [];
   let historyFuture: Play[] = [];
   let statusTimeout: number | null = null;
-  let rolePillTimeout: number | null = null;
   let updateAvailable = false;
   const contextMenuClosers: Array<(except?: HTMLElement) => void> = [];
   const debugEnabled = new URLSearchParams(window.location.search).has('debug');
@@ -1788,24 +1791,30 @@ Sharing a playbook with assistants is confusing."
   }
 
   function updateModeUI() {
-    if (playMode === 'design') {
+    const canUseDesignMode = currentRole === 'coach';
+    const effectivePlayMode: PlayMode = canUseDesignMode ? playMode : 'game';
+    if (effectivePlayMode === 'design') {
       setPlayGridView(false);
     }
+    setSectionHidden(modeToggleBlock, !canUseDesignMode);
     modeButtons.forEach((button) => {
-      button.classList.toggle('active', button.dataset.mode === playMode);
+      button.classList.toggle('active', button.dataset.mode === effectivePlayMode);
     });
-    setSectionHidden(designPlaySection, playMode === 'game');
-    setSectionHidden(gamePlaySection, playMode === 'design');
-    setSectionHidden(teamPanel, playMode === 'game');
-    setSectionHidden(playerPanel, playMode === 'game');
-    setSectionHidden(lockedToggleRow, playMode === 'game');
-    editModeToggle.classList.toggle('is-hidden', playMode === 'game');
+    setSectionHidden(designPlaySection, effectivePlayMode === 'game');
+    setSectionHidden(gamePlaySection, effectivePlayMode === 'design');
+    setSectionHidden(teamPanel, effectivePlayMode === 'game');
+    setSectionHidden(playerPanel, effectivePlayMode === 'game');
+    setSectionHidden(lockedToggleRow, effectivePlayMode === 'game');
+    editModeToggle.classList.toggle('is-hidden', effectivePlayMode === 'game');
     renderGamePlayList();
     syncFieldPresentation();
     renderPlayTagsPanel();
   }
 
   function setPlayMode(nextMode: PlayMode) {
+    if (nextMode === 'design' && currentRole !== 'coach') {
+      return;
+    }
     playMode = nextMode;
     savePersistedPlayMode(nextMode);
     updateModeUI();
@@ -2152,10 +2161,15 @@ Sharing a playbook with assistants is confusing."
     renamePlayButton.disabled = disable || !selectedSavedPlayId;
     deletePlayButton.disabled = disable || !selectedSavedPlayId;
     const hasPlaybook = !!selectedPlaybookId;
-    playbookMenuToggle.disabled = !hasPlaybook;
+    const isViewer = currentRole === 'player' && hasPlaybook;
+    playbookMenuToggle.disabled = !hasPlaybook || isViewer;
     sharePlaybookButton.disabled = !hasPlaybook || currentRole !== 'coach';
     renamePlaybookButton.disabled = !hasPlaybook || currentRole !== 'coach';
     deletePlaybookButton.disabled = !hasPlaybook;
+    sharePlaybookButton.classList.toggle('is-hidden', isViewer);
+    renamePlaybookButton.classList.toggle('is-hidden', isViewer);
+    playbookViewOnlyItem.classList.toggle('is-hidden', !isViewer);
+    deletePlaybookButton.textContent = isViewer ? 'Remove' : 'Delete';
     updatePlaybookRolePill();
     updateEditModeToggle();
     updateSaveButtonLabel();
@@ -2333,10 +2347,15 @@ Sharing a playbook with assistants is confusing."
     }
     playbookSelect.disabled = !currentUserId;
     const hasPlaybook = !!selectedPlaybookId;
-    playbookMenuToggle.disabled = !hasPlaybook;
+    const isViewer = currentRole === 'player' && hasPlaybook;
+    playbookMenuToggle.disabled = !hasPlaybook || isViewer;
     sharePlaybookButton.disabled = !hasPlaybook || currentRole !== 'coach';
     renamePlaybookButton.disabled = !hasPlaybook || currentRole !== 'coach';
     deletePlaybookButton.disabled = !hasPlaybook;
+    sharePlaybookButton.classList.toggle('is-hidden', isViewer);
+    renamePlaybookButton.classList.toggle('is-hidden', isViewer);
+    playbookViewOnlyItem.classList.toggle('is-hidden', !isViewer);
+    deletePlaybookButton.textContent = isViewer ? 'Remove' : 'Delete';
   }
 
   async function loadPlaysForPlaybook(playbookId: string) {
@@ -2498,6 +2517,7 @@ Sharing a playbook with assistants is confusing."
   function updatePlaybookRolePill() {
     const isViewer = currentRole === 'player' && !!selectedPlaybookId;
     playbookRolePill.classList.toggle('is-hidden', !isViewer);
+    playbookMenuToggle.classList.toggle('is-hidden', isViewer);
   }
 
   function updateSavedPlaysStorage() {
@@ -4407,6 +4427,7 @@ Sharing a playbook with assistants is confusing."
   }
 
   const closePlaybookMenu = setupContextMenu(playbookMenuToggle, playbookMenu as HTMLElement);
+  setupContextMenu(playbookRolePill, playbookMenu as HTMLElement);
   const closePlayMenu = setupContextMenu(playMenuToggle, playMenu as HTMLElement);
   const closePlayerMenu = setupContextMenu(playerMenuToggle, playerMenu as HTMLElement);
   const closeHelpMenu = setupContextMenu(helpTrigger, helpMenu as HTMLElement);
@@ -5696,18 +5717,6 @@ Sharing a playbook with assistants is confusing."
     });
   });
 
-  playbookRolePill.addEventListener('click', () => {
-    if (playbookRolePill.classList.contains('is-hidden')) {
-      return;
-    }
-    playbookRolePill.classList.add('is-open');
-    if (rolePillTimeout) {
-      window.clearTimeout(rolePillTimeout);
-    }
-    rolePillTimeout = window.setTimeout(() => {
-      playbookRolePill.classList.remove('is-open');
-    }, 1600);
-  });
   authTrigger.addEventListener('click', openAuthModal);
 
   authAvatar.addEventListener('click', (event) => {
@@ -5929,7 +5938,7 @@ Sharing a playbook with assistants is confusing."
       renderPlaybookSelect();
       renderSavedPlaysSelect();
     }
-    setStatus(`Deleted ${entry.name}`);
+    setStatus(`${entry.isOwner ? 'Deleted' : 'Removed'} ${entry.name}`);
   });
 
   playHistoryButton.addEventListener('click', async () => {
