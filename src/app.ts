@@ -3879,6 +3879,16 @@ Sharing a playbook with assistants is confusing."
     setStatus(message);
   }
 
+  function shouldUseNativeShareSheet(): boolean {
+    if (typeof navigator.share !== 'function') {
+      return false;
+    }
+    const hasCoarsePointer = typeof window.matchMedia === 'function'
+      ? window.matchMedia('(pointer: coarse)').matches
+      : false;
+    return hasCoarsePointer || window.innerWidth <= 768;
+  }
+
   async function shareLink(text: {
     url: string;
     title?: string;
@@ -3886,7 +3896,7 @@ Sharing a playbook with assistants is confusing."
     copiedMessage?: string;
   }) {
     const { url, title, message, copiedMessage = 'Link copied' } = text;
-    if (typeof navigator.share === 'function') {
+    if (shouldUseNativeShareSheet()) {
       const payload: ShareData = { url };
       if (title) {
         payload.title = title;
@@ -5177,7 +5187,7 @@ Sharing a playbook with assistants is confusing."
     if (document.querySelector('.auth-modal')) {
       return;
     }
-    const usesNativeShare = typeof navigator.share === 'function';
+    const usesNativeShare = shouldUseNativeShareSheet();
     const viewerActionLabel = usesNativeShare ? 'Share viewer link' : 'Copy viewer link';
     const collaboratorActionLabel = usesNativeShare ? 'Share collaborator link' : 'Copy collaborator link';
     const selectedPlaybookName = playbooks.find((item) => item.id === selectedPlaybookId)?.name ?? 'Playbook';
