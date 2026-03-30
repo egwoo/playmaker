@@ -271,7 +271,29 @@ body {
 }
 
 .help-button {
-  padding: 8px 14px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  box-shadow: none;
+}
+
+.help-button .icon,
+.help-button svg {
+  width: 28px;
+  height: 28px;
+  stroke-width: 1.85;
+}
+
+.help-button:hover {
+  transform: none;
+  box-shadow: none;
+  opacity: 0.82;
 }
 
 .help-modal-close {
@@ -717,6 +739,18 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.feedback-textarea {
+  width: 100%;
+  min-height: 140px;
+  resize: vertical;
+  font-family: 'Outfit', system-ui, sans-serif;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--panel-border);
+  background: #fffdf7;
+  color: var(--ink);
 }
 
 .topbar {
@@ -1261,6 +1295,10 @@ button {
 .all-plays-filter-settings svg {
   width: 16px;
   height: 16px;
+}
+
+.help-menu-wrapper {
+  position: relative;
 }
 
 .play-grid-filter-modal {

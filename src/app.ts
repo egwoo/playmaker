@@ -132,6 +132,9 @@ export function initApp() {
   const saveAsNewButton = document.getElementById('save-as-new') as HTMLButtonElement | null;
   const sharePlayButton = document.getElementById('share-play') as HTMLButtonElement | null;
   const helpTrigger = document.getElementById('help-trigger') as HTMLButtonElement | null;
+  const helpMenu = document.getElementById('help-menu');
+  const helpMenuOpen = document.getElementById('help-menu-open') as HTMLButtonElement | null;
+  const helpMenuFeedback = document.getElementById('help-menu-feedback') as HTMLButtonElement | null;
   const authTrigger = document.getElementById('auth-trigger') as HTMLButtonElement | null;
   const authAvatar = document.getElementById('auth-avatar') as HTMLButtonElement | null;
   const authAvatarImg = document.getElementById('auth-avatar-img') as HTMLImageElement | null;
@@ -231,6 +234,9 @@ export function initApp() {
     !saveAsNewButton ||
     !sharePlayButton ||
     !helpTrigger ||
+    !helpMenu ||
+    !helpMenuOpen ||
+    !helpMenuFeedback ||
     !authTrigger ||
     !authAvatar ||
     !authAvatarImg ||
@@ -1292,6 +1298,115 @@ export function initApp() {
         renderAllPlaysGallery();
         close();
       });
+    });
+  }
+
+  function openFeedbackModal() {
+    if (document.querySelector('.auth-modal')) {
+      return;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'auth-modal';
+    overlay.innerHTML = `
+      <div class="auth-modal-card" role="dialog" aria-modal="true" aria-label="Share feedback">
+        <div class="auth-modal-header">
+          <div>
+            <p class="auth-modal-title">Help us improve Playmaker</p>
+          </div>
+          <button type="button" class="icon-button" data-feedback-close aria-label="Close">
+            <span data-lucide="x" aria-hidden="true"></span>
+          </button>
+        </div>
+        <div class="auth-email-row">
+          <label class="field-label">
+            Feedback
+            <textarea
+              class="feedback-textarea"
+              data-feedback-body
+              placeholder="Examples:
+I need a way to filter plays by formation.
+
+The fullscreen controls overlap on my iPhone.
+
+Sharing a playbook with assistants is confusing."
+            ></textarea>
+          </label>
+          <button type="button" class="primary" data-feedback-submit>Share feedback</button>
+        </div>
+      </div>
+    `;
+
+    document.body.append(overlay);
+    renderIcons(overlay);
+
+    const close = () => {
+      overlay.remove();
+      document.removeEventListener('keydown', onKey);
+    };
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        close();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) {
+        close();
+      }
+    });
+
+    const closeButton = overlay.querySelector('[data-feedback-close]') as HTMLButtonElement | null;
+    const submitButton = overlay.querySelector('[data-feedback-submit]') as HTMLButtonElement | null;
+    const bodyInput = overlay.querySelector('[data-feedback-body]') as HTMLTextAreaElement | null;
+
+    window.setTimeout(() => bodyInput?.focus(), 0);
+
+    closeButton?.addEventListener('click', close);
+
+    submitButton?.addEventListener('click', async () => {
+      const details = bodyInput?.value.trim() ?? '';
+      if (!details) {
+        setStatus('Enter feedback before submitting');
+        return;
+      }
+      if (!currentUserId) {
+        setStatus('Sign in to send feedback');
+        return;
+      }
+      if (!submitButton) {
+        return;
+      }
+
+      submitButton.disabled = true;
+      const previousLabel = submitButton.textContent;
+      submitButton.textContent = 'Sending...';
+
+      const { error } = await supabase.functions.invoke('submit-feedback', {
+        body: {
+          message: details,
+          currentRole: currentRole ?? null,
+          playbookId: selectedPlaybookId ?? null,
+          playId: selectedSavedPlayId ?? null,
+          buildId: __APP_BUILD_ID__,
+          appUrl: window.location.href,
+          userAgent: navigator.userAgent
+        }
+      });
+
+      submitButton.disabled = false;
+      submitButton.textContent = previousLabel;
+
+      if (error) {
+        console.error('Failed to submit feedback', error);
+        setStatus('Could not send feedback');
+        return;
+      }
+
+      setStatus('Thanks for the feedback');
+      close();
     });
   }
 
@@ -3907,6 +4022,7 @@ export function initApp() {
   const closePlaybookMenu = setupContextMenu(playbookMenuToggle, playbookMenu as HTMLElement);
   const closePlayMenu = setupContextMenu(playMenuToggle, playMenu as HTMLElement);
   const closePlayerMenu = setupContextMenu(playerMenuToggle, playerMenu as HTMLElement);
+  const closeHelpMenu = setupContextMenu(helpTrigger, helpMenu as HTMLElement);
 
   function closeAuthMenu() {
     authMenu.classList.add('is-hidden');
@@ -5132,7 +5248,14 @@ export function initApp() {
     }
   }
 
-  helpTrigger.addEventListener('click', openHelpModal);
+  helpMenuOpen.addEventListener('click', () => {
+    closeHelpMenu();
+    openHelpModal();
+  });
+  helpMenuFeedback.addEventListener('click', () => {
+    closeHelpMenu();
+    openFeedbackModal();
+  });
 
   playTagsSection.addEventListener('click', (event) => {
     event.stopPropagation();

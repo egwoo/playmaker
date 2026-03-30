@@ -1,4 +1,5 @@
 import {
+  CircleQuestionMark,
   ChevronDown,
   FlipHorizontal2,
   GripHorizontal,
@@ -21,6 +22,7 @@ import {
 } from 'lucide';
 
 const ICONS = {
+  CircleQuestionMark,
   ChevronDown,
   FlipHorizontal2,
   Lock,

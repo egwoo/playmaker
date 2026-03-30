@@ -82,7 +82,26 @@
             <div class="status is-hidden" id="status-text">Ready</div>
           </div>
           <div class="layout-account">
-            <button type="button" id="help-trigger" class="secondary help-button">Help</button>
+            <div class="menu-wrapper help-menu-wrapper">
+              <button
+                type="button"
+                id="help-trigger"
+                class="help-button"
+                aria-label="Help and feedback"
+                aria-haspopup="true"
+                aria-expanded="false"
+              >
+                <span data-lucide="circle-question-mark" aria-hidden="true"></span>
+              </button>
+              <div class="split-menu context-menu is-hidden" id="help-menu" role="menu">
+                <button type="button" id="help-menu-open" class="split-menu-item" role="menuitem">
+                  Watch tutorial
+                </button>
+                <button type="button" id="help-menu-feedback" class="split-menu-item" role="menuitem">
+                  Share feedback
+                </button>
+              </div>
+            </div>
             <button type="button" id="auth-trigger" class="secondary">Sign in</button>
             <button
               type="button"

@@ -117,6 +117,22 @@ create table if not exists public.play_versions (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.feedback_submissions (
+  id uuid primary key default gen_random_uuid(),
+  auth_user_id uuid default auth.uid() references auth.users(id) on delete set null,
+  user_role text,
+  playbook_id uuid references public.playbooks(id) on delete set null,
+  play_id uuid references public.plays(id) on delete set null,
+  message text not null,
+  build_id text,
+  app_url text not null,
+  user_agent text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists feedback_submissions_created_at_idx
+  on public.feedback_submissions (created_at desc);
+
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
@@ -335,6 +351,7 @@ alter table public.playbook_tags enable row level security;
 alter table public.play_shares enable row level security;
 alter table public.playbook_shares enable row level security;
 alter table public.play_versions enable row level security;
+alter table public.feedback_submissions enable row level security;
 
 drop policy if exists "playbooks_read" on public.playbooks;
 create policy "playbooks_read" on public.playbooks
@@ -444,3 +461,7 @@ create policy "play_versions_delete" on public.play_versions
 for delete using (
   public.is_playbook_coach((select playbook_id from public.plays p where p.id = play_id))
 );
+
+drop policy if exists "feedback_submissions_insert" on public.feedback_submissions;
+create policy "feedback_submissions_insert" on public.feedback_submissions
+for insert with check (true);
