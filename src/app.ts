@@ -1913,7 +1913,7 @@ Sharing a playbook with assistants is confusing."
 
     sharedPlayModalClose?.();
 
-    const title = `"${sharedPlayName ?? 'Untitled play'}" was shared with you`;
+    const title = formatSharedPlayTitle(sharedPlayName);
     const overlay = document.createElement('div');
     overlay.className = 'auth-modal shared-play-gate';
     overlay.innerHTML = `
@@ -1928,8 +1928,8 @@ Sharing a playbook with assistants is confusing."
           </button>
         </div>
         <div class="shared-play-gate-actions">
-          <button type="button" class="shared-play-gate-skip" data-shared-play-skip>Skip</button>
           <button type="button" class="primary" data-shared-play-cta>Sign in to save</button>
+          <button type="button" class="shared-play-gate-skip" data-shared-play-skip>Skip</button>
         </div>
       </div>
     `;
@@ -2022,9 +2022,7 @@ Sharing a playbook with assistants is confusing."
 
     sharedPlaybookModalClose?.();
 
-    const title = sharedPlaybookName
-      ? `"${sharedPlaybookName}" was shared with you`
-      : 'A playbook was shared with you';
+    const title = formatSharedPlaybookTitle(sharedPlaybookName);
     const actionLabel = currentUserId ? 'View playbook' : 'Sign in to view playbook';
     const subtitle = currentUserId
       ? 'Open it in Playmaker.'
@@ -6076,6 +6074,31 @@ function buildShareUrl(token: string, param: 'share' | 'playbook'): string {
   const url = new URL(window.location.pathname || '/', window.location.origin);
   url.searchParams.set(param, token);
   return url.toString();
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function formatSharedPlaybookTitle(playbookName: string | null): string {
+  if (!playbookName) {
+    return 'A playbook was shared with you';
+  }
+  const hasPlaybookLabel = /\bplay\s*book\b|\bplaybook\b/i.test(playbookName);
+  const displayName = hasPlaybookLabel ? playbookName : `${playbookName} playbook`;
+  return `<strong>${escapeHtml(displayName)}</strong> was shared with you`;
+}
+
+function formatSharedPlayTitle(playName: string | null): string {
+  if (!playName) {
+    return 'A play was shared with you';
+  }
+  return `<strong>${escapeHtml(playName)}</strong> was shared with you`;
 }
 
 function loadShareTokens(): { playToken: string | null; playbookToken: string | null } {
