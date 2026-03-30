@@ -946,6 +946,7 @@ input.toggle:checked::after {
 
 .all-plays-button {
   width: 100%;
+  min-height: 52px;
 }
 
 .all-plays-button.is-active {
@@ -974,6 +975,7 @@ input.toggle:checked::after {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-height: 52px;
   border: 1px solid var(--panel-border);
   border-radius: 14px;
   padding: 10px 12px;
@@ -986,6 +988,7 @@ input.toggle:checked::after {
 
 .game-play-label {
   flex: 1;
+  line-height: 1.15;
 }
 
 .game-play-item.is-active {
