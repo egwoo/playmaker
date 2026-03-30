@@ -1808,15 +1808,20 @@ Sharing a playbook with assistants is confusing."
     editModeToggle.classList.toggle('is-hidden', effectivePlayMode === 'game');
   }
 
+  function syncModeButtons() {
+    const effectivePlayMode = getEffectivePlayMode();
+    modeButtons.forEach((button) => {
+      button.classList.toggle('active', button.dataset.mode === effectivePlayMode);
+    });
+  }
+
   function updateModeUI() {
     const effectivePlayMode = getEffectivePlayMode();
     if (effectivePlayMode === 'design') {
       setPlayGridView(false);
     }
     applyModeLayout();
-    modeButtons.forEach((button) => {
-      button.classList.toggle('active', button.dataset.mode === effectivePlayMode);
-    });
+    syncModeButtons();
     renderGamePlayList();
     syncFieldPresentation();
     renderPlayTagsPanel();
@@ -2152,6 +2157,7 @@ Sharing a playbook with assistants is confusing."
 
   function syncEditorMode() {
     applyModeLayout();
+    syncModeButtons();
     const editable = canUserEdit();
     const editingActive = editable && editMode;
     const disable = !editingActive;
