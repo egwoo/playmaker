@@ -27,6 +27,7 @@ const DEFAULT_ZONE_RADIUS_Y = 5;
 const MIN_ZONE_RADIUS = 1;
 const HELP_SEEN_KEY = 'playmaker.help.seen.v1';
 const LAST_SELECTED_PLAY_KEY = 'playmaker.lastSelectedPlay.v1';
+const LAST_SELECTED_PLAYBOOK_KEY = 'playmaker.lastSelectedPlaybook.v1';
 const LOCKED_STATE_KEY = 'playmaker.locked.v1';
 const PLAY_GRID_FILTER_MODE_KEY = 'playmaker.playGridFilterMode.v1';
 
@@ -851,6 +852,26 @@ export function initApp() {
     }
     const map = loadLastSelectedPlayMap();
     return map[playbookId] ?? null;
+  }
+
+  function loadLastSelectedPlaybook(): string | null {
+    try {
+      return localStorage.getItem(LAST_SELECTED_PLAYBOOK_KEY);
+    } catch {
+      return null;
+    }
+  }
+
+  function saveLastSelectedPlaybook(playbookId: string | null) {
+    try {
+      if (!playbookId) {
+        localStorage.removeItem(LAST_SELECTED_PLAYBOOK_KEY);
+        return;
+      }
+      localStorage.setItem(LAST_SELECTED_PLAYBOOK_KEY, playbookId);
+    } catch {
+      // ignore persistence errors
+    }
   }
 
   function loadLockedPreference(): boolean {
@@ -1762,6 +1783,7 @@ Sharing a playbook with assistants is confusing."
     }
     const entry = Array.isArray(data) ? data[0] : data;
     selectedPlaybookId = entry.playbook_id ?? null;
+    saveLastSelectedPlaybook(selectedPlaybookId);
     sharedPlaybookAccepted = true;
     sharedPlaybookToken = null;
     clearShareParam('playbook');
@@ -1889,8 +1911,15 @@ Sharing a playbook with assistants is confusing."
         playbooks = [created];
       }
     }
-    if (!selectedPlaybookId && playbooks.length > 0) {
-      selectedPlaybookId = playbooks[0].id;
+    const hasSelectedPlaybook =
+      !!selectedPlaybookId && playbooks.some((item) => item.id === selectedPlaybookId);
+    if (!hasSelectedPlaybook) {
+      const lastSelectedPlaybook = loadLastSelectedPlaybook();
+      selectedPlaybookId =
+        playbooks.find((item) => item.id === lastSelectedPlaybook)?.id ?? playbooks[0]?.id ?? null;
+    }
+    if (selectedPlaybookId) {
+      saveLastSelectedPlaybook(selectedPlaybookId);
     }
     renderPlaybookSelect();
     if (selectedPlaybookId) {
@@ -5332,6 +5361,7 @@ Sharing a playbook with assistants is confusing."
       return;
     }
     selectedPlaybookId = result.playbookId;
+    saveLastSelectedPlaybook(selectedPlaybookId);
     const current = playbooks.find((item) => item.id === selectedPlaybookId);
     currentRole = current?.role ?? null;
     renderPlaybookSelect();
@@ -5386,6 +5416,7 @@ Sharing a playbook with assistants is confusing."
       const entry: Playbook = { id: data.id, name: data.name, role: 'coach', isOwner: true };
       playbooks = [entry, ...playbooks];
       selectedPlaybookId = entry.id;
+      saveLastSelectedPlaybook(selectedPlaybookId);
       currentRole = entry.role;
       syncEditorMode();
       renderPlaybookSelect();
@@ -5394,6 +5425,7 @@ Sharing a playbook with assistants is confusing."
     }
 
     selectedPlaybookId = value || null;
+    saveLastSelectedPlaybook(selectedPlaybookId);
     selectedSavedPlayId = null;
     savedPlays = [];
     renderSavedPlaysSelect();
@@ -5497,6 +5529,7 @@ Sharing a playbook with assistants is confusing."
       playbooks = playbooks.filter((item) => item.id !== entry.id);
     }
     selectedPlaybookId = playbooks[0]?.id ?? null;
+    saveLastSelectedPlaybook(selectedPlaybookId);
     selectedSavedPlayId = null;
     savedPlays = [];
     if (selectedPlaybookId) {
