@@ -1790,22 +1790,30 @@ Sharing a playbook with assistants is confusing."
     positionStatusToast();
   }
 
-  function updateModeUI() {
-    const canUseDesignMode = currentRole === 'coach';
-    const effectivePlayMode: PlayMode = canUseDesignMode ? playMode : 'game';
-    if (effectivePlayMode === 'design') {
-      setPlayGridView(false);
-    }
-    setSectionHidden(modeToggleBlock, !canUseDesignMode);
-    modeButtons.forEach((button) => {
-      button.classList.toggle('active', button.dataset.mode === effectivePlayMode);
-    });
+  function getEffectivePlayMode(): PlayMode {
+    return currentRole === 'coach' ? playMode : 'game';
+  }
+
+  function applyModeLayout() {
+    const effectivePlayMode = getEffectivePlayMode();
+    setSectionHidden(modeToggleBlock, currentRole !== 'coach');
     setSectionHidden(designPlaySection, effectivePlayMode === 'game');
     setSectionHidden(gamePlaySection, effectivePlayMode === 'design');
     setSectionHidden(teamPanel, effectivePlayMode === 'game');
     setSectionHidden(playerPanel, effectivePlayMode === 'game');
     setSectionHidden(lockedToggleRow, effectivePlayMode === 'game');
     editModeToggle.classList.toggle('is-hidden', effectivePlayMode === 'game');
+  }
+
+  function updateModeUI() {
+    const effectivePlayMode = getEffectivePlayMode();
+    if (effectivePlayMode === 'design') {
+      setPlayGridView(false);
+    }
+    applyModeLayout();
+    modeButtons.forEach((button) => {
+      button.classList.toggle('active', button.dataset.mode === effectivePlayMode);
+    });
     renderGamePlayList();
     syncFieldPresentation();
     renderPlayTagsPanel();
@@ -2140,11 +2148,12 @@ Sharing a playbook with assistants is confusing."
   }
 
   function syncEditorMode() {
+    applyModeLayout();
     const editable = canUserEdit();
     const editingActive = editable && editMode;
     const disable = !editingActive;
     canEdit = editingActive;
-    if (playMode === 'game') {
+    if (getEffectivePlayMode() === 'game') {
       fieldHint.classList.add('is-hidden');
       waypointHint.classList.add('is-hidden');
     } else if (canEdit) {
@@ -4512,7 +4521,7 @@ Sharing a playbook with assistants is confusing."
         return;
       }
       lastAuthEmail = email;
-      const redirectTo = window.location.href;
+      const redirectTo = buildAuthRedirectUrl();
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: { emailRedirectTo: redirectTo }
@@ -4527,7 +4536,7 @@ Sharing a playbook with assistants is confusing."
     });
 
     googleButton?.addEventListener('click', async () => {
-      const redirectTo = window.location.href;
+      const redirectTo = buildAuthRedirectUrl();
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: { redirectTo }
@@ -5969,10 +5978,12 @@ Sharing a playbook with assistants is confusing."
   });
 
   supabase.auth.onAuthStateChange((_event, session) => {
+    clearAuthCallbackArtifacts();
     handleSession(session);
   });
 
   supabase.auth.getSession().then(({ data }) => {
+    clearAuthCallbackArtifacts();
     handleSession(data.session);
   });
 
@@ -6116,6 +6127,38 @@ function loadShareTokens(): { playToken: string | null; playbookToken: string | 
     playToken: params.get('share'),
     playbookToken: params.get('playbook')
   };
+}
+
+function buildAuthRedirectUrl(): string {
+  const url = new URL(window.location.pathname || '/', window.location.origin);
+  url.search = window.location.search;
+  return url.toString();
+}
+
+function clearAuthCallbackArtifacts() {
+  const url = new URL(window.location.href);
+  const authParams = ['access_token', 'refresh_token', 'expires_at', 'expires_in', 'provider_token', 'token_type', 'sb'];
+  let changed = false;
+
+  if (url.hash) {
+    const normalizedHash = url.hash.startsWith('#') ? url.hash.slice(1) : url.hash;
+    const hashParams = new URLSearchParams(normalizedHash);
+    if (authParams.some((param) => hashParams.has(param))) {
+      url.hash = '';
+      changed = true;
+    }
+  }
+
+  authParams.forEach((param) => {
+    if (url.searchParams.has(param)) {
+      url.searchParams.delete(param);
+      changed = true;
+    }
+  });
+
+  if (changed) {
+    window.history.replaceState({}, '', url.toString());
+  }
 }
 
 function clearShareParam(param: 'share' | 'playbook') {
