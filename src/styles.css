@@ -1333,7 +1333,8 @@ button {
   background: transparent;
   color: var(--muted);
   font: inherit;
-  font-weight: 400;
+  font-size: 0.92rem;
+  font-weight: 700;
   cursor: pointer;
   padding: 0;
   align-self: center;
