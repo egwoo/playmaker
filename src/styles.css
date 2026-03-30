@@ -1666,10 +1666,6 @@ button {
   .all-plays-gallery {
     grid-template-columns: 1fr;
   }
-
-  body.field-fullscreen .field-canvas-button {
-    top: calc(16px + var(--fullscreen-toolbar-stack-offset, 0px));
-  }
 }
 
 .field-toolbar-overlay {
@@ -1836,6 +1832,12 @@ body.field-fullscreen .field-toolbar-overlay .secondary {
 body.field-fullscreen .field-canvas-button {
   top: 16px;
   left: 16px;
+}
+
+@media (max-width: 700px) {
+  body.field-fullscreen .field-canvas-button {
+    top: calc(16px + var(--fullscreen-toolbar-stack-offset, 0px));
+  }
 }
 
 @media (max-width: 900px) {
