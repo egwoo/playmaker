@@ -1334,7 +1334,7 @@ button {
   color: var(--muted);
   font: inherit;
   font-size: 0.92rem;
-  font-weight: 700;
+  font-weight: 400;
   cursor: pointer;
   padding: 0;
   align-self: center;
