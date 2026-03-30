@@ -3879,6 +3879,37 @@ Sharing a playbook with assistants is confusing."
     setStatus(message);
   }
 
+  async function shareLink(text: {
+    url: string;
+    title?: string;
+    message?: string;
+    copiedMessage?: string;
+  }) {
+    const { url, title, message, copiedMessage = 'Link copied' } = text;
+    if (typeof navigator.share === 'function') {
+      const payload: ShareData = { url };
+      if (title) {
+        payload.title = title;
+      }
+      if (message) {
+        payload.text = message;
+      }
+      const canShare = typeof navigator.canShare !== 'function' || navigator.canShare(payload);
+      if (canShare) {
+        try {
+          await navigator.share(payload);
+          return;
+        } catch (error) {
+          if (error instanceof DOMException && error.name === 'AbortError') {
+            return;
+          }
+          console.error('Failed to share link', error);
+        }
+      }
+    }
+    await copyToClipboard(url, copiedMessage);
+  }
+
   async function copyShareLink() {
     if (!currentUserId || currentRole !== 'coach') {
       setStatus('Sign in as a collaborator to share plays');
@@ -3920,7 +3951,12 @@ Sharing a playbook with assistants is confusing."
       return;
     }
     const url = buildShareUrl(data.token, 'share');
-    await copyToClipboard(url, 'Play link copied');
+    await shareLink({
+      url,
+      title: getCurrentPlayName(),
+      message: 'Shared from Playmaker',
+      copiedMessage: 'Play link copied'
+    });
   }
 
   async function createPlaybookShareLink(role: 'player' | 'coach'): Promise<string | null> {
@@ -5141,6 +5177,10 @@ Sharing a playbook with assistants is confusing."
     if (document.querySelector('.auth-modal')) {
       return;
     }
+    const usesNativeShare = typeof navigator.share === 'function';
+    const viewerActionLabel = usesNativeShare ? 'Share viewer link' : 'Copy viewer link';
+    const collaboratorActionLabel = usesNativeShare ? 'Share collaborator link' : 'Copy collaborator link';
+    const selectedPlaybookName = playbooks.find((item) => item.id === selectedPlaybookId)?.name ?? 'Playbook';
     const overlay = document.createElement('div');
     overlay.className = 'auth-modal';
     overlay.innerHTML = `
@@ -5160,14 +5200,14 @@ Sharing a playbook with assistants is confusing."
               <strong>Viewer link</strong>
               <p class="auth-modal-subtitle">Read-only access.</p>
             </div>
-            <button type="button" class="secondary" data-share-view>Copy link</button>
+            <button type="button" class="secondary" data-share-view>${viewerActionLabel}</button>
           </div>
           <div class="share-link-row">
             <div>
               <strong>Collaborator link</strong>
               <p class="auth-modal-subtitle">Can edit plays.</p>
             </div>
-            <button type="button" class="secondary" data-share-collab>Copy link</button>
+            <button type="button" class="secondary" data-share-collab>${collaboratorActionLabel}</button>
           </div>
         </div>
       </div>
@@ -5202,14 +5242,24 @@ Sharing a playbook with assistants is confusing."
     viewButton?.addEventListener('click', async () => {
       const link = await getLink('player');
       if (link) {
-        await copyToClipboard(link, 'Playbook Viewer link copied');
+        await shareLink({
+          url: link,
+          title: `${selectedPlaybookName} Viewer link`,
+          message: `Open ${selectedPlaybookName} in Playmaker`,
+          copiedMessage: 'Playbook Viewer link copied'
+        });
       }
     });
 
     collabButton?.addEventListener('click', async () => {
       const link = await getLink('coach');
       if (link) {
-        await copyToClipboard(link, 'Playbook Collaborator link copied');
+        await shareLink({
+          url: link,
+          title: `${selectedPlaybookName} Collaborator link`,
+          message: `Collaborate on ${selectedPlaybookName} in Playmaker`,
+          copiedMessage: 'Playbook Collaborator link copied'
+        });
       }
     });
   }
@@ -5831,7 +5881,7 @@ function formatTimestamp(value: number): string {
 }
 
 function buildShareUrl(token: string, param: 'share' | 'playbook'): string {
-  const url = new URL(window.location.href);
+  const url = new URL(window.location.pathname || '/', window.location.origin);
   url.searchParams.set(param, token);
   return url.toString();
 }
