@@ -101,7 +101,7 @@ export function initApp() {
   const redoButton = document.getElementById('redo-action') as HTMLButtonElement | null;
   const resetTimeButton = document.getElementById('reset-time') as HTMLButtonElement | null;
   const newPlayButton = document.getElementById('new-play') as HTMLButtonElement | null;
-  const flipPlayButton = document.getElementById('flip-play') as HTMLButtonElement | null;
+  const fieldFlipButton = document.getElementById('field-flip-toggle') as HTMLButtonElement | null;
   const savePlayButton = document.getElementById('save-play') as HTMLButtonElement | null;
   const saveMenuToggle = document.getElementById('save-menu-toggle') as HTMLButtonElement | null;
   const saveMenu = document.getElementById('save-menu');
@@ -125,6 +125,7 @@ export function initApp() {
   const editModeToggle = document.getElementById('edit-mode-toggle') as HTMLButtonElement | null;
   const editModeLabel = editModeToggle?.querySelector<HTMLElement>('.field-mode-label') ?? null;
   const fieldSection = document.querySelector<HTMLElement>('section.field');
+  const fieldSurface = fieldSection?.querySelector<HTMLElement>('.field-surface') ?? null;
   const playbookSelect = document.getElementById('playbook-select') as HTMLSelectElement | null;
   const playbookRow = document.getElementById('playbook-row');
   const playbookRolePill = document.getElementById('playbook-role-pill');
@@ -133,7 +134,9 @@ export function initApp() {
   const modeButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-mode]'));
   const designPlaySection = document.getElementById('design-play-section');
   const gamePlaySection = document.getElementById('game-play-section');
+  const allPlaysButton = document.getElementById('all-plays-button') as HTMLButtonElement | null;
   const gamePlayList = document.getElementById('game-play-list');
+  const allPlaysGallery = document.getElementById('all-plays-gallery') as HTMLDivElement | null;
   const sharePlaybookButton = document.getElementById('share-playbook') as HTMLButtonElement | null;
   const renamePlaybookButton = document.getElementById('rename-playbook') as HTMLButtonElement | null;
   const deletePlaybookButton = document.getElementById('delete-playbook') as HTMLButtonElement | null;
@@ -187,7 +190,7 @@ export function initApp() {
     !redoButton ||
     !resetTimeButton ||
     !newPlayButton ||
-    !flipPlayButton ||
+    !fieldFlipButton ||
     !savePlayButton ||
     !saveMenuToggle ||
     !saveMenu ||
@@ -210,6 +213,7 @@ export function initApp() {
     !fieldToolbarOverlay ||
     !editModeToggle ||
     !editModeLabel ||
+    !fieldSurface ||
     !playbookSelect ||
     !playbookRow ||
     !playbookRolePill ||
@@ -218,7 +222,9 @@ export function initApp() {
     modeButtons.length === 0 ||
     !designPlaySection ||
     !gamePlaySection ||
+    !allPlaysButton ||
     !gamePlayList ||
+    !allPlaysGallery ||
     !sharePlaybookButton ||
     !renamePlaybookButton ||
     !deletePlaybookButton ||
@@ -274,6 +280,7 @@ export function initApp() {
   let play = sharedPlayToken ? createEmptyPlay() : savedPlay ?? createEmptyPlay();
   let savedPlays: RemotePlay[] = [];
   let selectedSavedPlayId: string | null = null;
+  let showAllPlaysView = false;
   let playbooks: Playbook[] = [];
   let selectedPlaybookId: string | null = null;
   let currentRole: Playbook['role'] | null = null;
@@ -288,6 +295,7 @@ export function initApp() {
   let editMode = false;
   let editModeTimeout: number | null = null;
   let editModeBeforeFullscreen: boolean | null = null;
+  let restoreAllPlaysOnFullscreenExit = false;
   let canEdit = false;
   let fullscreenActive = false;
   let selectedPlayerId: string | null = null;
@@ -378,6 +386,11 @@ export function initApp() {
       editMode = false;
       syncEditorMode();
     } else if (!active && wasFullscreen) {
+      if (restoreAllPlaysOnFullscreenExit && playMode === 'game') {
+        showAllPlaysView = true;
+        restoreAllPlaysOnFullscreenExit = false;
+        renderGamePlayList();
+      }
       if (editModeBeforeFullscreen !== null) {
         editMode = editModeBeforeFullscreen;
         editModeBeforeFullscreen = null;
@@ -470,6 +483,9 @@ export function initApp() {
     document.documentElement.style.setProperty('--layout-offset', `${offset}px`);
     syncLayoutSizing();
     updateDebugOverlay();
+    if (isAllPlaysViewActive()) {
+      renderAllPlaysGallery();
+    }
   }
 
   function positionStatusToast() {
@@ -687,6 +703,8 @@ export function initApp() {
 
   function renderGamePlayList() {
     gamePlayList.replaceChildren();
+    allPlaysButton.disabled = !currentUserId || !selectedPlaybookId || savedPlays.length === 0;
+    allPlaysButton.classList.toggle('is-active', isAllPlaysViewActive());
     if (!currentUserId) {
       const empty = document.createElement('div');
       empty.className = 'game-play-empty';
@@ -719,14 +737,17 @@ export function initApp() {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'game-play-item';
-      if (entry.id === selectedSavedPlayId) {
+      if (entry.id === selectedSavedPlayId && !isAllPlaysViewActive()) {
         button.classList.add('is-active');
       }
       const label = document.createElement('span');
       label.className = 'game-play-label';
       label.textContent = entry.name;
       button.append(label);
-      button.addEventListener('click', () => selectSavedPlayById(entry.id));
+      button.addEventListener('click', () => {
+        showAllPlaysView = false;
+        selectSavedPlayById(entry.id);
+      });
 
       if (canReorder && entry.id === selectedSavedPlayId) {
         const handle = document.createElement('span');
@@ -799,9 +820,103 @@ export function initApp() {
       gamePlayList.append(row);
     }
     renderIcons(gamePlayList);
+    syncFieldPresentation();
+  }
+
+  function isAllPlaysViewActive() {
+    return playMode === 'game' && showAllPlaysView && !!currentUserId && !!selectedPlaybookId && savedPlays.length > 0;
+  }
+
+  function renderPlayPreview(canvasEl: HTMLCanvasElement, previewPlay: Play) {
+    const drawPreview = () => {
+      const previewRenderer = createRenderer(canvasEl);
+      previewRenderer.resize();
+      previewRenderer.render({
+        play: previewPlay,
+        playTime: 0,
+        selectedPlayerId: null,
+        ball: getBallState(previewPlay, 0, DEFAULT_BALL_SPEED_YPS),
+        showWaypointMarkers: false
+      });
+    };
+
+    if (canvasEl.clientWidth === 0 || canvasEl.clientHeight === 0) {
+      requestAnimationFrame(drawPreview);
+      return;
+    }
+    drawPreview();
+  }
+
+  function openFieldFullscreen(options: { restoreAllPlaysOnExit?: boolean } = {}) {
+    if (document.fullscreenElement || fullscreenActive) {
+      return;
+    }
+    restoreAllPlaysOnFullscreenExit = options.restoreAllPlaysOnExit ?? false;
+    if (fieldSection?.requestFullscreen) {
+      void fieldSection.requestFullscreen().catch(() => {
+        setFullscreen(true);
+      });
+      return;
+    }
+    setFullscreen(true);
+  }
+
+  function renderAllPlaysGallery() {
+    allPlaysGallery.replaceChildren();
+    if (!isAllPlaysViewActive()) {
+      return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    const previews: Array<{ canvas: HTMLCanvasElement; play: Play }> = [];
+    for (const entry of getOrderedPlays()) {
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'all-play-card';
+      if (entry.id === selectedSavedPlayId) {
+        card.classList.add('is-active');
+      }
+      card.addEventListener('click', () => {
+        showAllPlaysView = false;
+        selectSavedPlayById(entry.id);
+        openFieldFullscreen({ restoreAllPlaysOnExit: true });
+      });
+
+      const preview = document.createElement('canvas');
+      preview.className = 'all-play-card-canvas';
+
+      const title = document.createElement('div');
+      title.className = 'all-play-card-title';
+      title.textContent = entry.name;
+
+      card.append(preview, title);
+      fragment.append(card);
+      previews.push({ canvas: preview, play: entry.play });
+    }
+
+    allPlaysGallery.append(fragment);
+    previews.forEach(({ canvas: previewCanvas, play: previewPlay }) => {
+      renderPlayPreview(previewCanvas, previewPlay);
+    });
+  }
+
+  function syncFieldPresentation() {
+    const galleryActive = isAllPlaysViewActive();
+    setSectionHidden(fieldSurface, galleryActive);
+    setSectionHidden(allPlaysGallery, !galleryActive);
+    toolbar.classList.toggle('is-hidden', galleryActive);
+    if (galleryActive) {
+      renderAllPlaysGallery();
+    } else {
+      allPlaysGallery.replaceChildren();
+    }
+    positionStatusToast();
   }
 
   function updateModeUI() {
+    if (playMode === 'design') {
+      showAllPlaysView = false;
+    }
     modeButtons.forEach((button) => {
       button.classList.toggle('active', button.dataset.mode === playMode);
     });
@@ -811,6 +926,7 @@ export function initApp() {
     setSectionHidden(playerPanel, playMode === 'game');
     editModeToggle.classList.toggle('is-hidden', playMode === 'game');
     renderGamePlayList();
+    syncFieldPresentation();
   }
 
   function setPlayMode(nextMode: PlayMode) {
@@ -976,7 +1092,6 @@ export function initApp() {
       waypointHint.classList.add('is-hidden');
     }
     newPlayButton.disabled = disable;
-    flipPlayButton.disabled = disable;
     savePlayButton.disabled = disable;
     saveMenuToggle.disabled = disable;
     playMenuToggle.disabled = disable || !selectedSavedPlayId;
@@ -1158,6 +1273,9 @@ export function initApp() {
       createdAt: new Date(row.created_at).getTime(),
       updatedAt: new Date(row.updated_at).getTime()
     }));
+    if (savedPlays.length === 0) {
+      showAllPlaysView = false;
+    }
     selectedSavedPlayId = null;
     currentNotes = '';
     currentTags = [];
@@ -1233,6 +1351,7 @@ export function initApp() {
     }
 
     selectedSavedPlayId = value;
+    showAllPlaysView = false;
     const selectedEntry = savedPlays.find((entry) => entry.id === value);
     if (!selectedEntry) {
       setLastSelectedPlay(selectedPlaybookId, null);
@@ -1880,6 +1999,7 @@ export function initApp() {
   }
 
   function render() {
+    fieldFlipButton.disabled = play.players.length === 0;
     const ballState = getBallState(play, playTime, DEFAULT_BALL_SPEED_YPS);
     renderer.render({
       play,
@@ -2708,18 +2828,31 @@ export function initApp() {
       setStatus('Select a playbook you can share');
       return null;
     }
+
+    const { data: existingShare, error: existingError } = await supabase
+      .from('playbook_shares')
+      .select('token')
+      .eq('playbook_id', selectedPlaybookId)
+      .eq('role', role)
+      .maybeSingle();
+    if (existingError) {
+      console.error('Failed to load playbook share', existingError);
+      setStatus('Unable to share playbook');
+      return null;
+    }
+    if (existingShare?.token) {
+      return buildShareUrl(existingShare.token, 'playbook');
+    }
+
     const token = generateShareToken();
     const { data, error } = await supabase
       .from('playbook_shares')
-      .upsert(
-        {
-          playbook_id: selectedPlaybookId,
-          role,
-          token,
-          created_by: currentUserId
-        },
-        { onConflict: 'playbook_id,role' }
-      )
+      .insert({
+        playbook_id: selectedPlaybookId,
+        role,
+        token,
+        created_by: currentUserId
+      })
       .select('token')
       .single();
     if (error || !data) {
@@ -2755,6 +2888,7 @@ export function initApp() {
   newPlayButton.addEventListener('click', () => {
     resetPlayState();
     selectedSavedPlayId = null;
+    showAllPlaysView = false;
     sharedPlayActive = false;
     sharedPlayToken = null;
     syncEditorMode();
@@ -2764,7 +2898,16 @@ export function initApp() {
     updateSharedPlayUI();
   });
 
-  flipPlayButton.addEventListener('click', () => {
+  allPlaysButton.addEventListener('click', () => {
+    if (allPlaysButton.disabled) {
+      return;
+    }
+    stopPlayback();
+    showAllPlaysView = true;
+    renderGamePlayList();
+  });
+
+  fieldFlipButton.addEventListener('click', () => {
     applyMutation(() => {
       flipPlay();
     });

@@ -1,5 +1,6 @@
 import {
   ChevronDown,
+  FlipHorizontal2,
   GripHorizontal,
   Lock,
   Maximize2,
@@ -20,6 +21,7 @@ import {
 
 const ICONS = {
   ChevronDown,
+  FlipHorizontal2,
   Lock,
   Maximize2,
   Minimize2,

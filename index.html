@@ -198,7 +198,6 @@
                   </div>
                   <div class="play-actions" id="play-actions">
                     <button type="button" id="new-play" class="secondary">New</button>
-                    <button type="button" id="flip-play" class="secondary">Flip</button>
                     <div class="split-button" id="save-split">
                       <button type="button" id="save-play" class="secondary">Save</button>
                       <button
@@ -221,6 +220,9 @@
                 </div>
                 </div>
                 <div id="game-play-section" class="panel-block is-hidden">
+                  <button type="button" id="all-plays-button" class="secondary all-plays-button">
+                    All plays
+                  </button>
                   <div id="game-play-list" class="game-play-list"></div>
                 </div>
                 <div class="panel-block" id="team-panel">
@@ -328,6 +330,15 @@
             <div id="field-toolbar-overlay" class="field-toolbar-overlay"></div>
             <button
               type="button"
+              id="field-flip-toggle"
+              class="field-canvas-button"
+              aria-label="Flip play horizontally"
+              title="Flip play horizontally"
+            >
+              <span data-lucide="flip-horizontal-2" aria-hidden="true"></span>
+            </button>
+            <button
+              type="button"
               id="edit-mode-toggle"
               class="field-mode-toggle is-collapsed"
               aria-pressed="false"
@@ -337,6 +348,7 @@
               <span class="field-mode-icon" data-lucide="lock" aria-hidden="true"></span>
             </button>
           </div>
+          <div id="all-plays-gallery" class="all-plays-gallery is-hidden" aria-label="All plays gallery"></div>
         </section>
         </div>
       </main>
