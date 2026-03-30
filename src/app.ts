@@ -30,9 +30,17 @@ const LAST_SELECTED_PLAY_KEY = 'playmaker.lastSelectedPlay.v1';
 const LAST_SELECTED_PLAYBOOK_KEY = 'playmaker.lastSelectedPlaybook.v1';
 const LOCKED_STATE_KEY = 'playmaker.locked.v1';
 const PLAY_GRID_FILTER_MODE_KEY = 'playmaker.playGridFilterMode.v1';
+const UI_STATE_KEY = 'playmaker.uiState.v1';
 
 type PlayMode = 'design' | 'game';
 type PlayGridFilterMode = 'all' | 'any';
+type PersistedUiState = {
+  playMode?: PlayMode;
+  controlsOpen?: boolean;
+  playGridViewByPlaybook?: Record<string, boolean>;
+  playGridFiltersByPlaybook?: Record<string, string[]>;
+  lastSelectedPlaybookId?: string | null;
+};
 
 type DragState = {
   playerId: string;
@@ -156,7 +164,7 @@ export function initApp() {
   const editModeLabel = editModeToggle?.querySelector<HTMLElement>('.field-mode-label') ?? null;
   const fieldSection = document.querySelector<HTMLElement>('section.field');
   const fieldSurface = fieldSection?.querySelector<HTMLElement>('.field-surface') ?? null;
-  const allPlaysFilters = document.getElementById('all-plays-filters');
+  const playGridFilters = document.getElementById('all-plays-filters');
   const playbookSelect = document.getElementById('playbook-select') as HTMLSelectElement | null;
   const playbookRow = document.getElementById('playbook-row');
   const playbookRolePill = document.getElementById('playbook-role-pill');
@@ -165,9 +173,9 @@ export function initApp() {
   const modeButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-mode]'));
   const designPlaySection = document.getElementById('design-play-section');
   const gamePlaySection = document.getElementById('game-play-section');
-  const allPlaysButton = document.getElementById('all-plays-button') as HTMLButtonElement | null;
+  const playGridButton = document.getElementById('all-plays-button') as HTMLButtonElement | null;
   const gamePlayList = document.getElementById('game-play-list');
-  const allPlaysGallery = document.getElementById('all-plays-gallery') as HTMLDivElement | null;
+  const playGridGallery = document.getElementById('all-plays-gallery') as HTMLDivElement | null;
   const sharePlaybookButton = document.getElementById('share-playbook') as HTMLButtonElement | null;
   const renamePlaybookButton = document.getElementById('rename-playbook') as HTMLButtonElement | null;
   const deletePlaybookButton = document.getElementById('delete-playbook') as HTMLButtonElement | null;
@@ -257,7 +265,7 @@ export function initApp() {
     !editModeToggle ||
     !editModeLabel ||
     !fieldSurface ||
-    !allPlaysFilters ||
+    !playGridFilters ||
     !playbookSelect ||
     !playbookRow ||
     !playbookRolePill ||
@@ -266,9 +274,9 @@ export function initApp() {
     modeButtons.length === 0 ||
     !designPlaySection ||
     !gamePlaySection ||
-    !allPlaysButton ||
+    !playGridButton ||
     !gamePlayList ||
-    !allPlaysGallery ||
+    !playGridGallery ||
     !sharePlaybookButton ||
     !renamePlaybookButton ||
     !deletePlaybookButton ||
@@ -331,11 +339,11 @@ export function initApp() {
   let play = sharedPlayToken ? createEmptyPlay() : savedPlay ?? createEmptyPlay();
   let savedPlays: RemotePlay[] = [];
   let selectedSavedPlayId: string | null = null;
-  let showAllPlaysView = false;
+  let showPlayGridView = false;
   let playbooks: Playbook[] = [];
   let selectedPlaybookId: string | null = null;
   let currentRole: Playbook['role'] | null = null;
-  let playMode: PlayMode = 'game';
+  let playMode: PlayMode = loadPersistedPlayMode();
   let currentNotes = '';
   let currentTags: string[] = [];
   let playbookTags: PlaybookTag[] = [];
@@ -350,7 +358,7 @@ export function initApp() {
   let editMode = !loadLockedPreference();
   let editModeTimeout: number | null = null;
   let editModeBeforeFullscreen: boolean | null = null;
-  let restoreAllPlaysOnFullscreenExit = false;
+  let restorePlayGridOnFullscreenExit = false;
   let canEdit = false;
   let fullscreenActive = false;
   let selectedPlayerId: string | null = null;
@@ -404,7 +412,7 @@ export function initApp() {
     if (!window.matchMedia('(max-width: 900px)').matches) {
       return;
     }
-    controlsPanel.open = false;
+    controlsPanel.open = loadControlsOpenPreference() ?? false;
   }
 
   function syncControlsCollapse() {
@@ -468,9 +476,9 @@ export function initApp() {
       editMode = false;
       syncEditorMode();
     } else if (!active && wasFullscreen) {
-      if (restoreAllPlaysOnFullscreenExit && playMode === 'game') {
-        showAllPlaysView = true;
-        restoreAllPlaysOnFullscreenExit = false;
+      if (restorePlayGridOnFullscreenExit && playMode === 'game') {
+        setPlayGridView(true);
+        restorePlayGridOnFullscreenExit = false;
         renderGamePlayList();
       }
       if (editModeBeforeFullscreen !== null) {
@@ -633,8 +641,8 @@ export function initApp() {
     syncLayoutSizing();
     syncFullscreenToolbarOffset();
     updateDebugOverlay();
-    if (isAllPlaysViewActive()) {
-      renderAllPlaysGallery();
+    if (isPlayGridViewActive()) {
+      renderPlayGridGallery();
     }
   }
 
@@ -854,7 +862,37 @@ export function initApp() {
     return map[playbookId] ?? null;
   }
 
+  function loadPersistedUiState(): PersistedUiState {
+    try {
+      const raw = localStorage.getItem(UI_STATE_KEY);
+      if (!raw) {
+        return {};
+      }
+      const parsed = JSON.parse(raw) as PersistedUiState;
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function savePersistedUiState(nextState: PersistedUiState) {
+    try {
+      localStorage.setItem(UI_STATE_KEY, JSON.stringify(nextState));
+    } catch {
+      // ignore persistence errors
+    }
+  }
+
+  function updatePersistedUiState(mutator: (state: PersistedUiState) => PersistedUiState) {
+    const currentState = loadPersistedUiState();
+    savePersistedUiState(mutator(currentState));
+  }
+
   function loadLastSelectedPlaybook(): string | null {
+    const state = loadPersistedUiState();
+    if (typeof state.lastSelectedPlaybookId === 'string') {
+      return state.lastSelectedPlaybookId;
+    }
     try {
       return localStorage.getItem(LAST_SELECTED_PLAYBOOK_KEY);
     } catch {
@@ -863,6 +901,10 @@ export function initApp() {
   }
 
   function saveLastSelectedPlaybook(playbookId: string | null) {
+    updatePersistedUiState((state) => ({
+      ...state,
+      lastSelectedPlaybookId: playbookId ?? null
+    }));
     try {
       if (!playbookId) {
         localStorage.removeItem(LAST_SELECTED_PLAYBOOK_KEY);
@@ -872,6 +914,90 @@ export function initApp() {
     } catch {
       // ignore persistence errors
     }
+  }
+
+  function loadPersistedPlayMode(): PlayMode {
+    return loadPersistedUiState().playMode === 'design' ? 'design' : 'game';
+  }
+
+  function savePersistedPlayMode(mode: PlayMode) {
+    updatePersistedUiState((state) => ({
+      ...state,
+      playMode: mode
+    }));
+  }
+
+  function loadControlsOpenPreference(): boolean | null {
+    const controlsOpen = loadPersistedUiState().controlsOpen;
+    return typeof controlsOpen === 'boolean' ? controlsOpen : null;
+  }
+
+  function saveControlsOpenPreference(isOpen: boolean) {
+    updatePersistedUiState((state) => ({
+      ...state,
+      controlsOpen: isOpen
+    }));
+  }
+
+  function loadPlayGridViewPreference(playbookId: string | null): boolean {
+    if (!playbookId) {
+      return false;
+    }
+    return loadPersistedUiState().playGridViewByPlaybook?.[playbookId] === true;
+  }
+
+  function savePlayGridViewPreference(playbookId: string | null, active: boolean) {
+    if (!playbookId) {
+      return;
+    }
+    updatePersistedUiState((state) => {
+      const nextMap = { ...(state.playGridViewByPlaybook ?? {}) };
+      if (active) {
+        nextMap[playbookId] = true;
+      } else {
+        delete nextMap[playbookId];
+      }
+      return {
+        ...state,
+        playGridViewByPlaybook: nextMap
+      };
+    });
+  }
+
+  function setPlayGridView(next: boolean) {
+    showPlayGridView = next;
+    savePlayGridViewPreference(selectedPlaybookId, next);
+  }
+
+  function loadPlayGridFiltersPreference(playbookId: string | null): string[] {
+    if (!playbookId) {
+      return [];
+    }
+    const value = loadPersistedUiState().playGridFiltersByPlaybook?.[playbookId];
+    return Array.isArray(value) ? orderTagNames(value) : [];
+  }
+
+  function savePlayGridFiltersPreference(playbookId: string | null, filters: string[]) {
+    if (!playbookId) {
+      return;
+    }
+    updatePersistedUiState((state) => {
+      const nextMap = { ...(state.playGridFiltersByPlaybook ?? {}) };
+      if (filters.length === 0) {
+        delete nextMap[playbookId];
+      } else {
+        nextMap[playbookId] = orderTagNames(filters);
+      }
+      return {
+        ...state,
+        playGridFiltersByPlaybook: nextMap
+      };
+    });
+  }
+
+  function setPlayGridFilters(filters: string[]) {
+    activeTagFilters = orderTagNames(filters);
+    savePlayGridFiltersPreference(selectedPlaybookId, activeTagFilters);
   }
 
   function loadLockedPreference(): boolean {
@@ -979,7 +1105,9 @@ export function initApp() {
     const validFilters = new Set(
       savedPlays.flatMap((entry) => entry.tags.map((tag) => normalizeTagName(tag).toLowerCase()))
     );
-    activeTagFilters = orderTagNames(activeTagFilters).filter((name) => validFilters.has(name.toLowerCase()));
+    setPlayGridFilters(
+      orderTagNames(activeTagFilters).filter((name) => validFilters.has(name.toLowerCase()))
+    );
   }
 
   function hexToRgba(color: string, alpha: number): string {
@@ -1194,13 +1322,13 @@ export function initApp() {
     playTagPicker.append(options, footer);
   }
 
-  function renderAllPlaysFilters() {
+  function renderPlayGridFilters() {
     const availableTags = playbookTags.filter((tag) =>
       savedPlays.some((entry) => entry.tags.some((value) => value.toLowerCase() === tag.name.toLowerCase()))
     );
-    const showFilters = isAllPlaysViewActive() && availableTags.length > 0;
-    setSectionHidden(allPlaysFilters, !showFilters);
-    allPlaysFilters.replaceChildren();
+    const showFilters = isPlayGridViewActive() && availableTags.length > 0;
+    setSectionHidden(playGridFilters, !showFilters);
+    playGridFilters.replaceChildren();
     if (!showFilters) {
       return;
     }
@@ -1215,14 +1343,16 @@ export function initApp() {
       applyTagTone(button, tag.color, active);
       button.addEventListener('click', () => {
         if (active) {
-          activeTagFilters = activeTagFilters.filter((value) => value.toLowerCase() !== tag.name.toLowerCase());
+          setPlayGridFilters(
+            activeTagFilters.filter((value) => value.toLowerCase() !== tag.name.toLowerCase())
+          );
         } else {
-          activeTagFilters = orderTagNames([...activeTagFilters, tag.name]);
+          setPlayGridFilters([...activeTagFilters, tag.name]);
         }
-        renderAllPlaysFilters();
-        renderAllPlaysGallery();
+        renderPlayGridFilters();
+        renderPlayGridGallery();
       });
-      allPlaysFilters.append(button);
+      playGridFilters.append(button);
     });
 
     const actions = document.createElement('div');
@@ -1234,9 +1364,9 @@ export function initApp() {
       clearButton.className = 'secondary all-plays-clear-button';
       clearButton.textContent = 'Clear filters';
       clearButton.addEventListener('click', () => {
-        activeTagFilters = [];
-        renderAllPlaysFilters();
-        renderAllPlaysGallery();
+        setPlayGridFilters([]);
+        renderPlayGridFilters();
+        renderPlayGridGallery();
       });
       actions.append(clearButton);
     }
@@ -1251,7 +1381,7 @@ export function initApp() {
       openPlayGridFilterSettingsModal();
     });
     actions.append(settingsButton);
-    allPlaysFilters.append(actions);
+    playGridFilters.append(actions);
     renderIcons(actions);
   }
 
@@ -1315,8 +1445,8 @@ export function initApp() {
         const mode = button.getAttribute('data-filter-mode') === 'any' ? 'any' : 'all';
         playGridFilterMode = mode;
         savePlayGridFilterMode(mode);
-        renderAllPlaysFilters();
-        renderAllPlaysGallery();
+        renderPlayGridFilters();
+        renderPlayGridGallery();
         close();
       });
     });
@@ -1429,8 +1559,8 @@ Sharing a playbook with assistants is confusing."
 
   function renderGamePlayList() {
     gamePlayList.replaceChildren();
-    allPlaysButton.disabled = !currentUserId || !selectedPlaybookId || savedPlays.length === 0;
-    allPlaysButton.classList.toggle('is-active', isAllPlaysViewActive());
+    playGridButton.disabled = !currentUserId || !selectedPlaybookId || savedPlays.length === 0;
+    playGridButton.classList.toggle('is-active', isPlayGridViewActive());
     if (!currentUserId) {
       const empty = document.createElement('div');
       empty.className = 'game-play-empty';
@@ -1463,7 +1593,7 @@ Sharing a playbook with assistants is confusing."
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'game-play-item';
-      if (entry.id === selectedSavedPlayId && !isAllPlaysViewActive()) {
+      if (entry.id === selectedSavedPlayId && !isPlayGridViewActive()) {
         button.classList.add('is-active');
       }
       const label = document.createElement('span');
@@ -1471,7 +1601,7 @@ Sharing a playbook with assistants is confusing."
       label.textContent = entry.name;
       button.append(label);
       button.addEventListener('click', () => {
-        showAllPlaysView = false;
+        setPlayGridView(false);
         selectSavedPlayById(entry.id);
       });
 
@@ -1549,8 +1679,8 @@ Sharing a playbook with assistants is confusing."
     syncFieldPresentation();
   }
 
-  function isAllPlaysViewActive() {
-    return playMode === 'game' && showAllPlaysView && !!currentUserId && !!selectedPlaybookId && savedPlays.length > 0;
+  function isPlayGridViewActive() {
+    return playMode === 'game' && showPlayGridView && !!currentUserId && !!selectedPlaybookId && savedPlays.length > 0;
   }
 
   function renderPlayPreview(canvasEl: HTMLCanvasElement, previewPlay: Play) {
@@ -1573,11 +1703,11 @@ Sharing a playbook with assistants is confusing."
     drawPreview();
   }
 
-  function openFieldFullscreen(options: { restoreAllPlaysOnExit?: boolean } = {}) {
+  function openFieldFullscreen(options: { restorePlayGridOnExit?: boolean } = {}) {
     if (document.fullscreenElement || fullscreenActive) {
       return;
     }
-    restoreAllPlaysOnFullscreenExit = options.restoreAllPlaysOnExit ?? false;
+    restorePlayGridOnFullscreenExit = options.restorePlayGridOnExit ?? false;
     if (fieldSection?.requestFullscreen) {
       void fieldSection.requestFullscreen().catch(() => {
         setFullscreen(true);
@@ -1587,9 +1717,9 @@ Sharing a playbook with assistants is confusing."
     setFullscreen(true);
   }
 
-  function renderAllPlaysGallery() {
-    allPlaysGallery.replaceChildren();
-    if (!isAllPlaysViewActive()) {
+  function renderPlayGridGallery() {
+    playGridGallery.replaceChildren();
+    if (!isPlayGridViewActive()) {
       return;
     }
 
@@ -1600,7 +1730,7 @@ Sharing a playbook with assistants is confusing."
       const empty = document.createElement('div');
       empty.className = 'tag-empty';
       empty.textContent = activeTagFilters.length > 0 ? 'No plays match those tags.' : 'No plays yet.';
-      allPlaysGallery.append(empty);
+      playGridGallery.append(empty);
       return;
     }
 
@@ -1612,9 +1742,9 @@ Sharing a playbook with assistants is confusing."
         card.classList.add('is-active');
       }
       card.addEventListener('click', () => {
-        showAllPlaysView = false;
+        setPlayGridView(false);
         selectSavedPlayById(entry.id);
-        openFieldFullscreen({ restoreAllPlaysOnExit: true });
+        openFieldFullscreen({ restorePlayGridOnExit: true });
       });
 
       const preview = document.createElement('canvas');
@@ -1641,31 +1771,31 @@ Sharing a playbook with assistants is confusing."
       previews.push({ canvas: preview, play: entry.play });
     }
 
-    allPlaysGallery.append(fragment);
+    playGridGallery.append(fragment);
     previews.forEach(({ canvas: previewCanvas, play: previewPlay }) => {
       renderPlayPreview(previewCanvas, previewPlay);
     });
   }
 
   function syncFieldPresentation() {
-    const galleryActive = isAllPlaysViewActive();
+    const galleryActive = isPlayGridViewActive();
     setSectionHidden(fieldSurface, galleryActive);
-    setSectionHidden(allPlaysGallery, !galleryActive);
+    setSectionHidden(playGridGallery, !galleryActive);
     toolbar.classList.toggle('is-hidden', galleryActive);
     if (galleryActive) {
-      renderAllPlaysFilters();
-      renderAllPlaysGallery();
+      renderPlayGridFilters();
+      renderPlayGridGallery();
     } else {
-      allPlaysFilters.replaceChildren();
-      setSectionHidden(allPlaysFilters, true);
-      allPlaysGallery.replaceChildren();
+      playGridFilters.replaceChildren();
+      setSectionHidden(playGridFilters, true);
+      playGridGallery.replaceChildren();
     }
     positionStatusToast();
   }
 
   function updateModeUI() {
     if (playMode === 'design') {
-      showAllPlaysView = false;
+      setPlayGridView(false);
     }
     modeButtons.forEach((button) => {
       button.classList.toggle('active', button.dataset.mode === playMode);
@@ -1683,6 +1813,7 @@ Sharing a playbook with assistants is confusing."
 
   function setPlayMode(nextMode: PlayMode) {
     playMode = nextMode;
+    savePersistedPlayMode(nextMode);
     updateModeUI();
     syncEditorMode();
   }
@@ -1943,7 +2074,7 @@ Sharing a playbook with assistants is confusing."
       playbookTags = DEFAULT_PLAYBOOK_TAGS.map((tag) => ({ ...tag, id: tag.name }));
       syncTagState();
       renderPlayTagsPanel();
-      renderAllPlaysFilters();
+      renderPlayGridFilters();
       return;
     }
     playbookTags = sortPlaybookTags(
@@ -1956,7 +2087,7 @@ Sharing a playbook with assistants is confusing."
     );
     syncTagState();
     renderPlayTagsPanel();
-    renderAllPlaysFilters();
+    renderPlayGridFilters();
   }
 
   async function createDefaultPlaybook(): Promise<Playbook | null> {
@@ -2051,11 +2182,11 @@ Sharing a playbook with assistants is confusing."
     if (error) {
       console.error('Failed to load plays', error);
       savedPlays = [];
-      activeTagFilters = [];
+      setPlayGridFilters([]);
       syncTagState();
       renderSavedPlaysSelect();
       renderPlayTagsPanel();
-      renderAllPlaysFilters();
+      renderPlayGridFilters();
       return;
     }
     savedPlays = (data ?? []).map((row) => ({
@@ -2069,12 +2200,21 @@ Sharing a playbook with assistants is confusing."
       updatedAt: new Date(row.updated_at).getTime()
     }));
     if (savedPlays.length === 0) {
-      showAllPlaysView = false;
+      setPlayGridView(false);
     }
     selectedSavedPlayId = null;
     currentNotes = '';
     currentTags = [];
+    setPlayGridFilters(loadPlayGridFiltersPreference(playbookId));
     syncTagState();
+    const restorePlayGridView = playMode === 'game' && loadPlayGridViewPreference(playbookId) && savedPlays.length > 0;
+    if (restorePlayGridView) {
+      setPlayGridView(true);
+      renderSavedPlaysSelect();
+      renderPlayTagsPanel();
+      renderPlayGridFilters();
+      return;
+    }
     const lastSelected = getLastSelectedPlay(playbookId);
     if (lastSelected && savedPlays.some((entry) => entry.id === lastSelected)) {
       selectSavedPlayById(lastSelected);
@@ -2083,7 +2223,7 @@ Sharing a playbook with assistants is confusing."
     renderSavedPlaysSelect();
     renderGamePlayList();
     renderPlayTagsPanel();
-    renderAllPlaysFilters();
+    renderPlayGridFilters();
   }
 
   function renderSavedPlaysSelect() {
@@ -2140,6 +2280,8 @@ Sharing a playbook with assistants is confusing."
   function selectSavedPlayById(value: string | null) {
     if (!value) {
       selectedSavedPlayId = null;
+      setLastSelectedPlay(selectedPlaybookId, null);
+      setPlayGridView(false);
       currentNotes = '';
       currentTags = [];
       syncTagState();
@@ -2151,7 +2293,7 @@ Sharing a playbook with assistants is confusing."
     }
 
     selectedSavedPlayId = value;
-    showAllPlaysView = false;
+    setPlayGridView(false);
     const selectedEntry = savedPlays.find((entry) => entry.id === value);
     if (!selectedEntry) {
       setLastSelectedPlay(selectedPlaybookId, null);
@@ -2263,9 +2405,9 @@ Sharing a playbook with assistants is confusing."
     await recordPlayVersion(entry.id, entry.name, entry.play);
     updateSavedPlaysStorage();
     renderPlayTagsPanel();
-    renderAllPlaysFilters();
-    if (isAllPlaysViewActive()) {
-      renderAllPlaysGallery();
+    renderPlayGridFilters();
+    if (isPlayGridViewActive()) {
+      renderPlayGridGallery();
     }
     setStatus('Saved new play');
   }
@@ -2324,9 +2466,9 @@ Sharing a playbook with assistants is confusing."
     await recordPlayVersion(data.id, data.name, data.data as Play);
     updateSavedPlaysStorage();
     renderPlayTagsPanel();
-    renderAllPlaysFilters();
-    if (isAllPlaysViewActive()) {
-      renderAllPlaysGallery();
+    renderPlayGridFilters();
+    if (isPlayGridViewActive()) {
+      renderPlayGridGallery();
     }
     setStatus(`${data.name} updated`);
   }
@@ -2386,9 +2528,9 @@ Sharing a playbook with assistants is confusing."
     ]);
     syncTagState();
     renderPlayTagsPanel();
-    renderAllPlaysFilters();
-    if (isAllPlaysViewActive()) {
-      renderAllPlaysGallery();
+    renderPlayGridFilters();
+    if (isPlayGridViewActive()) {
+      renderPlayGridGallery();
     }
     setStatus(`Added ${data.name}`);
     return data;
@@ -2408,9 +2550,9 @@ Sharing a playbook with assistants is confusing."
     }
     playbookTags = playbookTags.map((tag) => (tag.id === tagId ? { ...tag, color: data.color ?? color } : tag));
     renderPlayTagsPanel();
-    renderAllPlaysFilters();
-    if (isAllPlaysViewActive()) {
-      renderAllPlaysGallery();
+    renderPlayGridFilters();
+    if (isPlayGridViewActive()) {
+      renderPlayGridGallery();
     }
     return true;
   }
@@ -2455,14 +2597,16 @@ Sharing a playbook with assistants is confusing."
       tags: entry.tags.filter((value) => value.toLowerCase() !== tag.name.toLowerCase())
     }));
     currentTags = currentTags.filter((value) => value.toLowerCase() !== tag.name.toLowerCase());
-    activeTagFilters = activeTagFilters.filter((value) => value.toLowerCase() !== tag.name.toLowerCase());
+    setPlayGridFilters(
+      activeTagFilters.filter((value) => value.toLowerCase() !== tag.name.toLowerCase())
+    );
     playbookTags = playbookTags.filter((entry) => entry.id !== tag.id);
     syncTagState();
     renderSavedPlaysSelect();
     renderPlayTagsPanel();
-    renderAllPlaysFilters();
-    if (isAllPlaysViewActive()) {
-      renderAllPlaysGallery();
+    renderPlayGridFilters();
+    if (isPlayGridViewActive()) {
+      renderPlayGridGallery();
     }
     setStatus(`Deleted ${tag.name}`);
     return true;
@@ -3844,7 +3988,8 @@ Sharing a playbook with assistants is confusing."
   newPlayButton.addEventListener('click', () => {
     resetPlayState();
     selectedSavedPlayId = null;
-    showAllPlaysView = false;
+    setLastSelectedPlay(selectedPlaybookId, null);
+    setPlayGridView(false);
     sharedPlayActive = false;
     sharedPlayToken = null;
     syncEditorMode();
@@ -3854,12 +3999,12 @@ Sharing a playbook with assistants is confusing."
     updateSharedPlayUI();
   });
 
-  allPlaysButton.addEventListener('click', () => {
-    if (allPlaysButton.disabled) {
+  playGridButton.addEventListener('click', () => {
+    if (playGridButton.disabled) {
       return;
     }
     stopPlayback();
-    showAllPlaysView = true;
+    setPlayGridView(true);
     renderGamePlayList();
   });
 
@@ -3961,9 +4106,9 @@ Sharing a playbook with assistants is confusing."
     setLastSelectedPlay(selectedPlaybookId, null);
     updateSavedPlaysStorage();
     renderPlayTagsPanel();
-    renderAllPlaysFilters();
-    if (isAllPlaysViewActive()) {
-      renderAllPlaysGallery();
+    renderPlayGridFilters();
+    if (isPlayGridViewActive()) {
+      renderPlayGridGallery();
     }
     persist();
     setStatus(`Deleted ${entry.name}`);
@@ -5245,12 +5390,12 @@ Sharing a playbook with assistants is confusing."
       savedPlays = [];
       selectedSavedPlayId = null;
       playbookTags = [];
-      activeTagFilters = [];
+      setPlayGridFilters([]);
       currentRole = null;
       syncEditorMode();
       renderPlaybookSelect();
       renderSavedPlaysSelect();
-      renderAllPlaysFilters();
+      renderPlayGridFilters();
       updateSelectedPanel();
       return;
     }
@@ -5431,10 +5576,10 @@ Sharing a playbook with assistants is confusing."
     renderSavedPlaysSelect();
     if (!selectedPlaybookId) {
       playbookTags = [];
-      activeTagFilters = [];
+      setPlayGridFilters([]);
       currentRole = null;
       syncEditorMode();
-      renderAllPlaysFilters();
+      renderPlayGridFilters();
       return;
     }
     const current = playbooks.find((item) => item.id === selectedPlaybookId);
@@ -5587,7 +5732,10 @@ Sharing a playbook with assistants is confusing."
   updateSelectedPanel();
   updateTimelineUI();
   setPlayToggleState(isPlaying ? 'pause' : 'play');
-  controlsPanel.addEventListener('toggle', syncControlsCollapse);
+  controlsPanel.addEventListener('toggle', () => {
+    saveControlsOpenPreference(controlsPanel.open);
+    syncControlsCollapse();
+  });
   window.addEventListener('resize', () => {
     syncControlsCollapse();
     updateLayoutMetrics();
