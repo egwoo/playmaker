@@ -2197,10 +2197,13 @@ Sharing a playbook with assistants is confusing."
 
   async function loadPlaybooks() {
     const [membersResult, ownedResult] = await Promise.all([
-      supabase
-        .from('playbook_members')
-        .select('role, playbooks (id, name, owner_id)')
-        .order('created_at', { ascending: true }),
+      currentUserId
+        ? supabase
+            .from('playbook_members')
+            .select('role, playbooks (id, name, owner_id)')
+            .eq('user_id', currentUserId)
+            .order('created_at', { ascending: true })
+        : Promise.resolve({ data: [], error: null }),
       currentUserId
         ? supabase
             .from('playbooks')
