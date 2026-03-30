@@ -94,6 +94,31 @@ body {
   justify-self: end;
 }
 
+.update-banner {
+  position: fixed;
+  left: 50%;
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 250, 242, 0.16);
+  background: rgba(16, 19, 16, 0.92);
+  color: #fdfcf9;
+  box-shadow: 0 16px 40px rgba(10, 11, 9, 0.28);
+  z-index: 90;
+}
+
+.update-banner-text {
+  white-space: nowrap;
+}
+
+.update-banner .primary {
+  min-height: 38px;
+}
+
 .avatar-button {
   width: 40px;
   height: 40px;
@@ -1816,6 +1841,18 @@ body.field-fullscreen .field-canvas-button {
 @media (max-width: 900px) {
   #app {
     padding: 12px;
+  }
+
+  .update-banner {
+    width: min(calc(100% - 24px), 420px);
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .update-banner-text {
+    white-space: normal;
+    line-height: 1.3;
   }
 
   .layout-header {

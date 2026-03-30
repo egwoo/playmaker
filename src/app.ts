@@ -18,6 +18,8 @@ import { loadDraftPlay, saveDraftPlay } from './storage';
 import { renderIcons } from './icons';
 import { supabase } from './supabase';
 
+declare const __APP_BUILD_ID__: string;
+
 const DEFAULT_SPEED = 6;
 const DEFAULT_DEFENSE_SPEED = 6;
 const DEFAULT_ZONE_RADIUS_X = 10;
@@ -89,6 +91,11 @@ type RemotePlay = {
   sortOrder: number;
 };
 
+type BuildMeta = {
+  buildId: string;
+  builtAt: string;
+};
+
 export function initApp() {
   const NEW_PLAYBOOK_VALUE = '__new__';
   const canvas = document.getElementById('field-canvas') as HTMLCanvasElement | null;
@@ -115,6 +122,8 @@ export function initApp() {
   const authMenu = document.getElementById('auth-menu');
   const authUserEmail = document.getElementById('auth-user-email');
   const authSignOut = document.getElementById('auth-signout') as HTMLButtonElement | null;
+  const updateBanner = document.getElementById('update-banner');
+  const updateRefreshButton = document.getElementById('update-refresh') as HTMLButtonElement | null;
   const toolbar = document.querySelector<HTMLElement>('.field-toolbar');
   const toolbarHost = document.querySelector<HTMLElement>('.layout-toolbar');
   const fieldToolbarOverlay = document.getElementById('field-toolbar-overlay') as HTMLDivElement | null;
@@ -204,6 +213,8 @@ export function initApp() {
     !authMenu ||
     !authUserEmail ||
     !authSignOut ||
+    !updateBanner ||
+    !updateRefreshButton ||
     !toolbar ||
     !pageScroll ||
     !layoutRoot ||
@@ -312,6 +323,7 @@ export function initApp() {
   let historyFuture: Play[] = [];
   let statusTimeout: number | null = null;
   let rolePillTimeout: number | null = null;
+  let updateAvailable = false;
   const contextMenuClosers: Array<(except?: HTMLElement) => void> = [];
   const debugEnabled = new URLSearchParams(window.location.search).has('debug');
   let debugOverlay: HTMLDivElement | null = null;
@@ -425,6 +437,73 @@ export function initApp() {
     statusTimeout = window.setTimeout(() => {
       statusText.classList.add('is-hidden');
     }, 2600);
+  }
+
+  function isLocalHost() {
+    return window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  }
+
+  async function fetchBuildMeta(forceFresh = false): Promise<BuildMeta | null> {
+    try {
+      const url = new URL('./build.json', window.location.href);
+      if (forceFresh) {
+        url.searchParams.set('t', Date.now().toString());
+      }
+      const response = await fetch(url.toString(), {
+        cache: forceFresh ? 'no-store' : 'default'
+      });
+      if (!response.ok) {
+        return null;
+      }
+      const data = (await response.json()) as Partial<BuildMeta>;
+      if (typeof data.buildId !== 'string') {
+        return null;
+      }
+      return {
+        buildId: data.buildId,
+        builtAt: typeof data.builtAt === 'string' ? data.builtAt : ''
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  function showUpdateBanner() {
+    if (updateAvailable) {
+      return;
+    }
+    updateAvailable = true;
+    updateBanner.classList.remove('is-hidden');
+  }
+
+  async function checkForAppUpdate() {
+    if (updateAvailable || isLocalHost()) {
+      return;
+    }
+    const buildMeta = await fetchBuildMeta(true);
+    if (!buildMeta) {
+      return;
+    }
+    if (buildMeta.buildId !== __APP_BUILD_ID__) {
+      showUpdateBanner();
+    }
+  }
+
+  function startAppUpdateChecks() {
+    if (isLocalHost()) {
+      return;
+    }
+    window.setTimeout(() => {
+      void checkForAppUpdate();
+    }, 45000);
+    window.setInterval(() => {
+      void checkForAppUpdate();
+    }, 120000);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        void checkForAppUpdate();
+      }
+    });
   }
 
   function updateDebugOverlay() {
@@ -2553,6 +2632,10 @@ export function initApp() {
     setFullscreen(!fullscreenActive);
   });
 
+  updateRefreshButton.addEventListener('click', () => {
+    window.location.reload();
+  });
+
   document.addEventListener('fullscreenchange', () => {
     setFullscreen(document.fullscreenElement === fieldSection);
   });
@@ -4421,6 +4504,7 @@ export function initApp() {
   updateModeUI();
   syncEditorMode();
   syncFullscreenUI();
+  startAppUpdateChecks();
   if (sharedPlayToken) {
     loadSharedPlayByToken(sharedPlayToken);
   }
