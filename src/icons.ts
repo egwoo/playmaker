@@ -1,6 +1,7 @@
 import {
   CircleQuestionMark,
   ChevronDown,
+  Eye,
   FlipHorizontal2,
   GripHorizontal,
   Lock,
@@ -24,6 +25,7 @@ import {
 const ICONS = {
   CircleQuestionMark,
   ChevronDown,
+  Eye,
   FlipHorizontal2,
   Lock,
   Maximize2,
