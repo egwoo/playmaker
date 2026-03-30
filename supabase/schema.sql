@@ -29,6 +29,26 @@ create table if not exists public.plays (
 
 alter table public.plays add column if not exists sort_order bigint;
 
+create table if not exists public.playbook_tags (
+  id uuid primary key default gen_random_uuid(),
+  playbook_id uuid not null references public.playbooks(id) on delete cascade,
+  name text not null,
+  color text not null default '#5a6157',
+  sort_order integer not null default 0,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (playbook_id, name)
+);
+
+alter table public.playbook_tags add column if not exists color text not null default '#5a6157';
+alter table public.playbook_tags add column if not exists sort_order integer not null default 0;
+alter table public.playbook_tags add column if not exists created_by uuid references auth.users(id) on delete set null;
+alter table public.playbook_tags add column if not exists created_at timestamptz not null default now();
+alter table public.playbook_tags add column if not exists updated_at timestamptz not null default now();
+
+create index if not exists playbook_tags_playbook_sort on public.playbook_tags (playbook_id, sort_order, created_at);
+
 create or replace function public.set_play_sort_order()
 returns trigger
 language plpgsql
@@ -112,6 +132,11 @@ create trigger set_plays_updated_at
 before update on public.plays
 for each row execute function public.set_updated_at();
 
+drop trigger if exists set_playbook_tags_updated_at on public.playbook_tags;
+create trigger set_playbook_tags_updated_at
+before update on public.playbook_tags
+for each row execute function public.set_updated_at();
+
 create or replace function public.add_owner_member()
 returns trigger
 language plpgsql
@@ -130,6 +155,45 @@ drop trigger if exists playbooks_owner_member on public.playbooks;
 create trigger playbooks_owner_member
 after insert on public.playbooks
 for each row execute function public.add_owner_member();
+
+create or replace function public.add_default_playbook_tags()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+begin
+  insert into public.playbook_tags (playbook_id, name, color, sort_order, created_by)
+  values
+    (new.id, 'Run', '#d48418', 10, new.owner_id),
+    (new.id, 'Pass', '#3b82f6', 20, new.owner_id)
+  on conflict on constraint playbook_tags_playbook_id_name_key do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists playbooks_default_tags on public.playbooks;
+create trigger playbooks_default_tags
+after insert on public.playbooks
+for each row execute function public.add_default_playbook_tags();
+
+insert into public.playbook_tags (playbook_id, name, color, sort_order)
+select p.id, 'Run', '#d48418', 10
+from public.playbooks p
+on conflict on constraint playbook_tags_playbook_id_name_key do nothing;
+
+insert into public.playbook_tags (playbook_id, name, color, sort_order)
+select p.id, 'Pass', '#3b82f6', 20
+from public.playbooks p
+on conflict on constraint playbook_tags_playbook_id_name_key do nothing;
+
+insert into public.playbook_tags (playbook_id, name, color, sort_order)
+select distinct p.playbook_id, btrim(tag_name), '#5a6157', 100
+from public.plays p
+cross join lateral unnest(coalesce(p.tags, '{}'::text[])) as tag_name
+where btrim(tag_name) <> ''
+on conflict on constraint playbook_tags_playbook_id_name_key do nothing;
 
 create or replace function public.is_playbook_member(pid uuid)
 returns boolean
@@ -267,6 +331,7 @@ $$;
 alter table public.playbooks enable row level security;
 alter table public.playbook_members enable row level security;
 alter table public.plays enable row level security;
+alter table public.playbook_tags enable row level security;
 alter table public.play_shares enable row level security;
 alter table public.playbook_shares enable row level security;
 alter table public.play_versions enable row level security;
@@ -322,6 +387,14 @@ for select using (public.is_playbook_member(playbook_id));
 
 drop policy if exists "plays_write" on public.plays;
 create policy "plays_write" on public.plays
+for all using (public.is_playbook_coach(playbook_id)) with check (public.is_playbook_coach(playbook_id));
+
+drop policy if exists "playbook_tags_read" on public.playbook_tags;
+create policy "playbook_tags_read" on public.playbook_tags
+for select using (public.is_playbook_member(playbook_id));
+
+drop policy if exists "playbook_tags_write" on public.playbook_tags;
+create policy "playbook_tags_write" on public.playbook_tags
 for all using (public.is_playbook_coach(playbook_id)) with check (public.is_playbook_coach(playbook_id));
 
 drop policy if exists "play_shares_read" on public.play_shares;

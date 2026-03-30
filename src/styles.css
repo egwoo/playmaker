@@ -1135,6 +1135,157 @@ button {
   width: 100%;
 }
 
+.play-tags-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: #f7f0e4;
+  border: 1px solid rgba(26, 32, 27, 0.1);
+}
+
+.play-tags-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-weight: 700;
+}
+
+.tag-chip-list,
+.tag-option-list,
+.all-plays-filters,
+.all-play-card-tags,
+.tag-manager-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag-empty {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.tag-badge,
+.tag-option,
+.all-plays-filter-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(26, 32, 27, 0.12);
+  background: #fffdf7;
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.tag-option,
+.all-plays-filter-button {
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.tag-option:disabled,
+.all-plays-filter-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tag-option.is-active,
+.all-plays-filter-button.is-active {
+  box-shadow: inset 0 0 0 1px rgba(26, 32, 27, 0.16);
+}
+
+.all-plays-filters {
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
+.all-plays-filters .secondary {
+  min-height: 32px;
+  padding: 6px 10px;
+}
+
+.tag-manager-modal {
+  width: min(720px, 94vw);
+}
+
+.tag-manager-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tag-manager-create {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.tag-manager-list {
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tag-manager-item {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(26, 32, 27, 0.1);
+  background: #fffdf7;
+}
+
+.tag-manager-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  font-weight: 700;
+}
+
+.tag-color-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(26, 32, 27, 0.12);
+}
+
+.tag-manager-name-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-color-input {
+  width: 40px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.tag-color-input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.tag-color-input::-webkit-color-swatch,
+.tag-color-input::-moz-color-swatch {
+  border: 1px solid rgba(26, 32, 27, 0.14);
+  border-radius: 10px;
+}
+
 .split-button {
   position: relative;
   display: flex;
@@ -1656,6 +1807,10 @@ button {
   line-height: 1.3;
 }
 
+.all-play-card-tags {
+  min-height: 24px;
+}
+
 @media (max-width: 1100px) {
   .all-plays-gallery {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1664,6 +1819,11 @@ button {
 
 @media (max-width: 700px) {
   .all-plays-gallery {
+    grid-template-columns: 1fr;
+  }
+
+  .tag-manager-create,
+  .tag-manager-item {
     grid-template-columns: 1fr;
   }
 }

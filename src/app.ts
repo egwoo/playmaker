@@ -96,6 +96,18 @@ type BuildMeta = {
   builtAt: string;
 };
 
+type PlaybookTag = {
+  id: string;
+  name: string;
+  color: string;
+  sortOrder: number;
+};
+
+const DEFAULT_PLAYBOOK_TAGS = [
+  { name: 'Run', color: '#d48418', sortOrder: 10 },
+  { name: 'Pass', color: '#3b82f6', sortOrder: 20 }
+];
+
 export function initApp() {
   const NEW_PLAYBOOK_VALUE = '__new__';
   const canvas = document.getElementById('field-canvas') as HTMLCanvasElement | null;
@@ -135,6 +147,7 @@ export function initApp() {
   const editModeLabel = editModeToggle?.querySelector<HTMLElement>('.field-mode-label') ?? null;
   const fieldSection = document.querySelector<HTMLElement>('section.field');
   const fieldSurface = fieldSection?.querySelector<HTMLElement>('.field-surface') ?? null;
+  const allPlaysFilters = document.getElementById('all-plays-filters');
   const playbookSelect = document.getElementById('playbook-select') as HTMLSelectElement | null;
   const playbookRow = document.getElementById('playbook-row');
   const playbookRolePill = document.getElementById('playbook-role-pill');
@@ -158,6 +171,10 @@ export function initApp() {
   const playHistoryButton = document.getElementById('play-history') as HTMLButtonElement | null;
   const renamePlayButton = document.getElementById('rename-play') as HTMLButtonElement | null;
   const deletePlayButton = document.getElementById('delete-play') as HTMLButtonElement | null;
+  const playTagsSection = document.getElementById('play-tags-section');
+  const manageTagsButton = document.getElementById('manage-tags') as HTMLButtonElement | null;
+  const selectedPlayTags = document.getElementById('selected-play-tags');
+  const playTagOptions = document.getElementById('play-tag-options');
   const sharedPlayBanner = document.getElementById('shared-play-banner');
   const sharedPlayText = document.getElementById('shared-play-text');
   const sharedPlayAction = document.getElementById('shared-play-action') as HTMLButtonElement | null;
@@ -225,6 +242,7 @@ export function initApp() {
     !editModeToggle ||
     !editModeLabel ||
     !fieldSurface ||
+    !allPlaysFilters ||
     !playbookSelect ||
     !playbookRow ||
     !playbookRolePill ||
@@ -248,6 +266,10 @@ export function initApp() {
     !playHistoryButton ||
     !renamePlayButton ||
     !deletePlayButton ||
+    !playTagsSection ||
+    !manageTagsButton ||
+    !selectedPlayTags ||
+    !playTagOptions ||
     !sharedPlayBanner ||
     !sharedPlayText ||
     !sharedPlayAction ||
@@ -298,6 +320,8 @@ export function initApp() {
   let playMode: PlayMode = 'game';
   let currentNotes = '';
   let currentTags: string[] = [];
+  let playbookTags: PlaybookTag[] = [];
+  let activeTagFilters: string[] = [];
   let currentUserId: string | null = null;
   let currentAvatarUrl: string | null = null;
   let lastAuthEmail = '';
@@ -790,6 +814,230 @@ export function initApp() {
     return map[playbookId] ?? null;
   }
 
+  function normalizeTagName(name: string): string {
+    return name.trim().replace(/\s+/g, ' ');
+  }
+
+  function sortPlaybookTags(tags: PlaybookTag[]): PlaybookTag[] {
+    const seen = new Set<string>();
+    return [...tags]
+      .filter((tag) => {
+        const name = normalizeTagName(tag.name);
+        const key = name.toLowerCase();
+        if (!name || seen.has(key)) {
+          return false;
+        }
+        seen.add(key);
+        tag.name = name;
+        return true;
+      })
+      .sort((a, b) => {
+        const delta = (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+        if (delta !== 0) {
+          return delta;
+        }
+        return a.name.localeCompare(b.name);
+      });
+  }
+
+  function getFallbackTagColor(name: string): string {
+    const palette = ['#d48418', '#3b82f6', '#0f9d58', '#d94673', '#7c3aed', '#0f766e'];
+    const hash = Array.from(name).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+    return palette[hash % palette.length];
+  }
+
+  function getTagDefinition(name: string): PlaybookTag {
+    const normalized = normalizeTagName(name);
+    return (
+      playbookTags.find((tag) => tag.name.toLowerCase() === normalized.toLowerCase()) ?? {
+        id: normalized,
+        name: normalized,
+        color: getFallbackTagColor(normalized),
+        sortOrder: 999
+      }
+    );
+  }
+
+  function orderTagNames(names: string[]): string[] {
+    const seen = new Set<string>();
+    const items = names
+      .map((name) => normalizeTagName(name))
+      .filter((name) => {
+        const key = name.toLowerCase();
+        if (!name || seen.has(key)) {
+          return false;
+        }
+        seen.add(key);
+        return true;
+      });
+    return items.sort((a, b) => {
+      const tagA = getTagDefinition(a);
+      const tagB = getTagDefinition(b);
+      const delta = tagA.sortOrder - tagB.sortOrder;
+      if (delta !== 0) {
+        return delta;
+      }
+      return tagA.name.localeCompare(tagB.name);
+    });
+  }
+
+  function syncTagState() {
+    playbookTags = sortPlaybookTags(playbookTags);
+    currentTags = orderTagNames(currentTags);
+    const validFilters = new Set(
+      savedPlays.flatMap((entry) => entry.tags.map((tag) => normalizeTagName(tag).toLowerCase()))
+    );
+    activeTagFilters = orderTagNames(activeTagFilters).filter((name) => validFilters.has(name.toLowerCase()));
+  }
+
+  function hexToRgba(color: string, alpha: number): string {
+    const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(color);
+    if (!match) {
+      return `rgba(90, 97, 87, ${alpha})`;
+    }
+    const [, r, g, b] = match;
+    return `rgba(${parseInt(r, 16)}, ${parseInt(g, 16)}, ${parseInt(b, 16)}, ${alpha})`;
+  }
+
+  function applyTagTone(element: HTMLElement, color: string, active = false) {
+    element.style.backgroundColor = hexToRgba(color, active ? 0.22 : 0.12);
+    element.style.borderColor = hexToRgba(color, active ? 0.52 : 0.24);
+    element.style.color = '#1b1f1a';
+  }
+
+  function createTagBadge(name: string, options: { active?: boolean } = {}) {
+    const tag = getTagDefinition(name);
+    const badge = document.createElement('span');
+    badge.className = 'tag-badge';
+    badge.textContent = tag.name;
+    applyTagTone(badge, tag.color, options.active ?? false);
+    return badge;
+  }
+
+  function createTagButton(name: string, options: { active?: boolean; disabled?: boolean; onClick: () => void }) {
+    const tag = getTagDefinition(name);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'tag-option';
+    button.textContent = tag.name;
+    button.disabled = options.disabled ?? false;
+    button.classList.toggle('is-active', options.active ?? false);
+    applyTagTone(button, tag.color, options.active ?? false);
+    button.addEventListener('click', options.onClick);
+    return button;
+  }
+
+  function getFilteredPlays(): RemotePlay[] {
+    const ordered = getOrderedPlays();
+    if (activeTagFilters.length === 0) {
+      return ordered;
+    }
+    const activeSet = new Set(activeTagFilters.map((tag) => tag.toLowerCase()));
+    return ordered.filter((entry) =>
+      entry.tags.some((tag) => activeSet.has(normalizeTagName(tag).toLowerCase()))
+    );
+  }
+
+  function renderPlayTagsPanel() {
+    const showPanel = playMode === 'design' && currentRole === 'coach' && !sharedPlayActive && !!selectedPlaybookId;
+    setSectionHidden(playTagsSection, !showPanel);
+    if (!showPanel) {
+      selectedPlayTags.replaceChildren();
+      playTagOptions.replaceChildren();
+      return;
+    }
+
+    const editable = canEdit;
+    manageTagsButton.disabled = !selectedPlaybookId || currentRole !== 'coach';
+
+    selectedPlayTags.replaceChildren();
+    if (currentTags.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'tag-empty';
+      empty.textContent = 'No tags on this play yet.';
+      selectedPlayTags.append(empty);
+    } else {
+      currentTags.forEach((tagName) => {
+        selectedPlayTags.append(createTagBadge(tagName, { active: true }));
+      });
+    }
+
+    playTagOptions.replaceChildren();
+    if (playbookTags.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'tag-empty';
+      empty.textContent = 'Create tags to organize this playbook.';
+      playTagOptions.append(empty);
+      return;
+    }
+
+    playbookTags.forEach((tag) => {
+      const active = currentTags.some((value) => value.toLowerCase() === tag.name.toLowerCase());
+      playTagOptions.append(
+        createTagButton(tag.name, {
+          active,
+          disabled: !editable,
+          onClick: () => {
+            if (!canEdit) {
+              return;
+            }
+            if (active) {
+              currentTags = currentTags.filter((value) => value.toLowerCase() !== tag.name.toLowerCase());
+            } else {
+              currentTags = orderTagNames([...currentTags, tag.name]);
+            }
+            renderPlayTagsPanel();
+          }
+        })
+      );
+    });
+  }
+
+  function renderAllPlaysFilters() {
+    const availableTags = playbookTags.filter((tag) =>
+      savedPlays.some((entry) => entry.tags.some((value) => value.toLowerCase() === tag.name.toLowerCase()))
+    );
+    const showFilters = isAllPlaysViewActive() && availableTags.length > 0;
+    setSectionHidden(allPlaysFilters, !showFilters);
+    allPlaysFilters.replaceChildren();
+    if (!showFilters) {
+      return;
+    }
+
+    if (activeTagFilters.length > 0) {
+      const clearButton = document.createElement('button');
+      clearButton.type = 'button';
+      clearButton.className = 'secondary';
+      clearButton.textContent = 'Clear filters';
+      clearButton.addEventListener('click', () => {
+        activeTagFilters = [];
+        renderAllPlaysFilters();
+        renderAllPlaysGallery();
+      });
+      allPlaysFilters.append(clearButton);
+    }
+
+    availableTags.forEach((tag) => {
+      const active = activeTagFilters.some((value) => value.toLowerCase() === tag.name.toLowerCase());
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'all-plays-filter-button';
+      button.classList.toggle('is-active', active);
+      button.textContent = tag.name;
+      applyTagTone(button, tag.color, active);
+      button.addEventListener('click', () => {
+        if (active) {
+          activeTagFilters = activeTagFilters.filter((value) => value.toLowerCase() !== tag.name.toLowerCase());
+        } else {
+          activeTagFilters = orderTagNames([...activeTagFilters, tag.name]);
+        }
+        renderAllPlaysFilters();
+        renderAllPlaysGallery();
+      });
+      allPlaysFilters.append(button);
+    });
+  }
+
   function renderGamePlayList() {
     gamePlayList.replaceChildren();
     allPlaysButton.disabled = !currentUserId || !selectedPlaybookId || savedPlays.length === 0;
@@ -958,7 +1206,16 @@ export function initApp() {
 
     const fragment = document.createDocumentFragment();
     const previews: Array<{ canvas: HTMLCanvasElement; play: Play }> = [];
-    for (const entry of getOrderedPlays()) {
+    const entries = getFilteredPlays();
+    if (entries.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'tag-empty';
+      empty.textContent = activeTagFilters.length > 0 ? 'No plays match those tags.' : 'No plays yet.';
+      allPlaysGallery.append(empty);
+      return;
+    }
+
+    for (const entry of entries) {
       const card = document.createElement('button');
       card.type = 'button';
       card.className = 'all-play-card';
@@ -978,7 +1235,19 @@ export function initApp() {
       title.className = 'all-play-card-title';
       title.textContent = entry.name;
 
-      card.append(preview, title);
+      const tags = document.createElement('div');
+      tags.className = 'all-play-card-tags';
+      entry.tags.slice(0, 4).forEach((tagName) => {
+        tags.append(createTagBadge(tagName));
+      });
+      if (entry.tags.length > 4) {
+        const overflow = document.createElement('span');
+        overflow.className = 'tag-badge';
+        overflow.textContent = `+${entry.tags.length - 4}`;
+        tags.append(overflow);
+      }
+
+      card.append(preview, title, tags);
       fragment.append(card);
       previews.push({ canvas: preview, play: entry.play });
     }
@@ -995,8 +1264,11 @@ export function initApp() {
     setSectionHidden(allPlaysGallery, !galleryActive);
     toolbar.classList.toggle('is-hidden', galleryActive);
     if (galleryActive) {
+      renderAllPlaysFilters();
       renderAllPlaysGallery();
     } else {
+      allPlaysFilters.replaceChildren();
+      setSectionHidden(allPlaysFilters, true);
       allPlaysGallery.replaceChildren();
     }
     positionStatusToast();
@@ -1016,6 +1288,7 @@ export function initApp() {
     editModeToggle.classList.toggle('is-hidden', playMode === 'game');
     renderGamePlayList();
     syncFieldPresentation();
+    renderPlayTagsPanel();
   }
 
   function setPlayMode(nextMode: PlayMode) {
@@ -1097,6 +1370,8 @@ export function initApp() {
     play = entry.play_data as Play;
     selectedSavedPlayId = null;
     selectedPlayerId = null;
+    currentTags = [];
+    syncTagState();
     historyPast = [];
     historyFuture = [];
     resetPlayback();
@@ -1195,6 +1470,7 @@ export function initApp() {
     updatePlaybookRolePill();
     updateEditModeToggle();
     updateSaveButtonLabel();
+    renderPlayTagsPanel();
     updateSelectedPanel();
   }
 
@@ -1259,6 +1535,34 @@ export function initApp() {
       updateSelectedPanel();
       await loadPlaysForPlaybook(selectedPlaybookId);
     }
+  }
+
+  async function loadPlaybookTags(playbookId: string) {
+    const { data, error } = await supabase
+      .from('playbook_tags')
+      .select('id, name, color, sort_order')
+      .eq('playbook_id', playbookId)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true });
+    if (error) {
+      console.error('Failed to load playbook tags', error);
+      playbookTags = DEFAULT_PLAYBOOK_TAGS.map((tag) => ({ ...tag, id: tag.name }));
+      syncTagState();
+      renderPlayTagsPanel();
+      renderAllPlaysFilters();
+      return;
+    }
+    playbookTags = sortPlaybookTags(
+      (data ?? []).map((row) => ({
+        id: row.id,
+        name: row.name,
+        color: row.color ?? getFallbackTagColor(row.name),
+        sortOrder: row.sort_order ?? 0
+      }))
+    );
+    syncTagState();
+    renderPlayTagsPanel();
+    renderAllPlaysFilters();
   }
 
   async function createDefaultPlaybook(): Promise<Playbook | null> {
@@ -1340,16 +1644,24 @@ export function initApp() {
   }
 
   async function loadPlaysForPlaybook(playbookId: string) {
-    const { data, error } = await supabase
-      .from('plays')
-      .select('id, name, data, notes, tags, sort_order, created_at, updated_at')
-      .eq('playbook_id', playbookId)
-      .order('sort_order', { ascending: false, nullsFirst: false })
-      .order('updated_at', { ascending: false });
+    const [playsResult] = await Promise.all([
+      supabase
+        .from('plays')
+        .select('id, name, data, notes, tags, sort_order, created_at, updated_at')
+        .eq('playbook_id', playbookId)
+        .order('sort_order', { ascending: false, nullsFirst: false })
+        .order('updated_at', { ascending: false }),
+      loadPlaybookTags(playbookId)
+    ]);
+    const { data, error } = playsResult;
     if (error) {
       console.error('Failed to load plays', error);
       savedPlays = [];
+      activeTagFilters = [];
+      syncTagState();
       renderSavedPlaysSelect();
+      renderPlayTagsPanel();
+      renderAllPlaysFilters();
       return;
     }
     savedPlays = (data ?? []).map((row) => ({
@@ -1368,6 +1680,7 @@ export function initApp() {
     selectedSavedPlayId = null;
     currentNotes = '';
     currentTags = [];
+    syncTagState();
     const lastSelected = getLastSelectedPlay(playbookId);
     if (lastSelected && savedPlays.some((entry) => entry.id === lastSelected)) {
       selectSavedPlayById(lastSelected);
@@ -1375,6 +1688,8 @@ export function initApp() {
     }
     renderSavedPlaysSelect();
     renderGamePlayList();
+    renderPlayTagsPanel();
+    renderAllPlaysFilters();
   }
 
   function renderSavedPlaysSelect() {
@@ -1433,9 +1748,11 @@ export function initApp() {
       selectedSavedPlayId = null;
       currentNotes = '';
       currentTags = [];
+      syncTagState();
       updateSaveButtonLabel();
       renderSavedPlaysSelect();
       renderGamePlayList();
+      renderPlayTagsPanel();
       return;
     }
 
@@ -1456,6 +1773,7 @@ export function initApp() {
     play = clonePlay(selectedEntry.play);
     currentNotes = selectedEntry.notes ?? '';
     currentTags = selectedEntry.tags ?? [];
+    syncTagState();
     resetPlayback();
     historyPast = [];
     historyFuture = [];
@@ -1466,6 +1784,7 @@ export function initApp() {
     updateSaveButtonLabel();
     renderSavedPlaysSelect();
     renderGamePlayList();
+    renderPlayTagsPanel();
     updateSharedPlayUI();
   }
 
@@ -1501,11 +1820,13 @@ export function initApp() {
     historyFuture = [];
     currentNotes = '';
     currentTags = [];
+    syncTagState();
     updateHistoryUI();
     updateSelectedPanel();
     updateTimelineUI();
     render();
     persist();
+    renderPlayTagsPanel();
   }
 
   async function savePlayAsNew(name: string) {
@@ -1542,9 +1863,16 @@ export function initApp() {
     };
     savedPlays = [entry, ...savedPlays];
     selectedSavedPlayId = entry.id;
+    currentTags = entry.tags;
+    syncTagState();
     setLastSelectedPlay(selectedPlaybookId, entry.id);
     await recordPlayVersion(entry.id, entry.name, entry.play);
     updateSavedPlaysStorage();
+    renderPlayTagsPanel();
+    renderAllPlaysFilters();
+    if (isAllPlaysViewActive()) {
+      renderAllPlaysGallery();
+    }
     setStatus('Saved new play');
   }
 
@@ -1596,9 +1924,16 @@ export function initApp() {
           }
         : entry
     );
+    currentTags = data.tags ?? [];
+    syncTagState();
     setLastSelectedPlay(selectedPlaybookId, selectedSavedPlayId);
     await recordPlayVersion(data.id, data.name, data.data as Play);
     updateSavedPlaysStorage();
+    renderPlayTagsPanel();
+    renderAllPlaysFilters();
+    if (isAllPlaysViewActive()) {
+      renderAllPlaysGallery();
+    }
     setStatus(`${data.name} updated`);
   }
 
@@ -1614,6 +1949,129 @@ export function initApp() {
       return;
     }
     await supabase.rpc('prune_play_versions', { pid: playId });
+  }
+
+  async function createPlaybookTag(name: string, color: string) {
+    if (!selectedPlaybookId || currentRole !== 'coach') {
+      return null;
+    }
+    const normalized = normalizeTagName(name);
+    if (!normalized) {
+      setStatus('Enter a tag name');
+      return null;
+    }
+    if (playbookTags.some((tag) => tag.name.toLowerCase() === normalized.toLowerCase())) {
+      setStatus('That tag already exists');
+      return null;
+    }
+    const nextSortOrder = (playbookTags.at(-1)?.sortOrder ?? 0) + 10;
+    const { data, error } = await supabase
+      .from('playbook_tags')
+      .insert({
+        playbook_id: selectedPlaybookId,
+        name: normalized,
+        color,
+        sort_order: nextSortOrder,
+        created_by: currentUserId
+      })
+      .select('id, name, color, sort_order')
+      .single();
+    if (error || !data) {
+      console.error('Failed to create tag', error);
+      setStatus('Unable to create tag');
+      return null;
+    }
+    playbookTags = sortPlaybookTags([
+      ...playbookTags,
+      {
+        id: data.id,
+        name: data.name,
+        color: data.color ?? color,
+        sortOrder: data.sort_order ?? nextSortOrder
+      }
+    ]);
+    syncTagState();
+    renderPlayTagsPanel();
+    renderAllPlaysFilters();
+    if (isAllPlaysViewActive()) {
+      renderAllPlaysGallery();
+    }
+    setStatus(`Added ${data.name}`);
+    return data;
+  }
+
+  async function updatePlaybookTagColor(tagId: string, color: string) {
+    const { data, error } = await supabase
+      .from('playbook_tags')
+      .update({ color })
+      .eq('id', tagId)
+      .select('id, color')
+      .single();
+    if (error || !data) {
+      console.error('Failed to update tag color', error);
+      setStatus('Unable to update tag color');
+      return false;
+    }
+    playbookTags = playbookTags.map((tag) => (tag.id === tagId ? { ...tag, color: data.color ?? color } : tag));
+    renderPlayTagsPanel();
+    renderAllPlaysFilters();
+    if (isAllPlaysViewActive()) {
+      renderAllPlaysGallery();
+    }
+    return true;
+  }
+
+  async function deletePlaybookTag(tag: PlaybookTag) {
+    if (!selectedPlaybookId || currentRole !== 'coach') {
+      return false;
+    }
+    const affectedPlays = savedPlays.filter((entry) =>
+      entry.tags.some((value) => value.toLowerCase() === tag.name.toLowerCase())
+    );
+    if (affectedPlays.length > 0) {
+      const updateResults = await Promise.all(
+        affectedPlays.map((entry) =>
+          supabase
+            .from('plays')
+            .update({
+              tags: entry.tags.filter((value) => value.toLowerCase() !== tag.name.toLowerCase())
+            })
+            .eq('id', entry.id)
+            .eq('playbook_id', selectedPlaybookId)
+        )
+      );
+      const failed = updateResults.find((result) => result.error)?.error;
+      if (failed) {
+        console.error('Failed to remove tag from plays', failed);
+        setStatus('Unable to delete tag');
+        await loadPlaysForPlaybook(selectedPlaybookId);
+        return false;
+      }
+    }
+
+    const { error } = await supabase.from('playbook_tags').delete().eq('id', tag.id);
+    if (error) {
+      console.error('Failed to delete tag', error);
+      setStatus('Unable to delete tag');
+      return false;
+    }
+
+    savedPlays = savedPlays.map((entry) => ({
+      ...entry,
+      tags: entry.tags.filter((value) => value.toLowerCase() !== tag.name.toLowerCase())
+    }));
+    currentTags = currentTags.filter((value) => value.toLowerCase() !== tag.name.toLowerCase());
+    activeTagFilters = activeTagFilters.filter((value) => value.toLowerCase() !== tag.name.toLowerCase());
+    playbookTags = playbookTags.filter((entry) => entry.id !== tag.id);
+    syncTagState();
+    renderSavedPlaysSelect();
+    renderPlayTagsPanel();
+    renderAllPlaysFilters();
+    if (isAllPlaysViewActive()) {
+      renderAllPlaysGallery();
+    }
+    setStatus(`Deleted ${tag.name}`);
+    return true;
   }
 
   function ensureDefenseAssignment(player: Player) {
@@ -3094,8 +3552,14 @@ export function initApp() {
     }
     savedPlays = savedPlays.filter((item) => item.id !== selectedSavedPlayId);
     selectedSavedPlayId = null;
+    syncTagState();
     setLastSelectedPlay(selectedPlaybookId, null);
     updateSavedPlaysStorage();
+    renderPlayTagsPanel();
+    renderAllPlaysFilters();
+    if (isAllPlaysViewActive()) {
+      renderAllPlaysGallery();
+    }
     persist();
     setStatus(`Deleted ${entry.name}`);
   });
@@ -3837,6 +4301,148 @@ export function initApp() {
     });
   }
 
+  function openTagManagerModal() {
+    if (document.querySelector('.auth-modal') || !selectedPlaybookId || currentRole !== 'coach') {
+      return;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'auth-modal';
+    overlay.innerHTML = `
+      <div class="auth-modal-card tag-manager-modal" role="dialog" aria-modal="true" aria-label="Manage tags">
+        <div class="auth-modal-header">
+          <div>
+            <p class="auth-modal-title">Manage tags</p>
+            <p class="auth-modal-subtitle">Create tags, change colors, and remove unused labels.</p>
+          </div>
+          <button type="button" class="icon-button" data-tag-close aria-label="Close">
+            <span data-lucide="x" aria-hidden="true"></span>
+          </button>
+        </div>
+        <div class="tag-manager-body">
+          <div class="tag-manager-create">
+            <label class="field-label">
+              Tag name
+              <input type="text" data-tag-create-name placeholder="Play Action" />
+            </label>
+            <label class="field-label">
+              Color
+              <input type="color" class="tag-color-input" data-tag-create-color value="#5a6157" />
+            </label>
+            <button type="button" class="primary" data-tag-create-submit>Add tag</button>
+          </div>
+          <div class="tag-manager-list" data-tag-manager-list></div>
+        </div>
+      </div>
+    `;
+
+    document.body.append(overlay);
+    renderIcons(overlay);
+
+    const close = () => {
+      overlay.remove();
+      document.removeEventListener('keydown', onKey);
+    };
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        close();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+
+    const closeButton = overlay.querySelector('[data-tag-close]') as HTMLButtonElement | null;
+    const list = overlay.querySelector('[data-tag-manager-list]');
+    const createInput = overlay.querySelector('[data-tag-create-name]') as HTMLInputElement | null;
+    const createColorInput = overlay.querySelector('[data-tag-create-color]') as HTMLInputElement | null;
+    const createButton = overlay.querySelector('[data-tag-create-submit]') as HTMLButtonElement | null;
+
+    const renderList = () => {
+      if (!list) {
+        return;
+      }
+      list.replaceChildren();
+      if (playbookTags.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'tag-empty';
+        empty.textContent = 'No tags yet.';
+        list.append(empty);
+        return;
+      }
+
+      playbookTags.forEach((tag) => {
+        const row = document.createElement('div');
+        row.className = 'tag-manager-item';
+
+        const name = document.createElement('div');
+        name.className = 'tag-manager-name';
+        const dot = document.createElement('span');
+        dot.className = 'tag-color-dot';
+        dot.style.backgroundColor = tag.color;
+        const label = document.createElement('span');
+        label.className = 'tag-manager-name-label';
+        label.textContent = tag.name;
+        name.append(dot, label);
+
+        const colorInput = document.createElement('input');
+        colorInput.type = 'color';
+        colorInput.className = 'tag-color-input';
+        colorInput.value = tag.color;
+        colorInput.addEventListener('input', async () => {
+          colorInput.disabled = true;
+          await updatePlaybookTagColor(tag.id, colorInput.value);
+          colorInput.disabled = false;
+          renderList();
+        });
+
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'secondary icon-button';
+        deleteButton.setAttribute('aria-label', `Delete ${tag.name}`);
+        deleteButton.innerHTML = '<span data-lucide="trash-2" aria-hidden="true"></span>';
+        deleteButton.addEventListener('click', async () => {
+          const confirmed = window.confirm(`Delete the "${tag.name}" tag from this playbook?`);
+          if (!confirmed) {
+            return;
+          }
+          deleteButton.disabled = true;
+          await deletePlaybookTag(tag);
+          renderList();
+        });
+
+        row.append(name, colorInput, deleteButton);
+        list.append(row);
+      });
+      renderIcons(list);
+    };
+
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) {
+        close();
+      }
+    });
+
+    closeButton?.addEventListener('click', close);
+    createButton?.addEventListener('click', async () => {
+      if (!createInput || !createColorInput) {
+        return;
+      }
+      createButton.disabled = true;
+      const created = await createPlaybookTag(createInput.value, createColorInput.value);
+      createButton.disabled = false;
+      if (!created) {
+        return;
+      }
+      createInput.value = '';
+      createColorInput.value = '#5a6157';
+      renderList();
+      createInput.focus();
+    });
+
+    window.setTimeout(() => createInput?.focus(), 0);
+    renderList();
+  }
+
   function openSharedSaveModal(defaultName: string): Promise<{ playbookId: string; name: string } | null> {
     if (document.querySelector('.auth-modal')) {
       return Promise.resolve(null);
@@ -4186,13 +4792,16 @@ export function initApp() {
       selectedPlaybookId = null;
       savedPlays = [];
       selectedSavedPlayId = null;
-    currentRole = null;
-    syncEditorMode();
-    renderPlaybookSelect();
-    renderSavedPlaysSelect();
-    updateSelectedPanel();
-    return;
-  }
+      playbookTags = [];
+      activeTagFilters = [];
+      currentRole = null;
+      syncEditorMode();
+      renderPlaybookSelect();
+      renderSavedPlaysSelect();
+      renderAllPlaysFilters();
+      updateSelectedPanel();
+      return;
+    }
     renderPlaybookSelect();
     renderSavedPlaysSelect();
     if (sharedPlaybookToken && !sharedPlaybookAccepted) {
@@ -4213,6 +4822,7 @@ export function initApp() {
   }
 
   helpTrigger.addEventListener('click', openHelpModal);
+  manageTagsButton.addEventListener('click', openTagManagerModal);
 
   modeButtons.forEach((button) => {
     button.addEventListener('click', () => {
@@ -4335,8 +4945,11 @@ export function initApp() {
     savedPlays = [];
     renderSavedPlaysSelect();
     if (!selectedPlaybookId) {
+      playbookTags = [];
+      activeTagFilters = [];
       currentRole = null;
       syncEditorMode();
+      renderAllPlaysFilters();
       return;
     }
     const current = playbooks.find((item) => item.id === selectedPlaybookId);
