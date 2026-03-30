@@ -2388,10 +2388,6 @@ body.field-fullscreen .field-canvas-button {
     grid-template-columns: 1fr 1fr;
   }
 
-  .play-actions .split-button {
-    grid-column: 1 / -1;
-  }
-
   .status {
     width: 100%;
     text-align: center;
