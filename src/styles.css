@@ -1305,6 +1305,44 @@ button {
   width: min(440px, 92vw);
 }
 
+.shared-playbook-gate-card {
+  width: min(460px, 92vw);
+}
+
+.shared-play-gate-card {
+  width: min(500px, 92vw);
+}
+
+.shared-play-gate-actions,
+.shared-playbook-gate-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+}
+
+.shared-play-gate-skip {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.shared-play-gate-skip:hover {
+  color: var(--ink);
+}
+
+.shared-playbook-gate-actions .primary {
+  min-width: 220px;
+}
+
+.shared-play-gate-actions .primary {
+  min-width: 180px;
+}
+
 .play-grid-filter-options {
   display: flex;
   flex-direction: column;

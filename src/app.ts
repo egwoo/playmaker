@@ -334,8 +334,13 @@ export function initApp() {
   let sharedPlayToken: string | null = shareTokens.playToken;
   let sharedPlayName: string | null = null;
   let sharedPlayActive = false;
+  let sharedPlayModalDismissed = false;
+  let sharedPlayModalClose: (() => void) | null = null;
   let sharedPlaybookToken: string | null = shareTokens.playbookToken;
+  let sharedPlaybookName: string | null = null;
   let sharedPlaybookAccepted = false;
+  let sharedPlaybookModalDismissed = false;
+  let sharedPlaybookModalClose: (() => void) | null = null;
   let play = sharedPlayToken ? createEmptyPlay() : savedPlay ?? createEmptyPlay();
   let savedPlays: RemotePlay[] = [];
   let selectedSavedPlayId: string | null = null;
@@ -793,8 +798,8 @@ export function initApp() {
       return;
     }
     if (!currentUserId) {
-      sharedPlayText.textContent = 'Viewing a shared play.';
-      sharedPlayAction.textContent = 'Sign in to save this play';
+      sharedPlayText.textContent = `"${sharedPlayName ?? 'Untitled play'}" was shared with you.`;
+      sharedPlayAction.textContent = 'Sign in to save to your playbooks';
     } else {
       sharedPlayText.textContent = `Shared play: ${sharedPlayName ?? 'Untitled play'}`;
       sharedPlayAction.textContent = 'Save to playbook';
@@ -802,19 +807,8 @@ export function initApp() {
   }
 
   function updateSharedPlaybookUI() {
-    const shouldShow = !!sharedPlaybookToken && !sharedPlaybookAccepted;
-    sharedPlaybookBanner.classList.toggle('is-hidden', !shouldShow);
-    playbookRow.classList.toggle('is-hidden', shouldShow);
-    if (!shouldShow) {
-      return;
-    }
-    if (!currentUserId) {
-      sharedPlaybookText.textContent = 'Shared playbook link.';
-      sharedPlaybookAction.textContent = 'Sign in to access';
-    } else {
-      sharedPlaybookText.textContent = 'Shared playbook ready to add.';
-      sharedPlaybookAction.textContent = 'Add to my playbooks';
-    }
+    sharedPlaybookBanner.classList.add('is-hidden');
+    playbookRow.classList.remove('is-hidden');
   }
 
   function loadLastSelectedPlayMap(): Record<string, string> {
@@ -1882,6 +1876,8 @@ Sharing a playbook with assistants is confusing."
       setStatus('Unable to load shared play');
       sharedPlayActive = false;
       sharedPlayToken = null;
+      sharedPlayModalDismissed = false;
+      sharedPlayModalClose?.();
       updateSharedPlayUI();
       return;
     }
@@ -1903,6 +1899,80 @@ Sharing a playbook with assistants is confusing."
     updateSaveButtonLabel();
     render();
     updateSharedPlayUI();
+    if (!currentUserId) {
+      openSharedPlayModal();
+    } else {
+      setStatus(`Opened shared play "${sharedPlayName}"`);
+    }
+  }
+
+  function openSharedPlayModal() {
+    if (!sharedPlayToken || !sharedPlayActive || currentUserId || sharedPlayModalDismissed) {
+      return;
+    }
+
+    sharedPlayModalClose?.();
+
+    const title = `"${sharedPlayName ?? 'Untitled play'}" was shared with you`;
+    const overlay = document.createElement('div');
+    overlay.className = 'auth-modal shared-play-gate';
+    overlay.innerHTML = `
+      <div class="auth-modal-card shared-play-gate-card" role="dialog" aria-modal="true" aria-label="Shared play">
+        <div class="auth-modal-header">
+          <div>
+            <p class="auth-modal-title">${title}</p>
+            <p class="auth-modal-subtitle">Sign in to save this play to your own playbook.</p>
+          </div>
+          <button type="button" class="icon-button" data-shared-play-close aria-label="Close">
+            <span data-lucide="x" aria-hidden="true"></span>
+          </button>
+        </div>
+        <div class="shared-play-gate-actions">
+          <button type="button" class="shared-play-gate-skip" data-shared-play-skip>Skip</button>
+          <button type="button" class="primary" data-shared-play-cta>Sign in to save</button>
+        </div>
+      </div>
+    `;
+
+    document.body.append(overlay);
+    renderIcons(overlay);
+
+    const close = (dismiss = true) => {
+      overlay.remove();
+      document.removeEventListener('keydown', onKey);
+      if (sharedPlayModalClose === close) {
+        sharedPlayModalClose = null;
+      }
+      if (dismiss) {
+        sharedPlayModalDismissed = true;
+      }
+    };
+    sharedPlayModalClose = close;
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        close();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) {
+        close();
+      }
+    });
+
+    const closeButton = overlay.querySelector('[data-shared-play-close]') as HTMLButtonElement | null;
+    const skipButton = overlay.querySelector('[data-shared-play-skip]') as HTMLButtonElement | null;
+    const actionButton = overlay.querySelector('[data-shared-play-cta]') as HTMLButtonElement | null;
+
+    closeButton?.addEventListener('click', () => close());
+    skipButton?.addEventListener('click', () => close());
+    actionButton?.addEventListener('click', () => {
+      sharedPlayModalDismissed = false;
+      close(false);
+      openAuthModal();
+    });
   }
 
   async function acceptPlaybookShare(token: string) {
@@ -1915,12 +1985,115 @@ Sharing a playbook with assistants is confusing."
     const entry = Array.isArray(data) ? data[0] : data;
     selectedPlaybookId = entry.playbook_id ?? null;
     saveLastSelectedPlaybook(selectedPlaybookId);
+    sharedPlaybookName = entry.playbook_name ?? sharedPlaybookName;
     sharedPlaybookAccepted = true;
     sharedPlaybookToken = null;
+    sharedPlaybookModalDismissed = false;
+    sharedPlaybookModalClose?.();
     clearShareParam('playbook');
     updateSharedPlaybookUI();
     await loadPlaybooks();
     setStatus('Playbook added to your account');
+  }
+
+  async function loadSharedPlaybookByToken(token: string) {
+    const { data, error } = await supabase.rpc('fetch_playbook_share', { share_token: token });
+    if (error || !data || data.length === 0) {
+      console.error('Failed to load shared playbook', error);
+      setStatus('Unable to load shared playbook');
+      sharedPlaybookToken = null;
+      sharedPlaybookName = null;
+      sharedPlaybookAccepted = false;
+      sharedPlaybookModalDismissed = false;
+      sharedPlaybookModalClose?.();
+      clearShareParam('playbook');
+      updateSharedPlaybookUI();
+      return false;
+    }
+    const entry = Array.isArray(data) ? data[0] : data;
+    sharedPlaybookName = entry.playbook_name ?? 'Shared playbook';
+    return true;
+  }
+
+  function openSharedPlaybookModal() {
+    if (!sharedPlaybookToken || sharedPlaybookAccepted || sharedPlaybookModalDismissed) {
+      return;
+    }
+
+    sharedPlaybookModalClose?.();
+
+    const title = sharedPlaybookName
+      ? `"${sharedPlaybookName}" was shared with you`
+      : 'A playbook was shared with you';
+    const actionLabel = currentUserId ? 'View playbook' : 'Sign in to view playbook';
+    const subtitle = currentUserId
+      ? 'Open it in Playmaker.'
+      : 'Sign in to view this playbook.';
+
+    const overlay = document.createElement('div');
+    overlay.className = 'auth-modal shared-playbook-gate';
+    overlay.innerHTML = `
+      <div class="auth-modal-card shared-playbook-gate-card" role="dialog" aria-modal="true" aria-label="Shared playbook">
+        <div class="auth-modal-header">
+          <div>
+            <p class="auth-modal-title">${title}</p>
+            <p class="auth-modal-subtitle">${subtitle}</p>
+          </div>
+          <button type="button" class="icon-button" data-shared-playbook-close aria-label="Close">
+            <span data-lucide="x" aria-hidden="true"></span>
+          </button>
+        </div>
+        <div class="shared-playbook-gate-actions">
+          <button type="button" class="primary" data-shared-playbook-cta>${actionLabel}</button>
+        </div>
+      </div>
+    `;
+
+    document.body.append(overlay);
+    renderIcons(overlay);
+
+    const close = (dismiss = true) => {
+      overlay.remove();
+      document.removeEventListener('keydown', onKey);
+      if (sharedPlaybookModalClose === close) {
+        sharedPlaybookModalClose = null;
+      }
+      if (dismiss) {
+        sharedPlaybookModalDismissed = true;
+      }
+    };
+    sharedPlaybookModalClose = close;
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        close();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) {
+        close();
+      }
+    });
+
+    const closeButton = overlay.querySelector('[data-shared-playbook-close]') as HTMLButtonElement | null;
+    const actionButton = overlay.querySelector('[data-shared-playbook-cta]') as HTMLButtonElement | null;
+
+    closeButton?.addEventListener('click', () => close());
+    actionButton?.addEventListener('click', async () => {
+      if (!sharedPlaybookToken) {
+        close(false);
+        return;
+      }
+      sharedPlaybookModalDismissed = false;
+      close(false);
+      if (!currentUserId) {
+        openAuthModal();
+        return;
+      }
+      await acceptPlaybookShare(sharedPlaybookToken);
+    });
   }
 
   function canUserEdit() {
@@ -4077,9 +4250,9 @@ Sharing a playbook with assistants is confusing."
     closeSaveMenu();
   });
 
-  sharePlayButton.addEventListener('click', () => {
-    copyShareLink();
-    closeSaveMenu();
+  sharePlayButton.addEventListener('click', async () => {
+    closePlayMenu();
+    await copyShareLink();
   });
 
   renamePlayButton.addEventListener('click', async () => {
@@ -5442,8 +5615,14 @@ Sharing a playbook with assistants is confusing."
       session?.user.user_metadata?.picture ??
       null;
     setAuthUI(!!session, session?.user.email, avatar);
+    if (session) {
+      sharedPlayModalClose?.();
+    }
     updateSharedPlayUI();
     updateSharedPlaybookUI();
+    if (sharedPlaybookToken && !sharedPlaybookAccepted) {
+      await loadSharedPlaybookByToken(sharedPlaybookToken);
+    }
     if (!session) {
       playbooks = [];
       selectedPlaybookId = null;
@@ -5457,14 +5636,15 @@ Sharing a playbook with assistants is confusing."
       renderSavedPlaysSelect();
       renderPlayGridFilters();
       updateSelectedPanel();
+      if (sharedPlayActive) {
+        openSharedPlayModal();
+      }
+      openSharedPlaybookModal();
       return;
     }
     renderPlaybookSelect();
     renderSavedPlaysSelect();
-    if (sharedPlaybookToken && !sharedPlaybookAccepted) {
-      await acceptPlaybookShare(sharedPlaybookToken);
-      return;
-    }
+    openSharedPlaybookModal();
     if (playbookLoadPromise && lastSessionUserId === currentUserId) {
       await playbookLoadPromise;
       return;
@@ -5575,6 +5755,8 @@ Sharing a playbook with assistants is confusing."
     clearShareParam('share');
     sharedPlayActive = false;
     sharedPlayToken = null;
+    sharedPlayModalDismissed = false;
+    sharedPlayModalClose?.();
     syncEditorMode();
     updateSharedPlayUI();
   });
