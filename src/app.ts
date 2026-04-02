@@ -3749,17 +3749,18 @@ Sharing a playbook with assistants is confusing."
       if (canEdit) {
         startPlayerDrag(event.pointerId, hitId, point);
       } else {
-        selectPlayer(hitId);
+        selectPlayer(hitId === selectedPlayerId ? null : hitId);
       }
+      return;
+    }
+
+    if (!canEdit) {
+      selectPlayer(null);
       return;
     }
 
     const world = renderer.canvasToWorld(point);
     if (!world) {
-      return;
-    }
-
-    if (!canEdit) {
       return;
     }
 
