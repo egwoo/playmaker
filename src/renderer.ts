@@ -224,13 +224,13 @@ export function createRenderer(canvas: HTMLCanvasElement) {
       const radiusY = (player.assignment.radiusY / FIELD_LENGTH_YARDS) * field.height;
 
       ctx.save();
-      ctx.strokeStyle = 'rgba(118, 209, 255, 0.6)';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([8, 6]);
       ctx.beginPath();
       ctx.ellipse(center.x, center.y, radiusX, radiusY, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(118, 209, 255, 0.14)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(118, 209, 255, 0.22)';
+      ctx.lineWidth = 1.5;
       ctx.stroke();
-      ctx.setLineDash([]);
       ctx.restore();
 
       if (player.id === state.selectedPlayerId) {
