@@ -514,11 +514,18 @@ export function initApp() {
   }
 
   function showFlipLabel() {
+    const labelEl = fieldFlipButton.querySelector<HTMLElement>('.field-display-label');
+    if (labelEl) {
+      labelEl.textContent = 'Flipped play';
+    }
     fieldFlipButton.classList.remove('is-collapsed');
     if (flipLabelTimeout) {
       window.clearTimeout(flipLabelTimeout);
     }
     flipLabelTimeout = window.setTimeout(() => {
+      if (labelEl) {
+        labelEl.textContent = 'Flip play';
+      }
       fieldFlipButton.classList.add('is-collapsed');
     }, 2200);
   }
