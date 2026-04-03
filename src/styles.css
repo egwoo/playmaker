@@ -2127,42 +2127,16 @@ button {
   z-index: 2;
 }
 
-.field-canvas-button {
+.field-pill-toggle {
   position: absolute;
   top: calc(var(--field-inset-top) + var(--field-control-offset));
   left: calc(var(--field-inset-left) + var(--field-control-offset));
-  width: 40px;
   height: 40px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  border: 1px solid rgba(253, 252, 249, 0.42);
-  background: rgba(8, 10, 9, 0.72);
-  color: #fdfcf9;
-  box-shadow: 0 10px 30px rgba(5, 6, 6, 0.24);
-  z-index: 2;
-}
-
-.field-canvas-button:hover:not(:disabled) {
-  background: rgba(8, 10, 9, 0.86);
-}
-
-.field-canvas-button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.field-display-toggle {
-  position: absolute;
-  top: calc(var(--field-inset-top) + var(--field-control-offset) + 48px);
-  left: calc(var(--field-inset-left) + var(--field-control-offset));
   display: inline-flex;
   align-items: center;
   justify-content: flex-start;
   gap: 8px;
-  height: 40px;
-  padding: 0 12px 0 11px;
+  padding: 0 12px 0 10px;
   border-radius: 999px;
   border: 1px solid rgba(253, 252, 249, 0.42);
   background: rgba(8, 10, 9, 0.72);
@@ -2175,21 +2149,24 @@ button {
     padding 0.2s ease,
     width 0.2s ease,
     gap 0.2s ease;
-  --defense-icon-ring: rgba(253, 252, 249, 0.95);
-  --defense-icon-letter: rgba(253, 252, 249, 0.95);
 }
 
-.field-display-toggle:hover:not(:disabled) {
+.field-pill-toggle:hover:not(:disabled) {
   background: rgba(8, 10, 9, 0.86);
 }
 
-.field-display-toggle.is-collapsed {
+.field-pill-toggle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.field-pill-toggle.is-collapsed {
   width: 40px;
-  padding: 0 0 0 11px;
+  padding: 0 0 0 10px;
   gap: 0;
 }
 
-.field-display-toggle .field-display-label {
+.field-pill-toggle .field-display-label {
   white-space: nowrap;
   max-width: 140px;
   overflow: hidden;
@@ -2199,15 +2176,24 @@ button {
   transition: max-width 0.2s ease, opacity 0.2s ease;
 }
 
-.field-display-toggle.is-collapsed .field-display-label {
+.field-pill-toggle.is-collapsed .field-display-label {
   max-width: 0;
   opacity: 0;
   display: none;
 }
 
-.field-display-toggle:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+.field-flip-toggle span[data-lucide] {
+  flex: 0 0 auto;
+}
+
+.field-display-toggle {
+  top: calc(var(--field-inset-top) + var(--field-control-offset) + 48px);
+  --defense-icon-ring: rgba(253, 252, 249, 0.95);
+  --defense-icon-letter: rgba(253, 252, 249, 0.95);
+}
+
+.field-display-toggle.is-collapsed {
+  padding: 0 0 0 11px;
 }
 
 .defense-display-icon {
@@ -2376,7 +2362,7 @@ body.field-fullscreen .field-toolbar-overlay .secondary {
   background: rgba(253, 252, 249, 0.08);
 }
 
-body.field-fullscreen .field-canvas-button {
+body.field-fullscreen .field-pill-toggle {
   top: calc(var(--field-inset-top) + var(--field-control-offset));
   left: calc(var(--field-inset-left) + var(--field-control-offset));
 }

@@ -371,6 +371,7 @@ export function initApp() {
   let playbookLoadPromise: Promise<void> | null = null;
   let editMode = !loadLockedPreference();
   let editModeTimeout: number | null = null;
+  let flipLabelTimeout: number | null = null;
   let defenseDisplayMode: DefenseDisplayMode = 'show';
   let defenseDisplayTimeout: number | null = null;
   let editModeBeforeFullscreen: boolean | null = null;
@@ -508,6 +509,16 @@ export function initApp() {
     }
     defenseDisplayTimeout = window.setTimeout(() => {
       defenseDisplayToggle.classList.add('is-collapsed');
+    }, 2200);
+  }
+
+  function showFlipLabel() {
+    fieldFlipButton.classList.remove('is-collapsed');
+    if (flipLabelTimeout) {
+      window.clearTimeout(flipLabelTimeout);
+    }
+    flipLabelTimeout = window.setTimeout(() => {
+      fieldFlipButton.classList.add('is-collapsed');
     }, 2200);
   }
 
@@ -4339,6 +4350,7 @@ Sharing a playbook with assistants is confusing."
     applyMutation(() => {
       flipPlay();
     });
+    showFlipLabel();
     setStatus('Flipped play');
   });
 
