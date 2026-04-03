@@ -2153,6 +2153,99 @@ button {
   cursor: not-allowed;
 }
 
+.field-display-toggle {
+  position: absolute;
+  top: calc(var(--field-inset-top) + var(--field-control-offset) + 48px);
+  left: calc(var(--field-inset-left) + var(--field-control-offset));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 12px 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(253, 252, 249, 0.42);
+  background: rgba(8, 10, 9, 0.72);
+  color: #fdfcf9;
+  box-shadow: 0 10px 30px rgba(5, 6, 6, 0.24);
+  z-index: 2;
+  transition:
+    background 0.2s ease,
+    opacity 0.2s ease,
+    padding 0.2s ease,
+    width 0.2s ease,
+    gap 0.2s ease;
+  --defense-icon-ring: rgba(253, 252, 249, 0.95);
+  --defense-icon-letter: rgba(253, 252, 249, 0.95);
+}
+
+.field-display-toggle:hover:not(:disabled) {
+  background: rgba(8, 10, 9, 0.86);
+}
+
+.field-display-toggle.is-collapsed {
+  width: 40px;
+  padding: 0;
+  justify-content: center;
+  gap: 0;
+}
+
+.field-display-toggle .field-display-label {
+  white-space: nowrap;
+  max-width: 140px;
+  overflow: hidden;
+  opacity: 1;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: max-width 0.2s ease, opacity 0.2s ease;
+}
+
+.field-display-toggle.is-collapsed .field-display-label {
+  max-width: 0;
+  opacity: 0;
+  display: none;
+}
+
+.field-display-toggle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.defense-display-icon {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+}
+
+.defense-display-icon-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 2px solid var(--defense-icon-ring);
+}
+
+.defense-display-icon-letter {
+  position: absolute;
+  inset: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--defense-icon-letter);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.field-display-toggle[data-defense-display='hide-zones'] {
+  --defense-icon-ring: rgba(253, 252, 249, 0.28);
+}
+
+.field-display-toggle[data-defense-display='hide-defense'] {
+  --defense-icon-ring: rgba(253, 252, 249, 0.28);
+  --defense-icon-letter: rgba(253, 252, 249, 0.28);
+}
+
 .field-mode-toggle {
   position: absolute;
   top: calc(var(--field-inset-top) + var(--field-control-offset));
@@ -2286,6 +2379,11 @@ body.field-fullscreen .field-toolbar-overlay .secondary {
 
 body.field-fullscreen .field-canvas-button {
   top: calc(var(--field-inset-top) + var(--field-control-offset));
+  left: calc(var(--field-inset-left) + var(--field-control-offset));
+}
+
+body.field-fullscreen .field-display-toggle {
+  top: calc(var(--field-inset-top) + var(--field-control-offset) + 48px);
   left: calc(var(--field-inset-left) + var(--field-control-offset));
 }
 

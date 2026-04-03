@@ -15,6 +15,7 @@ export interface RenderState {
   selectedPlayerId: string | null;
   ball: BallState;
   showWaypointMarkers: boolean;
+  defenseDisplayMode: 'show' | 'hide-zones' | 'hide-defense';
 }
 
 interface FieldMetrics {
@@ -210,6 +211,9 @@ export function createRenderer(canvas: HTMLCanvasElement) {
   }
 
   function drawZones(ctx: CanvasRenderingContext2D, state: RenderState) {
+    if (state.defenseDisplayMode !== 'show') {
+      return;
+    }
     for (const player of state.play.players) {
       if (player.team !== 'defense' || player.assignment?.type !== 'zone') {
         continue;
@@ -265,6 +269,9 @@ export function createRenderer(canvas: HTMLCanvasElement) {
     const defenseOptions = { minSeparationYards: getMinSeparationYards() };
 
     for (const player of state.play.players) {
+      if (state.defenseDisplayMode === 'hide-defense' && player.team === 'defense') {
+        continue;
+      }
       const point = worldToCanvas(
         getPlayerPositionWithDefense(state.play, player, state.playTime, defenseOptions)
       );
@@ -418,11 +425,19 @@ export function createRenderer(canvas: HTMLCanvasElement) {
     return Math.max(6, Math.min(field.width, field.height) * 0.015);
   }
 
-  function hitTest(canvasPoint: Vec2, play: Play, playTime: number): string | null {
+  function hitTest(
+    canvasPoint: Vec2,
+    play: Play,
+    playTime: number,
+    defenseDisplayMode: RenderState['defenseDisplayMode'] = 'show'
+  ): string | null {
     const radius = getPlayerRadius();
     const defenseOptions = { minSeparationYards: getMinSeparationYards() };
     for (let i = play.players.length - 1; i >= 0; i -= 1) {
       const player = play.players[i];
+      if (defenseDisplayMode === 'hide-defense' && player.team === 'defense') {
+        continue;
+      }
       const point = worldToCanvas(getPlayerPositionWithDefense(play, player, playTime, defenseOptions));
       const distance = Math.hypot(canvasPoint.x - point.x, canvasPoint.y - point.y);
       if (distance <= radius + PLAYER_HIT_SLOP_PX) {

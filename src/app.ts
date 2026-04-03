@@ -86,6 +86,8 @@ type Settings = {
   showWaypointMarkers: boolean;
 };
 
+type DefenseDisplayMode = 'show' | 'hide-zones' | 'hide-defense';
+
 type Playbook = {
   id: string;
   name: string;
@@ -136,6 +138,7 @@ export function initApp() {
   const resetTimeButton = document.getElementById('reset-time') as HTMLButtonElement | null;
   const newPlayButton = document.getElementById('new-play') as HTMLButtonElement | null;
   const fieldFlipButton = document.getElementById('field-flip-toggle') as HTMLButtonElement | null;
+  const defenseDisplayToggle = document.getElementById('defense-display-toggle') as HTMLButtonElement | null;
   const savePlayButton = document.getElementById('save-play') as HTMLButtonElement | null;
   const saveMenuToggle = document.getElementById('save-menu-toggle') as HTMLButtonElement | null;
   const saveMenu = document.getElementById('save-menu');
@@ -241,6 +244,7 @@ export function initApp() {
     !resetTimeButton ||
     !newPlayButton ||
     !fieldFlipButton ||
+    !defenseDisplayToggle ||
     !savePlayButton ||
     !saveMenuToggle ||
     !saveMenu ||
@@ -367,6 +371,8 @@ export function initApp() {
   let playbookLoadPromise: Promise<void> | null = null;
   let editMode = !loadLockedPreference();
   let editModeTimeout: number | null = null;
+  let defenseDisplayMode: DefenseDisplayMode = 'show';
+  let defenseDisplayTimeout: number | null = null;
   let editModeBeforeFullscreen: boolean | null = null;
   let restorePlayGridOnFullscreenExit = false;
   let canEdit = false;
@@ -467,6 +473,65 @@ export function initApp() {
     }
     const offset = fieldToolbarOverlay.offsetHeight > 0 ? fieldToolbarOverlay.offsetHeight + 12 : 0;
     fieldSurface.style.setProperty('--fullscreen-toolbar-stack-offset', `${offset}px`);
+  }
+
+  function getEffectiveDefenseDisplayMode(): DefenseDisplayMode {
+    return getEffectivePlayMode() === 'game' ? defenseDisplayMode : 'show';
+  }
+
+  function getDefenseDisplayLabel(mode: DefenseDisplayMode): string {
+    switch (mode) {
+      case 'hide-zones':
+        return 'Hide zones';
+      case 'hide-defense':
+        return 'Hide defense';
+      default:
+        return 'Show defense';
+    }
+  }
+
+  function cycleDefenseDisplayMode(mode: DefenseDisplayMode): DefenseDisplayMode {
+    switch (mode) {
+      case 'show':
+        return 'hide-zones';
+      case 'hide-zones':
+        return 'hide-defense';
+      default:
+        return 'show';
+    }
+  }
+
+  function showDefenseDisplayLabel() {
+    defenseDisplayToggle.classList.remove('is-collapsed');
+    if (defenseDisplayTimeout) {
+      window.clearTimeout(defenseDisplayTimeout);
+    }
+    defenseDisplayTimeout = window.setTimeout(() => {
+      defenseDisplayToggle.classList.add('is-collapsed');
+    }, 2200);
+  }
+
+  function syncDefenseDisplayToggle() {
+    const visible = getEffectivePlayMode() === 'game' && play.players.some((player) => player.team === 'defense');
+    defenseDisplayToggle.classList.toggle('is-hidden', !visible);
+    if (!visible) {
+      return;
+    }
+    const label = getDefenseDisplayLabel(defenseDisplayMode);
+    defenseDisplayToggle.dataset.defenseDisplay = defenseDisplayMode;
+    defenseDisplayToggle.setAttribute('aria-label', `Defense display: ${label}`);
+    defenseDisplayToggle.title = label;
+    const labelEl = defenseDisplayToggle.querySelector<HTMLElement>('.field-display-label');
+    if (labelEl) {
+      labelEl.textContent = label;
+    }
+    if (getEffectiveDefenseDisplayMode() === 'hide-defense') {
+      const selected = getSelectedPlayer();
+      if (selected?.team === 'defense') {
+        selectedPlayerId = null;
+        updateSelectedPanel();
+      }
+    }
   }
 
   function setFullscreen(active: boolean) {
@@ -1692,7 +1757,8 @@ Sharing a playbook with assistants is confusing."
         playTime: 0,
         selectedPlayerId: null,
         ball: getBallState(previewPlay, 0, DEFAULT_BALL_SPEED_YPS),
-        showWaypointMarkers: false
+        showWaypointMarkers: false,
+        defenseDisplayMode: 'show'
       });
     };
 
@@ -1822,6 +1888,7 @@ Sharing a playbook with assistants is confusing."
     }
     applyModeLayout();
     syncModeButtons();
+    syncDefenseDisplayToggle();
     renderGamePlayList();
     syncFieldPresentation();
     renderPlayTagsPanel();
@@ -2158,6 +2225,7 @@ Sharing a playbook with assistants is confusing."
   function syncEditorMode() {
     applyModeLayout();
     syncModeButtons();
+    syncDefenseDisplayToggle();
     const editable = canUserEdit();
     const editingActive = editable && editMode;
     const disable = !editingActive;
@@ -3295,13 +3363,15 @@ Sharing a playbook with assistants is confusing."
 
   function render() {
     fieldFlipButton.disabled = play.players.length === 0;
+    syncDefenseDisplayToggle();
     const ballState = getBallState(play, playTime, DEFAULT_BALL_SPEED_YPS);
     renderer.render({
       play,
       playTime,
       selectedPlayerId,
       ball: ballState,
-      showWaypointMarkers: settings.showWaypointMarkers
+      showWaypointMarkers: settings.showWaypointMarkers,
+      defenseDisplayMode: getEffectiveDefenseDisplayMode()
     });
     updateTimelineUI();
     updateLayoutMetrics();
@@ -3744,7 +3814,7 @@ Sharing a playbook with assistants is confusing."
       }
     }
 
-    const hitId = renderer.hitTest(point, play, playTime);
+    const hitId = renderer.hitTest(point, play, playTime, getEffectiveDefenseDisplayMode());
     if (hitId) {
       if (canEdit) {
         startPlayerDrag(event.pointerId, hitId, point);
@@ -4270,6 +4340,13 @@ Sharing a playbook with assistants is confusing."
       flipPlay();
     });
     setStatus('Flipped play');
+  });
+
+  defenseDisplayToggle.addEventListener('click', () => {
+    defenseDisplayMode = cycleDefenseDisplayMode(defenseDisplayMode);
+    syncDefenseDisplayToggle();
+    showDefenseDisplayLabel();
+    render();
   });
 
   saveAsNewButton.addEventListener('click', async () => {
@@ -4898,7 +4975,8 @@ Sharing a playbook with assistants is confusing."
             playTime,
             selectedPlayerId: null,
             ball: ballState,
-            showWaypointMarkers: showMarkers
+            showWaypointMarkers: showMarkers,
+            defenseDisplayMode: 'show'
           });
           frameId = window.requestAnimationFrame(loop);
         };
@@ -5560,7 +5638,8 @@ Sharing a playbook with assistants is confusing."
         playTime: startTime,
         selectedPlayerId: null,
         ball: ballState,
-        showWaypointMarkers: false
+        showWaypointMarkers: false,
+        defenseDisplayMode: 'show'
       });
     };
 
