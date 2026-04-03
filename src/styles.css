@@ -2220,6 +2220,7 @@ button {
   font-size: 10px;
   font-weight: 700;
   line-height: 1;
+  transform: translateX(-0.5px);
 }
 
 .field-display-toggle[data-defense-display='hide-zones'] {
