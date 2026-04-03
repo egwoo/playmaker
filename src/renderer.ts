@@ -228,7 +228,7 @@ export function createRenderer(canvas: HTMLCanvasElement) {
       ctx.ellipse(center.x, center.y, radiusX, radiusY, 0, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(118, 209, 255, 0.14)';
       ctx.fill();
-      ctx.strokeStyle = 'rgba(118, 209, 255, 0.22)';
+      ctx.strokeStyle = 'rgba(118, 209, 255, 0.12)';
       ctx.lineWidth = 1.5;
       ctx.stroke();
       ctx.restore();
