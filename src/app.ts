@@ -41,6 +41,7 @@ type PersistedUiState = {
   playGridViewByPlaybook?: Record<string, boolean>;
   playGridFiltersByPlaybook?: Record<string, string[]>;
   lastSelectedPlaybookId?: string | null;
+  defenseDisplayMode?: DefenseDisplayMode;
 };
 
 type DragState = {
@@ -372,7 +373,7 @@ export function initApp() {
   let editMode = !loadLockedPreference();
   let editModeTimeout: number | null = null;
   let flipLabelTimeout: number | null = null;
-  let defenseDisplayMode: DefenseDisplayMode = 'show';
+  let defenseDisplayMode: DefenseDisplayMode = loadDefenseDisplayMode();
   let defenseDisplayTimeout: number | null = null;
   let editModeBeforeFullscreen: boolean | null = null;
   let restorePlayGridOnFullscreenExit = false;
@@ -1012,6 +1013,18 @@ export function initApp() {
     updatePersistedUiState((state) => ({
       ...state,
       controlsOpen: isOpen
+    }));
+  }
+
+  function loadDefenseDisplayMode(): DefenseDisplayMode {
+    const mode = loadPersistedUiState().defenseDisplayMode;
+    return mode === 'hide-zones' || mode === 'hide-defense' ? mode : 'show';
+  }
+
+  function saveDefenseDisplayMode(mode: DefenseDisplayMode) {
+    updatePersistedUiState((state) => ({
+      ...state,
+      defenseDisplayMode: mode
     }));
   }
 
@@ -4356,6 +4369,7 @@ Sharing a playbook with assistants is confusing."
 
   defenseDisplayToggle.addEventListener('click', () => {
     defenseDisplayMode = cycleDefenseDisplayMode(defenseDisplayMode);
+    saveDefenseDisplayMode(defenseDisplayMode);
     syncDefenseDisplayToggle();
     showDefenseDisplayLabel();
     render();
