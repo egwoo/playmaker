@@ -83,6 +83,14 @@ type ReorderState = {
   rafId: number | null;
 };
 
+type FullscreenGestureState = {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  startPlayTime: number;
+  scrubbing: boolean;
+};
+
 type Settings = {
   showWaypointMarkers: boolean;
 };
@@ -389,6 +397,7 @@ export function initApp() {
   let zoneDragState: ZoneDragState | null = null;
   let playerDragState: PlayerDragState | null = null;
   let reorderState: ReorderState | null = null;
+  let fullscreenGestureState: FullscreenGestureState | null = null;
   let historyPast: Play[] = [];
   let historyFuture: Play[] = [];
   let statusTimeout: number | null = null;
@@ -556,6 +565,12 @@ export function initApp() {
   function setFullscreen(active: boolean) {
     const wasFullscreen = fullscreenActive;
     fullscreenActive = active;
+    if (!active && fullscreenGestureState) {
+      if (canvas.hasPointerCapture(fullscreenGestureState.pointerId)) {
+        canvas.releasePointerCapture(fullscreenGestureState.pointerId);
+      }
+      fullscreenGestureState = null;
+    }
     fieldSection?.classList.toggle('is-fullscreen', active);
     document.body.classList.toggle('field-fullscreen', active);
     if (fullscreenActive) {
@@ -3462,6 +3477,18 @@ Sharing a playbook with assistants is confusing."
     setPlayToggleState('play');
   }
 
+  function togglePlayback() {
+    if (playToggle.disabled) {
+      return;
+    }
+    if (isPlaying) {
+      stopPlayback();
+      render();
+      return;
+    }
+    startPlayback();
+  }
+
   function resetPlayback() {
     stopPlayback();
     scrubberTouched = false;
@@ -3790,6 +3817,77 @@ Sharing a playbook with assistants is confusing."
     render();
   }
 
+  function startFullscreenGesture(event: PointerEvent, point: Vec2) {
+    fullscreenGestureState = {
+      pointerId: event.pointerId,
+      startX: point.x,
+      startY: point.y,
+      startPlayTime: playTime,
+      scrubbing: false
+    };
+    canvas.setPointerCapture(event.pointerId);
+  }
+
+  function updateFullscreenGesture(event: PointerEvent) {
+    if (!fullscreenGestureState || fullscreenGestureState.pointerId !== event.pointerId) {
+      return false;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    const point = {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top
+    };
+    const deltaX = point.x - fullscreenGestureState.startX;
+    const deltaY = point.y - fullscreenGestureState.startY;
+
+    if (!fullscreenGestureState.scrubbing) {
+      const horizontalIntent = Math.abs(deltaX) >= 10 && Math.abs(deltaX) > Math.abs(deltaY);
+      if (!horizontalIntent) {
+        return true;
+      }
+      fullscreenGestureState.scrubbing = true;
+      stopPlayback();
+      scrubberTouched = true;
+    }
+
+    const { start, end } = getPlaybackRange();
+    const duration = Math.max(0, end - start);
+    if (duration <= 0) {
+      return true;
+    }
+    const scrubWidth = Math.max(canvas.clientWidth, 1);
+    const deltaTime = (deltaX / scrubWidth) * duration;
+    setPlayTime(fullscreenGestureState.startPlayTime + deltaTime);
+    return true;
+  }
+
+  function endFullscreenGesture(event: PointerEvent) {
+    if (!fullscreenGestureState || fullscreenGestureState.pointerId !== event.pointerId) {
+      return false;
+    }
+
+    if (canvas.hasPointerCapture(event.pointerId)) {
+      canvas.releasePointerCapture(event.pointerId);
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    const point = {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top
+    };
+    const deltaX = point.x - fullscreenGestureState.startX;
+    const deltaY = point.y - fullscreenGestureState.startY;
+    const movedDistance = Math.hypot(deltaX, deltaY);
+    const scrubbing = fullscreenGestureState.scrubbing;
+    fullscreenGestureState = null;
+
+    if (!scrubbing && movedDistance < 10) {
+      togglePlayback();
+    }
+    return true;
+  }
+
   function handleUndo() {
     if (historyPast.length === 0) {
       return;
@@ -3821,12 +3919,18 @@ Sharing a playbook with assistants is confusing."
       return;
     }
 
-    stopPlayback();
     const rect = canvas.getBoundingClientRect();
     const point = {
       x: event.clientX - rect.left,
       y: event.clientY - rect.top
     };
+
+    if (fullscreenActive) {
+      startFullscreenGesture(event, point);
+      return;
+    }
+
+    stopPlayback();
 
     if (canEdit) {
       const zoneAxis = renderer.hitTestZoneHandle(point, play, selectedPlayerId);
@@ -3880,6 +3984,9 @@ Sharing a playbook with assistants is confusing."
   });
 
   canvas.addEventListener('pointermove', (event) => {
+    if (updateFullscreenGesture(event)) {
+      return;
+    }
     if (zoneDragState) {
       updateZoneDrag(event);
       return;
@@ -3892,6 +3999,9 @@ Sharing a playbook with assistants is confusing."
   });
 
   canvas.addEventListener('pointerup', (event) => {
+    if (endFullscreenGesture(event)) {
+      return;
+    }
     if (zoneDragState) {
       endZoneDrag(event);
       return;
@@ -3904,6 +4014,13 @@ Sharing a playbook with assistants is confusing."
   });
 
   canvas.addEventListener('pointercancel', (event) => {
+    if (fullscreenGestureState?.pointerId === event.pointerId) {
+      if (canvas.hasPointerCapture(event.pointerId)) {
+        canvas.releasePointerCapture(event.pointerId);
+      }
+      fullscreenGestureState = null;
+      return;
+    }
     if (zoneDragState) {
       endZoneDrag(event);
       return;
@@ -3926,12 +4043,7 @@ Sharing a playbook with assistants is confusing."
   });
 
   playToggle.addEventListener('click', () => {
-    if (isPlaying) {
-      stopPlayback();
-      render();
-      return;
-    }
-    startPlayback();
+    togglePlayback();
   });
 
   resetTimeButton.addEventListener('click', () => {
