@@ -134,6 +134,13 @@ const DEFAULT_PLAYBOOK_TAGS = [
 
 const TAG_COLOR_PRESETS = ['#d48418', '#3b82f6', '#22c55e', '#ec4899', '#8b5cf6', '#14b8a6', '#ef4444', '#0ea5e9'];
 
+function isEditableTouchTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  return Boolean(target.closest('input, textarea, select, option, [contenteditable="true"]'));
+}
+
 export function initApp() {
   const NEW_PLAYBOOK_VALUE = '__new__';
   const canvas = document.getElementById('field-canvas') as HTMLCanvasElement | null;
@@ -402,6 +409,9 @@ export function initApp() {
   let historyFuture: Play[] = [];
   let statusTimeout: number | null = null;
   let updateAvailable = false;
+  let lastTouchEndTime = 0;
+  let lastTouchEndX = 0;
+  let lastTouchEndY = 0;
   const contextMenuClosers: Array<(except?: HTMLElement) => void> = [];
   const debugEnabled = new URLSearchParams(window.location.search).has('debug');
   let debugOverlay: HTMLDivElement | null = null;
@@ -429,6 +439,60 @@ export function initApp() {
   if (!sharedPlayToken) {
     saveDraftPlay(play);
   }
+
+  document.addEventListener(
+    'gesturestart',
+    (event) => {
+      event.preventDefault();
+    },
+    { passive: false }
+  );
+  document.addEventListener(
+    'gesturechange',
+    (event) => {
+      event.preventDefault();
+    },
+    { passive: false }
+  );
+  document.addEventListener(
+    'gestureend',
+    (event) => {
+      event.preventDefault();
+    },
+    { passive: false }
+  );
+  document.addEventListener(
+    'touchmove',
+    (event) => {
+      if (event.touches.length > 1) {
+        event.preventDefault();
+      }
+    },
+    { passive: false }
+  );
+  document.addEventListener(
+    'touchend',
+    (event) => {
+      if (event.touches.length > 0 || event.changedTouches.length !== 1) {
+        return;
+      }
+      if (isEditableTouchTarget(event.target)) {
+        return;
+      }
+      const touch = event.changedTouches[0];
+      const now = event.timeStamp;
+      const isDoubleTap =
+        now - lastTouchEndTime < 350 &&
+        Math.hypot(touch.clientX - lastTouchEndX, touch.clientY - lastTouchEndY) < 28;
+      lastTouchEndTime = now;
+      lastTouchEndX = touch.clientX;
+      lastTouchEndY = touch.clientY;
+      if (isDoubleTap) {
+        event.preventDefault();
+      }
+    },
+    { passive: false }
+  );
 
   if (debugEnabled) {
     debugOverlay = document.createElement('div');
