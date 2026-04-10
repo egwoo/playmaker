@@ -147,7 +147,7 @@ function applySeparationStep(
   minSeparationYards: number,
   zone?: { center: Vec2; radiusX: number; radiusY: number }
 ): Vec2 {
-  if (minSeparationYards <= 0) {
+  if (timeSeconds < 0 || minSeparationYards <= 0) {
     return desired;
   }
   const offenses = play.players.filter((player) => player.team === 'offense');

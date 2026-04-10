@@ -96,6 +96,43 @@ describe('getPlayerPositionWithDefense', () => {
     expect(position.y).toBeLessThanOrEqual(lineOfScrimmage - 1 / FIELD_LENGTH_YARDS + 1e-6);
   });
 
+  it('ignores separation collisions before the snap', () => {
+    const offense: Player = {
+      id: 'o1',
+      label: 'O1',
+      team: 'offense',
+      start: { x: 0.4, y: 0.5 },
+      startDelay: -1,
+      route: [{ to: { x: 0.6, y: 0.5 }, speed: 10 }]
+    };
+    const center: Player = {
+      id: 'o2',
+      label: 'C',
+      team: 'offense',
+      start: { x: 0.52, y: 0.5 }
+    };
+    const defender: Player = {
+      id: 'd1',
+      label: 'D1',
+      team: 'defense',
+      start: { x: 0.4, y: 0.4 },
+      assignment: {
+        type: 'man',
+        targetId: 'o1',
+        speed: 12
+      }
+    };
+
+    const play: Play = { players: [offense, center, defender] };
+    const position = getPlayerPositionWithDefense(play, defender, -0.5, {
+      stepSeconds: 0.05,
+      minSeparationYards: 20
+    });
+
+    expect(position.x).toBeGreaterThan(defender.start.x);
+    expect(position.x).toBeGreaterThan(0.45);
+  });
+
   it('keeps a zone defender inside the ellipse while shading toward offense', () => {
     const offense: Player = {
       id: 'o1',
