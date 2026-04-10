@@ -1,6 +1,7 @@
 import {
   FIELD_LENGTH_YARDS,
   FIELD_WIDTH_YARDS,
+  LINE_OF_SCRIMMAGE_YARDS_FROM_TOP,
   getPlayerPositionAtTime,
   type Play,
   type Player,
@@ -10,6 +11,7 @@ import {
 export const DEFAULT_COVERAGE_RADIUS_YARDS = 1;
 export const DEFAULT_DEFENSE_SPEED_YPS = 6;
 const DEFAULT_STEP_SECONDS = 0.05;
+const PRE_SNAP_LINE_BUFFER_YARDS = 1;
 
 export interface DefenseOptions {
   radiusYards?: number;
@@ -70,17 +72,21 @@ function getManCoveragePosition(
 
   while (currentTime < timeSeconds) {
     const dt = Math.min(stepSeconds, timeSeconds - currentTime);
+    const nextTime = currentTime + dt;
     const offensePos = getPlayerPositionAtTime(target, currentTime + dt);
     const desired = stepTowardCoverage(position, offensePos, radius, speed, dt);
     position = applySeparationStep(
       play,
-      currentTime + dt,
+      nextTime,
       position,
       desired,
       speed * dt,
       separation
     );
-    currentTime += dt;
+    if (nextTime < 0) {
+      position = clampPositionBeforeSnap(defender, position);
+    }
+    currentTime = nextTime;
   }
 
   return position;
@@ -108,21 +114,25 @@ function getZoneCoveragePosition(
 
   while (currentTime < timeSeconds) {
     const dt = Math.min(stepSeconds, timeSeconds - currentTime);
-    const offenseTarget = pickZoneTarget(play, currentTime + dt, center, radiusX, radiusY, position);
+    const nextTime = currentTime + dt;
+    const offenseTarget = pickZoneTarget(play, nextTime, center, radiusX, radiusY, position);
     const desired = offenseTarget
       ? clampPointToEllipse(offenseTarget, center, radiusX, radiusY)
       : center;
     const stepped = stepTowardZone(position, desired, center, radiusX, radiusY, speed, dt);
     position = applySeparationStep(
       play,
-      currentTime + dt,
+      nextTime,
       position,
       stepped,
       speed * dt,
       separation,
       { center, radiusX, radiusY }
     );
-    currentTime += dt;
+    if (nextTime < 0) {
+      position = clampPositionBeforeSnap(defender, position);
+    }
+    currentTime = nextTime;
   }
 
   return position;
@@ -349,6 +359,18 @@ function distanceYards(a: Vec2, b: Vec2): number {
   const aYards = toYards(a);
   const bYards = toYards(b);
   return Math.hypot(aYards.x - bYards.x, aYards.y - bYards.y);
+}
+
+function clampPositionBeforeSnap(defender: Player, position: Vec2): Vec2 {
+  const lineOfScrimmage = LINE_OF_SCRIMMAGE_YARDS_FROM_TOP / FIELD_LENGTH_YARDS;
+  const lineBuffer = PRE_SNAP_LINE_BUFFER_YARDS / FIELD_LENGTH_YARDS;
+  if (defender.start.y <= lineOfScrimmage && position.y > lineOfScrimmage - lineBuffer) {
+    return { ...position, y: lineOfScrimmage - lineBuffer };
+  }
+  if (defender.start.y >= lineOfScrimmage && position.y < lineOfScrimmage + lineBuffer) {
+    return { ...position, y: lineOfScrimmage + lineBuffer };
+  }
+  return position;
 }
 
 function clamp(value: number, min: number, max: number): number {

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { getPlayerPositionWithDefense } from './defense';
-import { FIELD_LENGTH_YARDS, FIELD_WIDTH_YARDS, type Play, type Player } from './model';
+import {
+  FIELD_LENGTH_YARDS,
+  FIELD_WIDTH_YARDS,
+  LINE_OF_SCRIMMAGE_YARDS_FROM_TOP,
+  type Play,
+  type Player
+} from './model';
 
 describe('getPlayerPositionWithDefense', () => {
   it('moves a defender toward a 1-yard cushion with max speed', () => {
@@ -60,6 +66,34 @@ describe('getPlayerPositionWithDefense', () => {
 
     expect(position.x).toBeGreaterThan(defender.start.x);
     expect(position.y).toBeGreaterThan(defender.start.y);
+  });
+
+  it('keeps a man defender behind the line of scrimmage before the snap', () => {
+    const lineOfScrimmage = LINE_OF_SCRIMMAGE_YARDS_FROM_TOP / FIELD_LENGTH_YARDS;
+    const offense: Player = {
+      id: 'o1',
+      label: 'O1',
+      team: 'offense',
+      start: { x: 0.4, y: lineOfScrimmage },
+      startDelay: -1,
+      route: [{ to: { x: 0.4, y: lineOfScrimmage + 0.12 }, speed: 8 }]
+    };
+    const defender: Player = {
+      id: 'd1',
+      label: 'D1',
+      team: 'defense',
+      start: { x: 0.4, y: lineOfScrimmage - 0.04 },
+      assignment: {
+        type: 'man',
+        targetId: 'o1',
+        speed: 20
+      }
+    };
+
+    const play: Play = { players: [offense, defender] };
+    const position = getPlayerPositionWithDefense(play, defender, -0.1, { stepSeconds: 0.05 });
+
+    expect(position.y).toBeLessThanOrEqual(lineOfScrimmage - 1 / FIELD_LENGTH_YARDS + 1e-6);
   });
 
   it('keeps a zone defender inside the ellipse while shading toward offense', () => {
