@@ -59,9 +59,14 @@ function getManCoveragePosition(
   const speed = defender.assignment.speed ?? options.defaultSpeed ?? DEFAULT_DEFENSE_SPEED_YPS;
   const stepSeconds = options.stepSeconds ?? DEFAULT_STEP_SECONDS;
   const separation = options.minSeparationYards ?? 0;
+  const coverageStartTime = Math.min(0, target.startDelay ?? 0);
 
   let position = defender.start;
-  let currentTime = 0;
+  let currentTime = coverageStartTime;
+
+  if (timeSeconds <= coverageStartTime) {
+    return position;
+  }
 
   while (currentTime < timeSeconds) {
     const dt = Math.min(stepSeconds, timeSeconds - currentTime);

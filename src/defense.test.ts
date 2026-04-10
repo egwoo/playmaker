@@ -34,6 +34,34 @@ describe('getPlayerPositionWithDefense', () => {
     expect(positionAtFive.x).toBeCloseTo(expectedX, 2);
   });
 
+  it('tracks pre-snap motion for a man coverage defender', () => {
+    const offense: Player = {
+      id: 'o1',
+      label: 'O1',
+      team: 'offense',
+      start: { x: 0.4, y: 0.5 },
+      startDelay: -1,
+      route: [{ to: { x: 0.6, y: 0.5 }, speed: 10 }]
+    };
+    const defender: Player = {
+      id: 'd1',
+      label: 'D1',
+      team: 'defense',
+      start: { x: 0.4, y: 0.4 },
+      assignment: {
+        type: 'man',
+        targetId: 'o1',
+        speed: 12
+      }
+    };
+
+    const play: Play = { players: [offense, defender] };
+    const position = getPlayerPositionWithDefense(play, defender, -0.5, { stepSeconds: 0.05 });
+
+    expect(position.x).toBeGreaterThan(defender.start.x);
+    expect(position.y).toBeGreaterThan(defender.start.y);
+  });
+
   it('keeps a zone defender inside the ellipse while shading toward offense', () => {
     const offense: Player = {
       id: 'o1',
