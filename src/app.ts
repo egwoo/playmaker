@@ -1862,11 +1862,12 @@ Sharing a playbook with assistants is confusing."
     const drawPreview = () => {
       const previewRenderer = createRenderer(canvasEl);
       previewRenderer.resize();
+      const startTime = getPlaybackStartTimeForPlay(previewPlay);
       previewRenderer.render({
         play: previewPlay,
-        playTime: 0,
+        playTime: startTime,
         selectedPlayerId: null,
-        ball: getBallState(previewPlay, 0, DEFAULT_BALL_SPEED_YPS),
+        ball: getBallState(previewPlay, startTime, DEFAULT_BALL_SPEED_YPS),
         showWaypointMarkers: false,
         defenseDisplayMode: 'show'
       });
