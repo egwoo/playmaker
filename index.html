@@ -100,15 +100,15 @@
                 <button type="button" id="help-menu-feedback" class="split-menu-item" role="menuitem">
                   Share feedback
                 </button>
-                <button
-                  type="button"
-                  id="help-menu-contrast"
-                  class="split-menu-item"
-                  role="menuitem"
-                  aria-pressed="false"
-                >
-                  High contrast: Off
-                </button>
+                <label class="split-menu-item split-menu-toggle" role="menuitem">
+                  <span>High contrast</span>
+                  <input
+                    type="checkbox"
+                    id="help-menu-contrast"
+                    class="toggle menu-toggle"
+                    aria-label="High contrast"
+                  />
+                </label>
               </div>
             </div>
             <button type="button" id="auth-trigger" class="secondary">Sign in</button>

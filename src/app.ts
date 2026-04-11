@@ -165,7 +165,7 @@ export function initApp() {
   const helpMenu = document.getElementById('help-menu');
   const helpMenuOpen = document.getElementById('help-menu-open') as HTMLButtonElement | null;
   const helpMenuFeedback = document.getElementById('help-menu-feedback') as HTMLButtonElement | null;
-  const helpMenuContrast = document.getElementById('help-menu-contrast') as HTMLButtonElement | null;
+  const helpMenuContrast = document.getElementById('help-menu-contrast') as HTMLInputElement | null;
   const authTrigger = document.getElementById('auth-trigger') as HTMLButtonElement | null;
   const authAvatar = document.getElementById('auth-avatar') as HTMLButtonElement | null;
   const authAvatarImg = document.getElementById('auth-avatar-img') as HTMLImageElement | null;
@@ -557,8 +557,7 @@ export function initApp() {
 
   function syncHighContrastUI() {
     document.body.classList.toggle('high-contrast', highContrastMode);
-    helpMenuContrast.textContent = highContrastMode ? 'High contrast: On' : 'High contrast: Off';
-    helpMenuContrast.setAttribute('aria-pressed', highContrastMode ? 'true' : 'false');
+    helpMenuContrast.checked = highContrastMode;
   }
 
   function setHighContrastMode(enabled: boolean) {
@@ -6035,9 +6034,9 @@ Sharing a playbook with assistants is confusing."
     closeHelpMenu();
     openFeedbackModal();
   });
-  helpMenuContrast.addEventListener('click', () => {
+  helpMenuContrast.addEventListener('change', () => {
     closeHelpMenu();
-    setHighContrastMode(!highContrastMode);
+    setHighContrastMode(helpMenuContrast.checked);
   });
 
   playTagsSection.addEventListener('click', (event) => {
