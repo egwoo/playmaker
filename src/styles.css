@@ -32,6 +32,12 @@ body {
   overscroll-behavior-y: none;
 }
 
+body.high-contrast {
+  --accent: #ffd84a;
+  --accent-strong: #a86500;
+  --accent-cool: #31d9ff;
+}
+
 .page-scroll {
   height: 100%;
   width: 100%;
@@ -294,6 +300,11 @@ body {
   transform: none;
   box-shadow: none;
   opacity: 0.82;
+}
+
+.help-menu-wrapper .split-menu-item[aria-pressed='true']::after {
+  content: '✓';
+  margin-left: auto;
 }
 
 .help-modal-close {
@@ -2033,6 +2044,18 @@ button {
   aspect-ratio: 41 / 25;
   min-height: 420px;
   box-shadow: var(--shadow);
+}
+
+body.high-contrast .field-surface,
+body.high-contrast .all-play-card-canvas,
+body.high-contrast .history-preview-canvas {
+  background: #02160f;
+  border: 2px solid rgba(255, 255, 255, 0.48);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.28);
+}
+
+body.high-contrast .all-play-card {
+  border-color: rgba(0, 0, 0, 0.28);
 }
 
 .all-plays-gallery {

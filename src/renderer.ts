@@ -16,6 +16,7 @@ export interface RenderState {
   ball: BallState;
   showWaypointMarkers: boolean;
   defenseDisplayMode: 'show' | 'hide-zones' | 'hide-defense';
+  highContrast?: boolean;
 }
 
 interface FieldMetrics {
@@ -35,6 +36,18 @@ const TEAM_STYLES: Record<Team, { fill: string; stroke: string; route: string }>
     fill: '#76d1ff',
     stroke: '#153447',
     route: 'rgba(118, 209, 255, 0.65)'
+  }
+};
+const HIGH_CONTRAST_TEAM_STYLES: Record<Team, { fill: string; stroke: string; route: string }> = {
+  offense: {
+    fill: '#ffe24a',
+    stroke: '#000000',
+    route: '#fff04a'
+  },
+  defense: {
+    fill: '#31d9ff',
+    stroke: '#000000',
+    route: '#31d9ff'
   }
 };
 const DEFENSE_HALO_PX = 2;
@@ -87,22 +100,22 @@ export function createRenderer(canvas: HTMLCanvasElement) {
     const height = canvas.height / devicePixelRatio;
     context.clearRect(0, 0, width, height);
 
-    drawField(context, field);
+    drawField(context, field, !!state.highContrast);
     drawRoutes(context, state);
     drawZones(context, state);
     drawPlayers(context, state);
     drawBall(context, state);
   }
 
-  function drawField(ctx: CanvasRenderingContext2D, metrics: FieldMetrics) {
+  function drawField(ctx: CanvasRenderingContext2D, metrics: FieldMetrics, highContrast: boolean) {
     const gradient = ctx.createLinearGradient(
       metrics.x,
       metrics.y,
       metrics.x + metrics.width,
       metrics.y + metrics.height
     );
-    gradient.addColorStop(0, '#205a41');
-    gradient.addColorStop(1, '#123a2a');
+    gradient.addColorStop(0, highContrast ? '#07311f' : '#205a41');
+    gradient.addColorStop(1, highContrast ? '#02160f' : '#123a2a');
     const cornerRadius = getFieldCornerRadius(metrics);
 
     ctx.save();
@@ -117,8 +130,8 @@ export function createRenderer(canvas: HTMLCanvasElement) {
       ctx.beginPath();
       ctx.moveTo(metrics.x, y);
       ctx.lineTo(metrics.x + metrics.width, y);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = highContrast ? 'rgba(255, 255, 255, 0.22)' : 'rgba(255, 255, 255, 0.08)';
+      ctx.lineWidth = highContrast ? 1.4 : 1;
       ctx.stroke();
     }
 
@@ -127,9 +140,9 @@ export function createRenderer(canvas: HTMLCanvasElement) {
     ctx.beginPath();
     ctx.moveTo(metrics.x, lineOfScrimmage);
     ctx.lineTo(metrics.x + metrics.width, lineOfScrimmage);
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([10, 8]);
+    ctx.strokeStyle = highContrast ? '#ffffff' : 'rgba(255, 255, 255, 0.6)';
+    ctx.lineWidth = highContrast ? 3 : 2;
+    ctx.setLineDash(highContrast ? [12, 6] : [10, 8]);
     ctx.stroke();
     ctx.setLineDash([]);
 
@@ -137,8 +150,8 @@ export function createRenderer(canvas: HTMLCanvasElement) {
 
     ctx.save();
     traceRoundedRect(ctx, metrics.x, metrics.y, metrics.width, metrics.height, cornerRadius);
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
-    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = highContrast ? 'rgba(255, 255, 255, 0.65)' : 'rgba(255, 255, 255, 0.18)';
+    ctx.lineWidth = highContrast ? 2 : 1.2;
     ctx.stroke();
     ctx.restore();
   }
@@ -179,22 +192,15 @@ export function createRenderer(canvas: HTMLCanvasElement) {
         continue;
       }
 
-      const style = TEAM_STYLES[player.team];
-      let from = worldToCanvas(player.start);
+      const highContrast = !!state.highContrast;
+      const style = getTeamStyle(player.team, highContrast);
+      const routeWidth = player.id === state.selectedPlayerId ? 3 : 2;
 
       ctx.save();
-      ctx.strokeStyle = style.route;
-      ctx.lineWidth = player.id === state.selectedPlayerId ? 3 : 2;
-      ctx.setLineDash([6, 6]);
-      for (const leg of route) {
-        const end = worldToCanvas(leg.to);
-        ctx.beginPath();
-        ctx.moveTo(from.x, from.y);
-        ctx.lineTo(end.x, end.y);
-        ctx.stroke();
-        from = end;
+      if (highContrast) {
+        drawRoutePath(ctx, player.start, route, 'rgba(0, 0, 0, 0.95)', routeWidth + 4, [8, 5]);
       }
-      ctx.setLineDash([]);
+      drawRoutePath(ctx, player.start, route, style.route, highContrast ? routeWidth + 1.5 : routeWidth, highContrast ? [8, 5] : [6, 6]);
 
       if (state.showWaypointMarkers || player.id === state.selectedPlayerId) {
         ctx.fillStyle = style.route;
@@ -203,6 +209,11 @@ export function createRenderer(canvas: HTMLCanvasElement) {
           ctx.beginPath();
           ctx.arc(end.x, end.y, getWaypointRadius(), 0, Math.PI * 2);
           ctx.fill();
+          if (highContrast) {
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+          }
         }
       }
 
@@ -226,10 +237,10 @@ export function createRenderer(canvas: HTMLCanvasElement) {
       ctx.save();
       ctx.beginPath();
       ctx.ellipse(center.x, center.y, radiusX, radiusY, 0, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(118, 209, 255, 0.14)';
+      ctx.fillStyle = state.highContrast ? 'rgba(49, 217, 255, 0.3)' : 'rgba(118, 209, 255, 0.14)';
       ctx.fill();
-      ctx.strokeStyle = 'rgba(118, 209, 255, 0.12)';
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = state.highContrast ? 'rgba(255, 255, 255, 0.55)' : 'rgba(118, 209, 255, 0.12)';
+      ctx.lineWidth = state.highContrast ? 2.2 : 1.5;
       ctx.stroke();
       ctx.restore();
 
@@ -267,6 +278,7 @@ export function createRenderer(canvas: HTMLCanvasElement) {
   function drawPlayers(ctx: CanvasRenderingContext2D, state: RenderState) {
     const radius = getPlayerRadius();
     const defenseOptions = { minSeparationYards: getMinSeparationYards() };
+    const highContrast = !!state.highContrast;
 
     for (const player of state.play.players) {
       if (state.defenseDisplayMode === 'hide-defense' && player.team === 'defense') {
@@ -275,21 +287,21 @@ export function createRenderer(canvas: HTMLCanvasElement) {
       const point = worldToCanvas(
         getPlayerPositionWithDefense(state.play, player, state.playTime, defenseOptions)
       );
-      const style = TEAM_STYLES[player.team];
+      const style = getTeamStyle(player.team, highContrast);
 
       ctx.save();
       ctx.beginPath();
       ctx.fillStyle = style.fill;
       ctx.strokeStyle = style.stroke;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = highContrast ? 3 : 2;
       ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
 
       if (player.id === state.selectedPlayerId) {
         ctx.beginPath();
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = highContrast ? '#ffffff' : 'rgba(255, 255, 255, 0.9)';
+        ctx.lineWidth = highContrast ? 3 : 2;
         ctx.arc(point.x, point.y, radius + 6, 0, Math.PI * 2);
         ctx.stroke();
       }
@@ -298,6 +310,12 @@ export function createRenderer(canvas: HTMLCanvasElement) {
       ctx.font = `${Math.max(10, radius)}px "Space Mono", monospace`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
+      if (highContrast) {
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+        ctx.lineWidth = 2;
+        ctx.strokeText(player.label, point.x, point.y + 1);
+        ctx.fillStyle = '#000000';
+      }
       ctx.fillText(player.label, point.x, point.y + 1);
 
       ctx.restore();
@@ -314,15 +332,42 @@ export function createRenderer(canvas: HTMLCanvasElement) {
     const radius = Math.max(5, Math.min(field.width, field.height) * 0.012);
 
     if (ball.inAir && ball.flight) {
-      drawFlightArc(ctx, ball.flight);
-      drawBallTrail(ctx, point, ball.flight);
+      drawFlightArc(ctx, ball.flight, !!state.highContrast);
+      drawBallTrail(ctx, point, ball.flight, !!state.highContrast);
     }
 
     const angle = ball.flight ? Math.atan2(ball.flight.end.y - ball.flight.start.y, ball.flight.end.x - ball.flight.start.x) : 0;
     drawFootball(ctx, point, radius, angle);
   }
 
-  function drawFlightArc(ctx: CanvasRenderingContext2D, flight: { start: Vec2; end: Vec2 }) {
+  function drawRoutePath(
+    ctx: CanvasRenderingContext2D,
+    start: Vec2,
+    route: Array<{ to: Vec2 }>,
+    strokeStyle: string,
+    lineWidth: number,
+    dash: number[]
+  ) {
+    let from = worldToCanvas(start);
+    ctx.strokeStyle = strokeStyle;
+    ctx.lineWidth = lineWidth;
+    ctx.setLineDash(dash);
+    for (const leg of route) {
+      const end = worldToCanvas(leg.to);
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(end.x, end.y);
+      ctx.stroke();
+      from = end;
+    }
+    ctx.setLineDash([]);
+  }
+
+  function getTeamStyle(team: Team, highContrast: boolean) {
+    return highContrast ? HIGH_CONTRAST_TEAM_STYLES[team] : TEAM_STYLES[team];
+  }
+
+  function drawFlightArc(ctx: CanvasRenderingContext2D, flight: { start: Vec2; end: Vec2 }, highContrast: boolean) {
     const start = worldToCanvas(flight.start);
     const end = worldToCanvas(flight.end);
     const dx = end.x - start.x;
@@ -338,8 +383,8 @@ export function createRenderer(canvas: HTMLCanvasElement) {
     const cy = (start.y + end.y) / 2 + ny * arcHeight;
 
     ctx.save();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = highContrast ? 'rgba(255, 255, 255, 0.85)' : 'rgba(255, 255, 255, 0.35)';
+    ctx.lineWidth = highContrast ? 3 : 2;
     ctx.setLineDash([6, 8]);
     ctx.beginPath();
     ctx.moveTo(start.x, start.y);
@@ -348,7 +393,7 @@ export function createRenderer(canvas: HTMLCanvasElement) {
     ctx.restore();
   }
 
-  function drawBallTrail(ctx: CanvasRenderingContext2D, point: Vec2, flight: { start: Vec2; end: Vec2 }) {
+  function drawBallTrail(ctx: CanvasRenderingContext2D, point: Vec2, flight: { start: Vec2; end: Vec2 }, highContrast: boolean) {
     const start = worldToCanvas(flight.start);
     const end = worldToCanvas(flight.end);
     const dx = end.x - start.x;
@@ -361,8 +406,8 @@ export function createRenderer(canvas: HTMLCanvasElement) {
     const uy = dy / distance;
 
     ctx.save();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = highContrast ? '#ffffff' : 'rgba(255, 255, 255, 0.65)';
+    ctx.lineWidth = highContrast ? 3 : 2;
     ctx.beginPath();
     ctx.moveTo(point.x - ux * 12, point.y - uy * 12);
     ctx.lineTo(point.x, point.y);

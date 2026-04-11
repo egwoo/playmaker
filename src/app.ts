@@ -42,6 +42,7 @@ type PersistedUiState = {
   playGridFiltersByPlaybook?: Record<string, string[]>;
   lastSelectedPlaybookId?: string | null;
   defenseDisplayMode?: DefenseDisplayMode;
+  highContrastMode?: boolean;
 };
 
 type DragState = {
@@ -164,6 +165,7 @@ export function initApp() {
   const helpMenu = document.getElementById('help-menu');
   const helpMenuOpen = document.getElementById('help-menu-open') as HTMLButtonElement | null;
   const helpMenuFeedback = document.getElementById('help-menu-feedback') as HTMLButtonElement | null;
+  const helpMenuContrast = document.getElementById('help-menu-contrast') as HTMLButtonElement | null;
   const authTrigger = document.getElementById('auth-trigger') as HTMLButtonElement | null;
   const authAvatar = document.getElementById('auth-avatar') as HTMLButtonElement | null;
   const authAvatarImg = document.getElementById('auth-avatar-img') as HTMLImageElement | null;
@@ -270,6 +272,7 @@ export function initApp() {
     !helpMenu ||
     !helpMenuOpen ||
     !helpMenuFeedback ||
+    !helpMenuContrast ||
     !authTrigger ||
     !authAvatar ||
     !authAvatarImg ||
@@ -379,6 +382,7 @@ export function initApp() {
   let playbookTags: PlaybookTag[] = [];
   let activeTagFilters: string[] = [];
   let playGridFilterMode: PlayGridFilterMode = loadPlayGridFilterMode();
+  let highContrastMode = loadHighContrastPreference();
   let tagPickerOpen = false;
   let currentUserId: string | null = null;
   let currentAvatarUrl: string | null = null;
@@ -439,6 +443,7 @@ export function initApp() {
   if (!sharedPlayToken) {
     saveDraftPlay(play);
   }
+  syncHighContrastUI();
 
   document.addEventListener(
     'gesturestart',
@@ -548,6 +553,23 @@ export function initApp() {
     }
     const offset = fieldToolbarOverlay.offsetHeight > 0 ? fieldToolbarOverlay.offsetHeight + 12 : 0;
     fieldSurface.style.setProperty('--fullscreen-toolbar-stack-offset', `${offset}px`);
+  }
+
+  function syncHighContrastUI() {
+    document.body.classList.toggle('high-contrast', highContrastMode);
+    helpMenuContrast.textContent = highContrastMode ? 'High contrast: On' : 'High contrast: Off';
+    helpMenuContrast.setAttribute('aria-pressed', highContrastMode ? 'true' : 'false');
+  }
+
+  function setHighContrastMode(enabled: boolean) {
+    highContrastMode = enabled;
+    saveHighContrastPreference(enabled);
+    syncHighContrastUI();
+    render();
+    if (isPlayGridViewActive()) {
+      renderPlayGridGallery();
+    }
+    setStatus(enabled ? 'High contrast on' : 'High contrast off');
   }
 
   function getEffectiveDefenseDisplayMode(): DefenseDisplayMode {
@@ -1111,6 +1133,21 @@ export function initApp() {
     updatePersistedUiState((state) => ({
       ...state,
       defenseDisplayMode: mode
+    }));
+  }
+
+  function loadHighContrastPreference(): boolean {
+    const value = loadPersistedUiState().highContrastMode;
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    return window.matchMedia?.('(prefers-contrast: more)').matches ?? false;
+  }
+
+  function saveHighContrastPreference(enabled: boolean) {
+    updatePersistedUiState((state) => ({
+      ...state,
+      highContrastMode: enabled
     }));
   }
 
@@ -1869,7 +1906,8 @@ Sharing a playbook with assistants is confusing."
         selectedPlayerId: null,
         ball: getBallState(previewPlay, startTime, DEFAULT_BALL_SPEED_YPS),
         showWaypointMarkers: false,
-        defenseDisplayMode: 'show'
+        defenseDisplayMode: 'show',
+        highContrast: highContrastMode
       });
     };
 
@@ -3482,7 +3520,8 @@ Sharing a playbook with assistants is confusing."
       selectedPlayerId,
       ball: ballState,
       showWaypointMarkers: settings.showWaypointMarkers,
-      defenseDisplayMode: getEffectiveDefenseDisplayMode()
+      defenseDisplayMode: getEffectiveDefenseDisplayMode(),
+      highContrast: highContrastMode
     });
     updateTimelineUI();
     updateLayoutMetrics();
@@ -5186,7 +5225,8 @@ Sharing a playbook with assistants is confusing."
             selectedPlayerId: null,
             ball: ballState,
             showWaypointMarkers: showMarkers,
-            defenseDisplayMode: 'show'
+            defenseDisplayMode: 'show',
+            highContrast: highContrastMode
           });
           frameId = window.requestAnimationFrame(loop);
         };
@@ -5849,7 +5889,8 @@ Sharing a playbook with assistants is confusing."
         selectedPlayerId: null,
         ball: ballState,
         showWaypointMarkers: false,
-        defenseDisplayMode: 'show'
+        defenseDisplayMode: 'show',
+        highContrast: highContrastMode
       });
     };
 
@@ -5993,6 +6034,10 @@ Sharing a playbook with assistants is confusing."
   helpMenuFeedback.addEventListener('click', () => {
     closeHelpMenu();
     openFeedbackModal();
+  });
+  helpMenuContrast.addEventListener('click', () => {
+    closeHelpMenu();
+    setHighContrastMode(!highContrastMode);
   });
 
   playTagsSection.addEventListener('click', (event) => {
