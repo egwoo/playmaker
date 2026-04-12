@@ -40,14 +40,14 @@ const TEAM_STYLES: Record<Team, { fill: string; stroke: string; route: string }>
 };
 const HIGH_CONTRAST_TEAM_STYLES: Record<Team, { fill: string; stroke: string; route: string }> = {
   offense: {
-    fill: '#ffe24a',
+    fill: '#000000',
     stroke: '#000000',
-    route: '#fff04a'
+    route: '#000000'
   },
   defense: {
-    fill: '#31d9ff',
+    fill: '#ffffff',
     stroke: '#000000',
-    route: '#31d9ff'
+    route: '#000000'
   }
 };
 const DEFENSE_HALO_PX = 2;
@@ -114,8 +114,8 @@ export function createRenderer(canvas: HTMLCanvasElement) {
       metrics.x + metrics.width,
       metrics.y + metrics.height
     );
-    gradient.addColorStop(0, highContrast ? '#07311f' : '#205a41');
-    gradient.addColorStop(1, highContrast ? '#02160f' : '#123a2a');
+    gradient.addColorStop(0, highContrast ? '#ffffff' : '#205a41');
+    gradient.addColorStop(1, highContrast ? '#f7f7f2' : '#123a2a');
     const cornerRadius = getFieldCornerRadius(metrics);
 
     ctx.save();
@@ -130,7 +130,7 @@ export function createRenderer(canvas: HTMLCanvasElement) {
       ctx.beginPath();
       ctx.moveTo(metrics.x, y);
       ctx.lineTo(metrics.x + metrics.width, y);
-      ctx.strokeStyle = highContrast ? 'rgba(255, 255, 255, 0.22)' : 'rgba(255, 255, 255, 0.08)';
+      ctx.strokeStyle = highContrast ? 'rgba(0, 0, 0, 0.16)' : 'rgba(255, 255, 255, 0.08)';
       ctx.lineWidth = highContrast ? 1.4 : 1;
       ctx.stroke();
     }
@@ -140,7 +140,7 @@ export function createRenderer(canvas: HTMLCanvasElement) {
     ctx.beginPath();
     ctx.moveTo(metrics.x, lineOfScrimmage);
     ctx.lineTo(metrics.x + metrics.width, lineOfScrimmage);
-    ctx.strokeStyle = highContrast ? '#ffffff' : 'rgba(255, 255, 255, 0.6)';
+    ctx.strokeStyle = highContrast ? '#000000' : 'rgba(255, 255, 255, 0.6)';
     ctx.lineWidth = highContrast ? 3 : 2;
     ctx.setLineDash(highContrast ? [12, 6] : [10, 8]);
     ctx.stroke();
@@ -150,7 +150,7 @@ export function createRenderer(canvas: HTMLCanvasElement) {
 
     ctx.save();
     traceRoundedRect(ctx, metrics.x, metrics.y, metrics.width, metrics.height, cornerRadius);
-    ctx.strokeStyle = highContrast ? 'rgba(255, 255, 255, 0.65)' : 'rgba(255, 255, 255, 0.18)';
+    ctx.strokeStyle = highContrast ? '#000000' : 'rgba(255, 255, 255, 0.18)';
     ctx.lineWidth = highContrast ? 2 : 1.2;
     ctx.stroke();
     ctx.restore();
@@ -197,10 +197,7 @@ export function createRenderer(canvas: HTMLCanvasElement) {
       const routeWidth = player.id === state.selectedPlayerId ? 3 : 2;
 
       ctx.save();
-      if (highContrast) {
-        drawRoutePath(ctx, player.start, route, 'rgba(0, 0, 0, 0.95)', routeWidth + 4, [8, 5]);
-      }
-      drawRoutePath(ctx, player.start, route, style.route, highContrast ? routeWidth + 1.5 : routeWidth, highContrast ? [8, 5] : [6, 6]);
+      drawRoutePath(ctx, player.start, route, style.route, highContrast ? routeWidth + 2 : routeWidth, highContrast ? [9, 5] : [6, 6]);
 
       if (state.showWaypointMarkers || player.id === state.selectedPlayerId) {
         ctx.fillStyle = style.route;
@@ -237,10 +234,10 @@ export function createRenderer(canvas: HTMLCanvasElement) {
       ctx.save();
       ctx.beginPath();
       ctx.ellipse(center.x, center.y, radiusX, radiusY, 0, 0, Math.PI * 2);
-      ctx.fillStyle = state.highContrast ? 'rgba(49, 217, 255, 0.3)' : 'rgba(118, 209, 255, 0.14)';
+      ctx.fillStyle = state.highContrast ? 'rgba(0, 0, 0, 0.08)' : 'rgba(118, 209, 255, 0.14)';
       ctx.fill();
-      ctx.strokeStyle = state.highContrast ? 'rgba(255, 255, 255, 0.55)' : 'rgba(118, 209, 255, 0.12)';
-      ctx.lineWidth = state.highContrast ? 2.2 : 1.5;
+      ctx.strokeStyle = state.highContrast ? 'rgba(0, 0, 0, 0.52)' : 'rgba(118, 209, 255, 0.12)';
+      ctx.lineWidth = state.highContrast ? 2 : 1.5;
       ctx.stroke();
       ctx.restore();
 
@@ -300,7 +297,7 @@ export function createRenderer(canvas: HTMLCanvasElement) {
 
       if (player.id === state.selectedPlayerId) {
         ctx.beginPath();
-        ctx.strokeStyle = highContrast ? '#ffffff' : 'rgba(255, 255, 255, 0.9)';
+        ctx.strokeStyle = highContrast ? '#000000' : 'rgba(255, 255, 255, 0.9)';
         ctx.lineWidth = highContrast ? 3 : 2;
         ctx.arc(point.x, point.y, radius + 6, 0, Math.PI * 2);
         ctx.stroke();
@@ -311,10 +308,7 @@ export function createRenderer(canvas: HTMLCanvasElement) {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       if (highContrast) {
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
-        ctx.lineWidth = 2;
-        ctx.strokeText(player.label, point.x, point.y + 1);
-        ctx.fillStyle = '#000000';
+        ctx.fillStyle = player.team === 'offense' ? '#ffffff' : '#000000';
       }
       ctx.fillText(player.label, point.x, point.y + 1);
 
@@ -337,7 +331,7 @@ export function createRenderer(canvas: HTMLCanvasElement) {
     }
 
     const angle = ball.flight ? Math.atan2(ball.flight.end.y - ball.flight.start.y, ball.flight.end.x - ball.flight.start.x) : 0;
-    drawFootball(ctx, point, radius, angle);
+    drawFootball(ctx, point, radius, angle, !!state.highContrast);
   }
 
   function drawRoutePath(
@@ -383,7 +377,7 @@ export function createRenderer(canvas: HTMLCanvasElement) {
     const cy = (start.y + end.y) / 2 + ny * arcHeight;
 
     ctx.save();
-    ctx.strokeStyle = highContrast ? 'rgba(255, 255, 255, 0.85)' : 'rgba(255, 255, 255, 0.35)';
+    ctx.strokeStyle = highContrast ? '#000000' : 'rgba(255, 255, 255, 0.35)';
     ctx.lineWidth = highContrast ? 3 : 2;
     ctx.setLineDash([6, 8]);
     ctx.beginPath();
@@ -406,7 +400,7 @@ export function createRenderer(canvas: HTMLCanvasElement) {
     const uy = dy / distance;
 
     ctx.save();
-    ctx.strokeStyle = highContrast ? '#ffffff' : 'rgba(255, 255, 255, 0.65)';
+    ctx.strokeStyle = highContrast ? '#000000' : 'rgba(255, 255, 255, 0.65)';
     ctx.lineWidth = highContrast ? 3 : 2;
     ctx.beginPath();
     ctx.moveTo(point.x - ux * 12, point.y - uy * 12);
@@ -415,21 +409,21 @@ export function createRenderer(canvas: HTMLCanvasElement) {
     ctx.restore();
   }
 
-  function drawFootball(ctx: CanvasRenderingContext2D, point: Vec2, radius: number, angle: number) {
+  function drawFootball(ctx: CanvasRenderingContext2D, point: Vec2, radius: number, angle: number, highContrast: boolean) {
     ctx.save();
     ctx.translate(point.x, point.y);
     ctx.rotate(angle);
     ctx.scale(1.6, 1);
 
-    ctx.fillStyle = '#9c5a2a';
-    ctx.strokeStyle = '#4f2b14';
-    ctx.lineWidth = 1.5;
+    ctx.fillStyle = highContrast ? '#000000' : '#9c5a2a';
+    ctx.strokeStyle = highContrast ? '#000000' : '#4f2b14';
+    ctx.lineWidth = highContrast ? 2 : 1.5;
     ctx.beginPath();
     ctx.ellipse(0, 0, radius, radius * 0.7, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.strokeStyle = highContrast ? '#ffffff' : 'rgba(255, 255, 255, 0.85)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(-radius * 0.6, 0);
