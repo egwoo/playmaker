@@ -415,7 +415,7 @@ export function createRenderer(canvas: HTMLCanvasElement) {
     ctx.rotate(angle);
     ctx.scale(1.6, 1);
 
-    ctx.fillStyle = highContrast ? '#000000' : '#9c5a2a';
+    ctx.fillStyle = highContrast ? '#ffffff' : '#9c5a2a';
     ctx.strokeStyle = highContrast ? '#000000' : '#4f2b14';
     ctx.lineWidth = highContrast ? 2 : 1.5;
     ctx.beginPath();
@@ -423,7 +423,7 @@ export function createRenderer(canvas: HTMLCanvasElement) {
     ctx.fill();
     ctx.stroke();
 
-    ctx.strokeStyle = highContrast ? '#ffffff' : 'rgba(255, 255, 255, 0.85)';
+    ctx.strokeStyle = highContrast ? '#000000' : 'rgba(255, 255, 255, 0.85)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(-radius * 0.6, 0);
