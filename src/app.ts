@@ -202,6 +202,7 @@ export function initApp() {
   const gamePlayList = document.getElementById('game-play-list');
   const playGridGallery = document.getElementById('all-plays-gallery') as HTMLDivElement | null;
   const sharePlaybookButton = document.getElementById('share-playbook') as HTMLButtonElement | null;
+  const printPlaybookButton = document.getElementById('print-playbook') as HTMLButtonElement | null;
   const renamePlaybookButton = document.getElementById('rename-playbook') as HTMLButtonElement | null;
   const deletePlaybookButton = document.getElementById('delete-playbook') as HTMLButtonElement | null;
   const sharedPlaybookBanner = document.getElementById('shared-playbook-banner');
@@ -306,6 +307,7 @@ export function initApp() {
     !gamePlayList ||
     !playGridGallery ||
     !sharePlaybookButton ||
+    !printPlaybookButton ||
     !renamePlaybookButton ||
     !deletePlaybookButton ||
     !sharedPlaybookBanner ||
@@ -2398,9 +2400,11 @@ Sharing a playbook with assistants is confusing."
     const isViewer = currentRole === 'player' && hasPlaybook;
     playbookMenuToggle.disabled = !hasPlaybook || isViewer;
     sharePlaybookButton.disabled = !hasPlaybook || currentRole !== 'coach';
+    printPlaybookButton.disabled = !hasPlaybook || currentRole !== 'coach' || savedPlays.length === 0;
     renamePlaybookButton.disabled = !hasPlaybook || currentRole !== 'coach';
     deletePlaybookButton.disabled = !hasPlaybook;
     sharePlaybookButton.classList.toggle('is-hidden', isViewer);
+    printPlaybookButton.classList.toggle('is-hidden', isViewer);
     renamePlaybookButton.classList.toggle('is-hidden', isViewer);
     playbookViewOnlyItem.classList.toggle('is-hidden', !isViewer);
     deletePlaybookButton.textContent = isViewer ? 'Remove' : 'Delete';
@@ -2585,9 +2589,11 @@ Sharing a playbook with assistants is confusing."
     const isViewer = currentRole === 'player' && hasPlaybook;
     playbookMenuToggle.disabled = !hasPlaybook || isViewer;
     sharePlaybookButton.disabled = !hasPlaybook || currentRole !== 'coach';
+    printPlaybookButton.disabled = !hasPlaybook || currentRole !== 'coach' || savedPlays.length === 0;
     renamePlaybookButton.disabled = !hasPlaybook || currentRole !== 'coach';
     deletePlaybookButton.disabled = !hasPlaybook;
     sharePlaybookButton.classList.toggle('is-hidden', isViewer);
+    printPlaybookButton.classList.toggle('is-hidden', isViewer);
     renamePlaybookButton.classList.toggle('is-hidden', isViewer);
     playbookViewOnlyItem.classList.toggle('is-hidden', !isViewer);
     deletePlaybookButton.textContent = isViewer ? 'Remove' : 'Delete';
@@ -2688,6 +2694,7 @@ Sharing a playbook with assistants is confusing."
 
     updateSaveButtonLabel();
     savedPlaysSelect.disabled = !currentUserId || !selectedPlaybookId;
+    printPlaybookButton.disabled = !selectedPlaybookId || currentRole !== 'coach' || savedPlays.length === 0;
     updatePlaybookRolePill();
     renderGamePlayList();
   }
@@ -5813,6 +5820,91 @@ Sharing a playbook with assistants is confusing."
     });
   }
 
+  function printCurrentPlaybook() {
+    if (!selectedPlaybookId || currentRole !== 'coach') {
+      return;
+    }
+    const playsToPrint = getOrderedPlays();
+    if (playsToPrint.length === 0) {
+      setStatus('No plays to print');
+      return;
+    }
+
+    const playbookName = playbooks.find((item) => item.id === selectedPlaybookId)?.name ?? 'Playbook';
+    const printRoot = document.createElement('section');
+    printRoot.className = 'print-playbook';
+    printRoot.setAttribute('aria-hidden', 'true');
+
+    const printCanvases: { canvas: HTMLCanvasElement; play: Play }[] = [];
+
+    playsToPrint.forEach((entry) => {
+      const page = document.createElement('article');
+      page.className = 'print-play-page';
+
+      const header = document.createElement('header');
+      header.className = 'print-play-header';
+
+      const title = document.createElement('h1');
+      title.textContent = entry.name || 'Untitled play';
+
+      const tagList = document.createElement('div');
+      tagList.className = 'print-play-tags';
+      orderTagNames(entry.tags).forEach((tagName) => {
+        const tag = document.createElement('span');
+        tag.className = 'print-play-tag';
+        tag.textContent = tagName;
+        tagList.append(tag);
+      });
+
+      const canvasWrap = document.createElement('div');
+      canvasWrap.className = 'print-play-canvas-wrap';
+      const canvasEl = document.createElement('canvas');
+      canvasEl.className = 'print-play-canvas';
+      canvasWrap.append(canvasEl);
+
+      header.append(title, tagList);
+      page.append(header, canvasWrap);
+      printRoot.append(page);
+      printCanvases.push({ canvas: canvasEl, play: entry.play });
+    });
+
+    document.body.append(printRoot);
+
+    printCanvases.forEach(({ canvas: canvasEl, play: printPlay }) => {
+      const printRenderer = createRenderer(canvasEl);
+      printRenderer.resize();
+      const startTime = getPlaybackStartTimeForPlay(printPlay);
+      printRenderer.render({
+        play: printPlay,
+        playTime: startTime,
+        selectedPlayerId: null,
+        ball: getBallState(printPlay, startTime, DEFAULT_BALL_SPEED_YPS),
+        showWaypointMarkers: false,
+        defenseDisplayMode: 'show',
+        highContrast: true
+      });
+    });
+
+    let cleanupTimeout: number | null = null;
+    let cleanedUp = false;
+    const cleanup = () => {
+      if (cleanedUp) {
+        return;
+      }
+      cleanedUp = true;
+      printRoot.remove();
+      window.removeEventListener('afterprint', cleanup);
+      if (cleanupTimeout !== null) {
+        window.clearTimeout(cleanupTimeout);
+      }
+    };
+
+    window.addEventListener('afterprint', cleanup, { once: true });
+    setStatus(`Preparing ${playbookName} for print`);
+    window.print();
+    cleanupTimeout = window.setTimeout(cleanup, 300000);
+  }
+
   function openHistoryModal(versions: { id: string; createdAt: number; play: Play }[]) {
     if (document.querySelector('.auth-modal')) {
       return;
@@ -6195,6 +6287,11 @@ Sharing a playbook with assistants is confusing."
   sharePlaybookButton.addEventListener('click', () => {
     closePlaybookMenu();
     openPlaybookShareModal(createPlaybookShareLink);
+  });
+
+  printPlaybookButton.addEventListener('click', () => {
+    closePlaybookMenu();
+    printCurrentPlaybook();
   });
 
   renamePlaybookButton.addEventListener('click', async () => {
