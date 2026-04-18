@@ -2715,6 +2715,14 @@ body.field-fullscreen .field-display-toggle {
   }
 
   .panel-block.collapsible summary::after {
+    flex-basis: 36px;
+    width: 36px;
+    height: 36px;
+    background-position:
+      calc(50% + 1px) calc(50% - 5px),
+      calc(50% + 1px) center,
+      calc(50% + 1px) calc(50% + 5px);
+    background-size: 16px 2px;
     margin-right: 0;
   }
 
