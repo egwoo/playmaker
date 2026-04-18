@@ -2651,7 +2651,7 @@ body.field-fullscreen .field-display-toggle {
   }
 
   .panel {
-    padding: 14px;
+    padding: 10px 14px 14px;
     border-radius: 18px;
     gap: 14px;
   }
