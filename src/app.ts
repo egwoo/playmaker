@@ -5841,20 +5841,26 @@ Sharing a playbook with assistants is confusing."
       const page = document.createElement('article');
       page.className = 'print-play-page';
 
-      const header = document.createElement('header');
-      header.className = 'print-play-header';
+      const createTags = () => {
+        const tagList = document.createElement('div');
+        tagList.className = 'print-play-tags';
+        orderTagNames(entry.tags).forEach((tagName) => {
+          const tag = document.createElement('span');
+          tag.className = 'print-play-tag';
+          tag.textContent = tagName;
+          tagList.append(tag);
+        });
+        return tagList;
+      };
 
-      const title = document.createElement('h1');
-      title.textContent = entry.name || 'Untitled play';
-
-      const tagList = document.createElement('div');
-      tagList.className = 'print-play-tags';
-      orderTagNames(entry.tags).forEach((tagName) => {
-        const tag = document.createElement('span');
-        tag.className = 'print-play-tag';
-        tag.textContent = tagName;
-        tagList.append(tag);
-      });
+      const createMetaRow = (position: 'header' | 'footer') => {
+        const row = document.createElement(position);
+        row.className = `print-play-${position}`;
+        const title = document.createElement(position === 'header' ? 'h1' : 'h2');
+        title.textContent = entry.name || 'Untitled play';
+        row.append(title, createTags());
+        return row;
+      };
 
       const canvasWrap = document.createElement('div');
       canvasWrap.className = 'print-play-canvas-wrap';
@@ -5862,8 +5868,7 @@ Sharing a playbook with assistants is confusing."
       canvasEl.className = 'print-play-canvas';
       canvasWrap.append(canvasEl);
 
-      header.append(title, tagList);
-      page.append(header, canvasWrap);
+      page.append(createMetaRow('header'), canvasWrap, createMetaRow('footer'));
       printRoot.append(page);
       printCanvases.push({ canvas: canvasEl, play: entry.play });
     });
