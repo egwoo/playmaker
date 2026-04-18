@@ -2684,7 +2684,13 @@ body.field-fullscreen .field-display-toggle {
   }
 
   .panel-block.controls-collapsible summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    min-height: 40px;
+    padding: 0;
+    align-items: center;
     font-size: 1.02rem;
+    line-height: 1;
   }
 
   .controls-content {
@@ -2703,15 +2709,6 @@ body.field-fullscreen .field-display-toggle {
 
   .panel.controls-collapsed .panel-block.controls-collapsible {
     gap: 0;
-  }
-
-  .panel.controls-collapsed .panel-block.controls-collapsible summary {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    min-height: 40px;
-    padding: 0;
-    align-items: center;
-    line-height: 1;
   }
 
   .panel-block.collapsible summary::after {
