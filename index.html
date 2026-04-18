@@ -24,6 +24,17 @@
       <main class="main">
         <div class="layout-header">
           <div class="layout-title">
+            <button
+              type="button"
+              id="panel-toggle"
+              class="secondary icon-button title-panel-toggle"
+              aria-label="Hide playbook menu"
+              aria-controls="playbook-panel"
+              aria-expanded="true"
+              title="Hide playbook menu"
+            >
+              <span data-lucide="menu" aria-hidden="true"></span>
+            </button>
             <h1>Playmaker</h1>
           </div>
           <div class="layout-toolbar">
@@ -136,7 +147,7 @@
         </div>
 
         <div class="layout">
-          <section class="panel" aria-label="Playbook">
+          <section class="panel" id="playbook-panel" aria-label="Playbook">
             <details class="panel-block collapsible controls-collapsible" data-panel="controls" open>
               <summary>Playbook</summary>
               <div class="panel-content controls-content">

@@ -181,6 +181,7 @@ export function initApp() {
   const pageScroll = document.querySelector<HTMLElement>('.page-scroll');
   const layoutRoot = document.querySelector<HTMLElement>('.layout');
   const layoutHeader = document.querySelector<HTMLElement>('.layout-header');
+  const titlePanelToggle = document.getElementById('panel-toggle') as HTMLButtonElement | null;
   const panelRoot = document.querySelector<HTMLElement>('.panel');
   const editModeToggle = document.getElementById('edit-mode-toggle') as HTMLButtonElement | null;
   const editModeLabel = editModeToggle?.querySelector<HTMLElement>('.field-mode-label') ?? null;
@@ -287,6 +288,7 @@ export function initApp() {
     !pageScroll ||
     !layoutRoot ||
     !layoutHeader ||
+    !titlePanelToggle ||
     !panelRoot ||
     !toolbarHost ||
     !fieldToolbarOverlay ||
@@ -507,16 +509,25 @@ export function initApp() {
     document.body.append(debugOverlay);
   }
 
-  function collapsePanelsForMobile() {
-    if (!window.matchMedia('(max-width: 900px)').matches) {
-      return;
-    }
-    controlsPanel.open = loadControlsOpenPreference() ?? false;
+  function applyInitialControlsOpenState() {
+    const isMobile = window.matchMedia('(max-width: 900px)').matches;
+    controlsPanel.open = loadControlsOpenPreference() ?? !isMobile;
+  }
+
+  function syncPanelToggleButton() {
+    const label = controlsPanel.open ? 'Hide playbook menu' : 'Show playbook menu';
+    titlePanelToggle.setAttribute('aria-label', label);
+    titlePanelToggle.setAttribute('aria-expanded', String(controlsPanel.open));
+    titlePanelToggle.title = label;
+    titlePanelToggle.classList.toggle('is-collapsed', !controlsPanel.open);
   }
 
   function syncControlsCollapse() {
     const isMobile = window.matchMedia('(max-width: 900px)').matches;
-    panelWrapper.classList.toggle('controls-collapsed', isMobile && !controlsPanel.open);
+    const isCollapsed = !controlsPanel.open;
+    panelWrapper.classList.toggle('controls-collapsed', isMobile && isCollapsed);
+    layoutRoot.classList.toggle('panel-collapsed', !isMobile && isCollapsed);
+    syncPanelToggleButton();
     if (fieldOverlay) {
       fieldOverlay.classList.toggle('is-hidden', isMobile);
     }
@@ -820,15 +831,20 @@ export function initApp() {
     if (fullscreenActive) {
       layoutRoot.style.display = '';
       layoutRoot.style.gridTemplateColumns = '';
+      layoutRoot.style.gap = '';
       return;
     }
     if (window.matchMedia('(max-width: 900px)').matches) {
       layoutRoot.style.display = '';
       layoutRoot.style.gridTemplateColumns = '';
+      layoutRoot.style.gap = '';
       return;
     }
     layoutRoot.style.display = 'grid';
-    layoutRoot.style.gridTemplateColumns = 'minmax(260px, 320px) 1fr';
+    layoutRoot.style.gridTemplateColumns = controlsPanel.open
+      ? 'minmax(260px, 320px) minmax(0, 1fr)'
+      : '0px minmax(0, 1fr)';
+    layoutRoot.style.gap = controlsPanel.open ? '' : '0px';
   }
 
   function updateLayoutMetrics() {
@@ -6440,9 +6456,27 @@ Sharing a playbook with assistants is confusing."
   updateSelectedPanel();
   updateTimelineUI();
   setPlayToggleState(isPlaying ? 'pause' : 'play');
+  titlePanelToggle.addEventListener('click', () => {
+    titlePanelToggle.classList.remove('is-toggling');
+    void titlePanelToggle.offsetWidth;
+    titlePanelToggle.classList.add('is-toggling');
+    window.setTimeout(() => titlePanelToggle.classList.remove('is-toggling'), 260);
+    controlsPanel.open = !controlsPanel.open;
+    syncControlsCollapse();
+    updateLayoutMetrics();
+    window.setTimeout(() => {
+      renderer.resize();
+      render();
+    }, 240);
+  });
   controlsPanel.addEventListener('toggle', () => {
     saveControlsOpenPreference(controlsPanel.open);
     syncControlsCollapse();
+    updateLayoutMetrics();
+    window.setTimeout(() => {
+      renderer.resize();
+      render();
+    }, 240);
   });
   window.addEventListener('resize', () => {
     syncControlsCollapse();
@@ -6460,7 +6494,7 @@ Sharing a playbook with assistants is confusing."
       updateLayoutMetrics();
     });
   });
-  collapsePanelsForMobile();
+  applyInitialControlsOpenState();
   syncControlsCollapse();
   renderSavedPlaysSelect();
   renderPlaybookSelect();
