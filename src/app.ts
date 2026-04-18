@@ -5870,6 +5870,7 @@ Sharing a playbook with assistants is confusing."
 
     document.body.append(printRoot);
 
+    const printDefenseDisplayMode = defenseDisplayMode;
     printCanvases.forEach(({ canvas: canvasEl, play: printPlay }) => {
       const printRenderer = createRenderer(canvasEl);
       printRenderer.resize();
@@ -5880,7 +5881,7 @@ Sharing a playbook with assistants is confusing."
         selectedPlayerId: null,
         ball: getBallState(printPlay, startTime, DEFAULT_BALL_SPEED_YPS),
         showWaypointMarkers: false,
-        defenseDisplayMode: 'show',
+        defenseDisplayMode: printDefenseDisplayMode,
         highContrast: true
       });
     });
