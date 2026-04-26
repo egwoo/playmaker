@@ -1877,7 +1877,8 @@ input.menu-toggle:checked::after {
 .waypoint-row.is-leg {
   grid-template-areas:
     'label remove'
-    'speed speed';
+    'speed speed'
+    'line line';
 }
 
 .waypoint-row.is-waypoint {
@@ -1928,7 +1929,6 @@ input.menu-toggle:checked::after {
   display: grid;
   grid-template-columns: 1fr;
   grid-template-areas:
-    'line'
     'delay'
     'action';
   row-gap: 10px;

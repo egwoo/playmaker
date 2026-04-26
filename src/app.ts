@@ -3442,7 +3442,22 @@ Sharing a playbook with assistants is confusing."
       speedField.textContent = 'Speed';
       speedField.append(speed);
 
-      legRow.append(legLabel, speedField, deleteButton);
+      const lineStyleSelect = buildRouteStyleSelect(leg.routeStyle, (routeStyle) => {
+        applyMutation(() => {
+          const target = getSelectedPlayer();
+          if (!target?.route) {
+            return;
+          }
+          target.route[index].routeStyle = routeStyle ?? undefined;
+        });
+      });
+
+      const lineStyleField = document.createElement('label');
+      lineStyleField.className = 'waypoint-field waypoint-line-style-field';
+      lineStyleField.textContent = 'Line';
+      lineStyleField.append(lineStyleSelect);
+
+      legRow.append(legLabel, speedField, lineStyleField, deleteButton);
       waypointList.append(legRow);
 
       const waypointRow = document.createElement('div');
@@ -3501,16 +3516,6 @@ Sharing a playbook with assistants is confusing."
         actionSelect.disabled = true;
       }
 
-      const lineStyleSelect = buildRouteStyleSelect(leg.routeStyle, (routeStyle) => {
-        applyMutation(() => {
-          const target = getSelectedPlayer();
-          if (!target?.route) {
-            return;
-          }
-          target.route[index].routeStyle = routeStyle ?? undefined;
-        });
-      });
-
       const delayField = document.createElement('label');
       delayField.className = 'waypoint-field waypoint-delay-field';
       delayField.textContent = 'Delay';
@@ -3521,14 +3526,9 @@ Sharing a playbook with assistants is confusing."
       actionField.textContent = 'Action';
       actionField.append(actionSelect);
 
-      const lineStyleField = document.createElement('label');
-      lineStyleField.className = 'waypoint-field waypoint-line-style-field';
-      lineStyleField.textContent = 'Line';
-      lineStyleField.append(lineStyleSelect);
-
       const waypointContent = document.createElement('div');
       waypointContent.className = 'waypoint-content';
-      waypointContent.append(lineStyleField, delayField, actionField);
+      waypointContent.append(delayField, actionField);
       waypointRow.append(waypointLabel, waypointContent);
       const waypointIndex = index + 1;
       const waypointDefaultOpen = (leg.delay ?? 0) !== 0 || !!leg.action || !!leg.routeStyle;
