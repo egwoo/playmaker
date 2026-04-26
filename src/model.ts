@@ -69,6 +69,29 @@ export function getPlayDuration(play: Play): number {
   }, 0);
 }
 
+export function getRouteTargetPlayerIds(play: Play): Set<string> {
+  const offensivePlayerIds = new Set(
+    play.players.filter((player) => player.team === 'offense').map((player) => player.id)
+  );
+  const targetIds = new Set<string>();
+
+  for (const player of play.players) {
+    if (player.team !== 'offense') {
+      continue;
+    }
+    if (player.startAction && offensivePlayerIds.has(player.startAction.targetId)) {
+      targetIds.add(player.startAction.targetId);
+    }
+    for (const leg of player.route ?? []) {
+      if (leg.action && offensivePlayerIds.has(leg.action.targetId)) {
+        targetIds.add(leg.action.targetId);
+      }
+    }
+  }
+
+  return targetIds;
+}
+
 export function getPlayerPositionAtTime(player: Player, timeSeconds: number): Vec2 {
   if (player.team === 'defense') {
     return { ...player.start };

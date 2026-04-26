@@ -3,6 +3,7 @@ import { getPlayerPositionWithDefense } from './defense';
 import {
   FIELD_LENGTH_YARDS,
   FIELD_WIDTH_YARDS,
+  getRouteTargetPlayerIds,
   LINE_OF_SCRIMMAGE_YARDS_FROM_TOP,
   type Play,
   type Team,
@@ -183,6 +184,8 @@ export function createRenderer(canvas: HTMLCanvasElement) {
   }
 
   function drawRoutes(ctx: CanvasRenderingContext2D, state: RenderState) {
+    const routeTargetPlayerIds = getRouteTargetPlayerIds(state.play);
+
     for (const player of state.play.players) {
       if (player.team === 'defense') {
         continue;
@@ -195,9 +198,19 @@ export function createRenderer(canvas: HTMLCanvasElement) {
       const highContrast = !!state.highContrast;
       const style = getTeamStyle(player.team, highContrast);
       const routeWidth = player.id === state.selectedPlayerId ? 3 : 2;
+      const dash = routeTargetPlayerIds.has(player.id)
+        ? getRouteTargetDash(highContrast)
+        : [];
 
       ctx.save();
-      drawRoutePath(ctx, player.start, route, style.route, highContrast ? routeWidth + 2 : routeWidth, highContrast ? [9, 5] : [6, 6]);
+      drawRoutePath(
+        ctx,
+        player.start,
+        route,
+        style.route,
+        highContrast ? routeWidth + 2 : routeWidth,
+        dash
+      );
 
       if (state.showWaypointMarkers || player.id === state.selectedPlayerId) {
         ctx.fillStyle = style.route;
@@ -355,6 +368,10 @@ export function createRenderer(canvas: HTMLCanvasElement) {
       from = end;
     }
     ctx.setLineDash([]);
+  }
+
+  function getRouteTargetDash(highContrast: boolean): number[] {
+    return highContrast ? [9, 5] : [6, 6];
   }
 
   function getTeamStyle(team: Team, highContrast: boolean) {

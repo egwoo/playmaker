@@ -5,6 +5,7 @@ import {
   FIELD_LENGTH_YARDS,
   FIELD_WIDTH_YARDS,
   getPlayDuration,
+  getRouteTargetPlayerIds,
   getPlayerPositionAtTime,
   serializePlay,
   type Play,
@@ -84,6 +85,83 @@ describe('getPlayDuration', () => {
     };
 
     expect(getPlayDuration(play)).toBe(1);
+  });
+});
+
+describe('getRouteTargetPlayerIds', () => {
+  it('returns offensive players targeted by start and waypoint actions', () => {
+    const play: Play = {
+      players: [
+        {
+          id: 'center',
+          label: 'C',
+          team: 'offense',
+          start: { x: 0.5, y: 0.7 },
+          startAction: { type: 'handoff', targetId: 'qb' }
+        },
+        {
+          id: 'qb',
+          label: 'QB',
+          team: 'offense',
+          start: { x: 0.5, y: 0.8 },
+          route: [
+            {
+              to: { x: 0.6, y: 0.75 },
+              speed: 8,
+              action: { type: 'pass', targetId: 'wr' }
+            }
+          ]
+        },
+        {
+          id: 'wr',
+          label: 'WR',
+          team: 'offense',
+          start: { x: 0.7, y: 0.65 },
+          route: [{ to: { x: 0.8, y: 0.4 }, speed: 8 }]
+        },
+        {
+          id: 'safety',
+          label: 'S',
+          team: 'defense',
+          start: { x: 0.7, y: 0.45 }
+        }
+      ]
+    };
+
+    expect(getRouteTargetPlayerIds(play)).toEqual(new Set(['qb', 'wr']));
+  });
+
+  it('ignores missing or defensive action targets', () => {
+    const play: Play = {
+      players: [
+        {
+          id: 'qb',
+          label: 'QB',
+          team: 'offense',
+          start: { x: 0.5, y: 0.8 },
+          route: [
+            {
+              to: { x: 0.6, y: 0.75 },
+              speed: 8,
+              action: { type: 'pass', targetId: 'safety' }
+            },
+            {
+              to: { x: 0.5, y: 0.7 },
+              speed: 8,
+              action: { type: 'pass', targetId: 'ghost' }
+            }
+          ]
+        },
+        {
+          id: 'safety',
+          label: 'S',
+          team: 'defense',
+          start: { x: 0.7, y: 0.45 }
+        }
+      ]
+    };
+
+    expect(getRouteTargetPlayerIds(play)).toEqual(new Set());
   });
 });
 
