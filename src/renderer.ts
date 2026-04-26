@@ -3,9 +3,9 @@ import { getPlayerPositionWithDefense } from './defense';
 import {
   FIELD_LENGTH_YARDS,
   FIELD_WIDTH_YARDS,
-  getRouteTargetPlayerIds,
   LINE_OF_SCRIMMAGE_YARDS_FROM_TOP,
   type Play,
+  type RouteLineStyle,
   type Team,
   type Vec2
 } from './model';
@@ -184,8 +184,6 @@ export function createRenderer(canvas: HTMLCanvasElement) {
   }
 
   function drawRoutes(ctx: CanvasRenderingContext2D, state: RenderState) {
-    const routeTargetPlayerIds = getRouteTargetPlayerIds(state.play);
-
     for (const player of state.play.players) {
       if (player.team === 'defense') {
         continue;
@@ -198,9 +196,6 @@ export function createRenderer(canvas: HTMLCanvasElement) {
       const highContrast = !!state.highContrast;
       const style = getTeamStyle(player.team, highContrast);
       const routeWidth = player.id === state.selectedPlayerId ? 3 : 2;
-      const dash = routeTargetPlayerIds.has(player.id)
-        ? getRouteTargetDash(highContrast)
-        : [];
 
       ctx.save();
       drawRoutePath(
@@ -209,7 +204,8 @@ export function createRenderer(canvas: HTMLCanvasElement) {
         route,
         style.route,
         highContrast ? routeWidth + 2 : routeWidth,
-        dash
+        player.routeStyle ?? 'solid',
+        highContrast
       );
 
       if (state.showWaypointMarkers || player.id === state.selectedPlayerId) {
@@ -350,17 +346,18 @@ export function createRenderer(canvas: HTMLCanvasElement) {
   function drawRoutePath(
     ctx: CanvasRenderingContext2D,
     start: Vec2,
-    route: Array<{ to: Vec2 }>,
+    route: Array<{ to: Vec2; routeStyle?: RouteLineStyle }>,
     strokeStyle: string,
     lineWidth: number,
-    dash: number[]
+    defaultRouteStyle: RouteLineStyle,
+    highContrast: boolean
   ) {
     let from = worldToCanvas(start);
     ctx.strokeStyle = strokeStyle;
     ctx.lineWidth = lineWidth;
-    ctx.setLineDash(dash);
     for (const leg of route) {
       const end = worldToCanvas(leg.to);
+      ctx.setLineDash(getRouteDash(leg.routeStyle ?? defaultRouteStyle, highContrast));
       ctx.beginPath();
       ctx.moveTo(from.x, from.y);
       ctx.lineTo(end.x, end.y);
@@ -370,7 +367,10 @@ export function createRenderer(canvas: HTMLCanvasElement) {
     ctx.setLineDash([]);
   }
 
-  function getRouteTargetDash(highContrast: boolean): number[] {
+  function getRouteDash(routeStyle: RouteLineStyle, highContrast: boolean): number[] {
+    if (routeStyle === 'solid') {
+      return [];
+    }
     return highContrast ? [9, 5] : [6, 6];
   }
 

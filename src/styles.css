@@ -1928,6 +1928,7 @@ input.menu-toggle:checked::after {
   display: grid;
   grid-template-columns: 1fr;
   grid-template-areas:
+    'line'
     'delay'
     'action';
   row-gap: 10px;
@@ -1962,6 +1963,12 @@ input.menu-toggle:checked::after {
   padding: 6px 8px;
 }
 
+.waypoint-line-style {
+  grid-area: line;
+  width: 100%;
+  padding: 6px 32px 6px 8px;
+}
+
 .waypoint-field {
   display: flex;
   flex-direction: column;
@@ -1983,6 +1990,10 @@ input.menu-toggle:checked::after {
 
 .waypoint-action-field {
   grid-area: action;
+}
+
+.waypoint-line-style-field {
+  grid-area: line;
 }
 
 .icon-button {

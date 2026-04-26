@@ -9,6 +9,7 @@ import {
   type Play,
   type Player,
   type RouteLeg,
+  type RouteLineStyle,
   type Team,
   type Vec2
 } from './model';
@@ -237,6 +238,8 @@ export function initApp() {
   const playerMenu = document.getElementById('player-menu');
   const renamePlayerButton = document.getElementById('rename-player') as HTMLButtonElement | null;
   const playerActions = document.getElementById('player-actions');
+  const routeStyleRow = document.getElementById('route-style-row');
+  const routeStyleSelect = document.getElementById('route-style-select') as HTMLSelectElement | null;
   const waypointSection = document.querySelector<HTMLElement>('.waypoint-section');
   const waypointHint = document.getElementById('waypoint-hint');
   const waypointList = document.getElementById('waypoint-list');
@@ -340,6 +343,8 @@ export function initApp() {
     !playerMenu ||
     !renamePlayerButton ||
     !playerActions ||
+    !routeStyleRow ||
+    !routeStyleSelect ||
     !waypointSection ||
     !waypointHint ||
     !waypointList ||
@@ -920,6 +925,7 @@ export function initApp() {
       emptyRow.textContent = 'No player selected.';
       waypointList.append(emptyRow);
       setSectionHidden(playerActions, true);
+      setSectionHidden(routeStyleRow, true);
       setSectionHidden(waypointSection, true);
       setSectionHidden(coveragePanel, true);
       return;
@@ -933,6 +939,9 @@ export function initApp() {
     renamePlayerButton.disabled = !canEdit;
     playerMenuToggle.disabled = !canEdit;
     setSectionHidden(playerActions, false);
+    setSectionHidden(routeStyleRow, player.team === 'defense');
+    routeStyleSelect.value = player.routeStyle ?? 'solid';
+    routeStyleSelect.disabled = !canEdit;
     setSectionHidden(waypointSection, player.team === 'defense');
     if (player.team === 'offense') {
       renderWaypointList(player);
@@ -3239,6 +3248,41 @@ Sharing a playbook with assistants is confusing."
       return actionSelect;
     };
 
+    const buildRouteStyleSelect = (
+      currentStyle: RouteLineStyle | undefined,
+      onChange: (style: RouteLineStyle | null) => void
+    ) => {
+      const lineStyleSelect = document.createElement('select');
+      lineStyleSelect.className = 'waypoint-line-style';
+
+      const inheritOption = document.createElement('option');
+      inheritOption.value = '';
+      inheritOption.textContent = 'Use player style';
+      lineStyleSelect.append(inheritOption);
+
+      const solidOption = document.createElement('option');
+      solidOption.value = 'solid';
+      solidOption.textContent = 'Solid';
+      lineStyleSelect.append(solidOption);
+
+      const dottedOption = document.createElement('option');
+      dottedOption.value = 'dotted';
+      dottedOption.textContent = 'Dotted';
+      lineStyleSelect.append(dottedOption);
+
+      lineStyleSelect.value = currentStyle ?? '';
+      lineStyleSelect.disabled = !isEditable;
+      lineStyleSelect.addEventListener('change', () => {
+        if (!isEditable) {
+          return;
+        }
+        const value = parseRouteLineStyle(lineStyleSelect.value);
+        onChange(value);
+      });
+
+      return lineStyleSelect;
+    };
+
     const waypoint0Row = document.createElement('div');
     waypoint0Row.className = 'waypoint-row is-waypoint';
 
@@ -3457,6 +3501,16 @@ Sharing a playbook with assistants is confusing."
         actionSelect.disabled = true;
       }
 
+      const lineStyleSelect = buildRouteStyleSelect(leg.routeStyle, (routeStyle) => {
+        applyMutation(() => {
+          const target = getSelectedPlayer();
+          if (!target?.route) {
+            return;
+          }
+          target.route[index].routeStyle = routeStyle ?? undefined;
+        });
+      });
+
       const delayField = document.createElement('label');
       delayField.className = 'waypoint-field waypoint-delay-field';
       delayField.textContent = 'Delay';
@@ -3467,12 +3521,17 @@ Sharing a playbook with assistants is confusing."
       actionField.textContent = 'Action';
       actionField.append(actionSelect);
 
+      const lineStyleField = document.createElement('label');
+      lineStyleField.className = 'waypoint-field waypoint-line-style-field';
+      lineStyleField.textContent = 'Line';
+      lineStyleField.append(lineStyleSelect);
+
       const waypointContent = document.createElement('div');
       waypointContent.className = 'waypoint-content';
-      waypointContent.append(delayField, actionField);
+      waypointContent.append(lineStyleField, delayField, actionField);
       waypointRow.append(waypointLabel, waypointContent);
       const waypointIndex = index + 1;
-      const waypointDefaultOpen = (leg.delay ?? 0) !== 0 || !!leg.action;
+      const waypointDefaultOpen = (leg.delay ?? 0) !== 0 || !!leg.action || !!leg.routeStyle;
       const waypointState = waypointOpenState.get(player.id)?.get(waypointIndex);
       waypointRow.classList.toggle('is-open', waypointState ?? waypointDefaultOpen);
       waypointLabel.addEventListener('click', () => {
@@ -4254,6 +4313,20 @@ Sharing a playbook with assistants is confusing."
       selected.label = name;
     });
     setStatus(`Renamed to ${name}`);
+  });
+
+  routeStyleSelect.addEventListener('change', () => {
+    if (!canEdit) {
+      return;
+    }
+    const routeStyle = parseRouteLineStyle(routeStyleSelect.value) ?? 'solid';
+    applyMutation(() => {
+      const target = getSelectedPlayer();
+      if (!target || target.team !== 'offense') {
+        return;
+      }
+      target.routeStyle = routeStyle === 'solid' ? undefined : routeStyle;
+    });
   });
 
   coverageTypeSelect.addEventListener('change', () => {
@@ -6537,6 +6610,13 @@ function parseDelay(value: string, fallback: number, minValue = 0): number {
     return fallback;
   }
   return parsed;
+}
+
+function parseRouteLineStyle(value: string): RouteLineStyle | null {
+  if (value === 'solid' || value === 'dotted') {
+    return value;
+  }
+  return null;
 }
 
 function clamp01(value: number): number {

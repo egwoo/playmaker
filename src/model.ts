@@ -10,9 +10,11 @@ export interface RouteLeg {
   speed: number;
   delay?: number;
   action?: RouteAction;
+  routeStyle?: RouteLineStyle;
 }
 
 export type RouteActionType = 'pass' | 'handoff';
+export type RouteLineStyle = 'solid' | 'dotted';
 
 export interface RouteAction {
   type: RouteActionType;
@@ -43,6 +45,7 @@ export interface Player {
   start: Vec2;
   startDelay?: number;
   route?: RouteLeg[];
+  routeStyle?: RouteLineStyle;
   startAction?: RouteAction;
   assignment?: DefenseAssignment;
 }
@@ -67,29 +70,6 @@ export function getPlayDuration(play: Play): number {
     const duration = getRouteDuration(player);
     return duration > max ? duration : max;
   }, 0);
-}
-
-export function getRouteTargetPlayerIds(play: Play): Set<string> {
-  const offensivePlayerIds = new Set(
-    play.players.filter((player) => player.team === 'offense').map((player) => player.id)
-  );
-  const targetIds = new Set<string>();
-
-  for (const player of play.players) {
-    if (player.team !== 'offense') {
-      continue;
-    }
-    if (player.startAction && offensivePlayerIds.has(player.startAction.targetId)) {
-      targetIds.add(player.startAction.targetId);
-    }
-    for (const leg of player.route ?? []) {
-      if (leg.action && offensivePlayerIds.has(leg.action.targetId)) {
-        targetIds.add(leg.action.targetId);
-      }
-    }
-  }
-
-  return targetIds;
 }
 
 export function getPlayerPositionAtTime(player: Player, timeSeconds: number): Vec2 {
@@ -190,6 +170,10 @@ function isTeam(value: unknown): value is Team {
   return TEAMS.includes(value as Team);
 }
 
+function isRouteLineStyle(value: unknown): value is RouteLineStyle {
+  return value === 'solid' || value === 'dotted';
+}
+
 function isRouteLeg(value: unknown): value is RouteLeg {
   if (!isRecord(value)) {
     return false;
@@ -203,7 +187,12 @@ function isRouteLeg(value: unknown): value is RouteLeg {
     }
   }
   if ('action' in value && value.action !== undefined) {
-    return isRouteAction(value.action);
+    if (!isRouteAction(value.action)) {
+      return false;
+    }
+  }
+  if ('routeStyle' in value && value.routeStyle !== undefined) {
+    return isRouteLineStyle(value.routeStyle);
   }
   return true;
 }
@@ -224,9 +213,16 @@ function parsePlayer(value: unknown): Player | null {
   }
 
   let route: RouteLeg[] | undefined;
+  let routeStyle: RouteLineStyle | undefined;
   let startDelay: number | undefined;
   let startAction: RouteAction | undefined;
   if (team === 'offense') {
+    if ('routeStyle' in value && value.routeStyle !== undefined) {
+      if (!isRouteLineStyle(value.routeStyle)) {
+        return null;
+      }
+      routeStyle = value.routeStyle;
+    }
     if ('startDelay' in value && value.startDelay !== undefined) {
       if (!isNumber(value.startDelay)) {
         return null;
@@ -256,7 +252,7 @@ function parsePlayer(value: unknown): Player | null {
     assignment = value.assignment;
   }
 
-  return { id, label, team, start, startDelay, route, startAction, assignment };
+  return { id, label, team, start, startDelay, route, routeStyle, startAction, assignment };
 }
 
 export function getRouteDuration(player: Player): number {

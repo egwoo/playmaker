@@ -5,7 +5,6 @@ import {
   FIELD_LENGTH_YARDS,
   FIELD_WIDTH_YARDS,
   getPlayDuration,
-  getRouteTargetPlayerIds,
   getPlayerPositionAtTime,
   serializePlay,
   type Play,
@@ -88,83 +87,6 @@ describe('getPlayDuration', () => {
   });
 });
 
-describe('getRouteTargetPlayerIds', () => {
-  it('returns offensive players targeted by start and waypoint actions', () => {
-    const play: Play = {
-      players: [
-        {
-          id: 'center',
-          label: 'C',
-          team: 'offense',
-          start: { x: 0.5, y: 0.7 },
-          startAction: { type: 'handoff', targetId: 'qb' }
-        },
-        {
-          id: 'qb',
-          label: 'QB',
-          team: 'offense',
-          start: { x: 0.5, y: 0.8 },
-          route: [
-            {
-              to: { x: 0.6, y: 0.75 },
-              speed: 8,
-              action: { type: 'pass', targetId: 'wr' }
-            }
-          ]
-        },
-        {
-          id: 'wr',
-          label: 'WR',
-          team: 'offense',
-          start: { x: 0.7, y: 0.65 },
-          route: [{ to: { x: 0.8, y: 0.4 }, speed: 8 }]
-        },
-        {
-          id: 'safety',
-          label: 'S',
-          team: 'defense',
-          start: { x: 0.7, y: 0.45 }
-        }
-      ]
-    };
-
-    expect(getRouteTargetPlayerIds(play)).toEqual(new Set(['qb', 'wr']));
-  });
-
-  it('ignores missing or defensive action targets', () => {
-    const play: Play = {
-      players: [
-        {
-          id: 'qb',
-          label: 'QB',
-          team: 'offense',
-          start: { x: 0.5, y: 0.8 },
-          route: [
-            {
-              to: { x: 0.6, y: 0.75 },
-              speed: 8,
-              action: { type: 'pass', targetId: 'safety' }
-            },
-            {
-              to: { x: 0.5, y: 0.7 },
-              speed: 8,
-              action: { type: 'pass', targetId: 'ghost' }
-            }
-          ]
-        },
-        {
-          id: 'safety',
-          label: 'S',
-          team: 'defense',
-          start: { x: 0.7, y: 0.45 }
-        }
-      ]
-    };
-
-    expect(getRouteTargetPlayerIds(play)).toEqual(new Set());
-  });
-});
-
 describe('serializePlay / deserializePlay', () => {
   it('round trips a play', () => {
     const play: Play = {
@@ -189,6 +111,26 @@ describe('serializePlay / deserializePlay', () => {
     expect(decoded).toEqual(play);
   });
 
+  it('round trips player route style and waypoint overrides', () => {
+    const play: Play = {
+      players: [
+        {
+          id: 'wr',
+          label: 'WR',
+          team: 'offense',
+          start: { x: 0.1, y: 0.2 },
+          routeStyle: 'dotted',
+          route: [
+            { to: { x: 0.4, y: 0.8 }, speed: 5.2 },
+            { to: { x: 0.6, y: 0.9 }, speed: 4.1, routeStyle: 'solid' }
+          ]
+        }
+      ]
+    };
+
+    expect(deserializePlay(serializePlay(play))).toEqual(play);
+  });
+
   it('returns null for invalid payloads', () => {
     expect(deserializePlay('not-json')).toBeNull();
     expect(deserializePlay('{"players":[{"team":"oops"}]}')).toBeNull();
@@ -202,6 +144,36 @@ describe('serializePlay / deserializePlay', () => {
               team: 'offense',
               start: { x: 0.1, y: 0.2 },
               route: [{ to: { x: 0.4, y: 0.8 }, speed: -1 }]
+            }
+          ]
+        })
+      )
+    ).toBeNull();
+    expect(
+      deserializePlay(
+        JSON.stringify({
+          players: [
+            {
+              id: 'p1',
+              label: 'O1',
+              team: 'offense',
+              start: { x: 0.1, y: 0.2 },
+              routeStyle: 'sparkles'
+            }
+          ]
+        })
+      )
+    ).toBeNull();
+    expect(
+      deserializePlay(
+        JSON.stringify({
+          players: [
+            {
+              id: 'p1',
+              label: 'O1',
+              team: 'offense',
+              start: { x: 0.1, y: 0.2 },
+              route: [{ to: { x: 0.4, y: 0.8 }, speed: 5, routeStyle: 'sparkles' }]
             }
           ]
         })
