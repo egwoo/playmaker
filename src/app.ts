@@ -18,7 +18,13 @@ import { createRenderer } from './renderer';
 import { loadDraftPlay, saveDraftPlay } from './storage';
 import { renderIcons } from './icons';
 import { supabase } from './supabase';
-import { resolveSelectedPlaybookId } from './ui-state';
+import {
+  canEditPlayForState,
+  isGuestScratchMode,
+  resolveEffectivePlayMode,
+  resolveSelectedPlaybookId,
+  type PlayMode
+} from './ui-state';
 
 declare const __APP_BUILD_ID__: string;
 
@@ -31,10 +37,10 @@ const HELP_SEEN_KEY = 'playmaker.help.seen.v1';
 const LAST_SELECTED_PLAY_KEY = 'playmaker.lastSelectedPlay.v1';
 const LAST_SELECTED_PLAYBOOK_KEY = 'playmaker.lastSelectedPlaybook.v1';
 const LOCKED_STATE_KEY = 'playmaker.locked.v1';
+const PENDING_GUEST_SAVE_KEY = 'playmaker.pendingGuestSave.v1';
 const PLAY_GRID_FILTER_MODE_KEY = 'playmaker.playGridFilterMode.v1';
 const UI_STATE_KEY = 'playmaker.uiState.v1';
 
-type PlayMode = 'design' | 'game';
 type PlayGridFilterMode = 'all' | 'any';
 type PersistedUiState = {
   playMode?: PlayMode;
@@ -1138,6 +1144,24 @@ export function initApp() {
     }));
   }
 
+  function markPendingGuestSave() {
+    try {
+      localStorage.setItem(PENDING_GUEST_SAVE_KEY, '1');
+    } catch {
+      // ignore persistence errors
+    }
+  }
+
+  function consumePendingGuestSave(): boolean {
+    try {
+      const pending = localStorage.getItem(PENDING_GUEST_SAVE_KEY) === '1';
+      localStorage.removeItem(PENDING_GUEST_SAVE_KEY);
+      return pending;
+    } catch {
+      return false;
+    }
+  }
+
   function loadControlsOpenPreference(): boolean | null {
     const controlsOpen = loadPersistedUiState().controlsOpen;
     return typeof controlsOpen === 'boolean' ? controlsOpen : null;
@@ -2035,7 +2059,12 @@ Sharing a playbook with assistants is confusing."
   }
 
   function getEffectivePlayMode(): PlayMode {
-    return currentRole === 'coach' ? playMode : 'game';
+    return resolveEffectivePlayMode({
+      persistedPlayMode: playMode,
+      currentRole,
+      currentUserId,
+      sharedPlayActive
+    });
   }
 
   function applyModeLayout() {
@@ -2070,7 +2099,7 @@ Sharing a playbook with assistants is confusing."
   }
 
   function setPlayMode(nextMode: PlayMode) {
-    if (nextMode === 'design' && currentRole !== 'coach') {
+    if (nextMode === 'design' && currentUserId && currentRole !== 'coach') {
       return;
     }
     playMode = nextMode;
@@ -2362,12 +2391,18 @@ Sharing a playbook with assistants is confusing."
   }
 
   function canUserEdit() {
-    return playMode === 'design' && !sharedPlayActive && (!currentUserId || currentRole === 'coach');
+    return canEditPlayForState({
+      persistedPlayMode: playMode,
+      currentRole,
+      currentUserId,
+      sharedPlayActive
+    });
   }
 
   function updateEditModeToggle() {
     const editable = canUserEdit();
-    const editingActive = editable && editMode;
+    const guestScratchMode = isGuestScratchMode({ currentUserId, sharedPlayActive });
+    const editingActive = editable && (guestScratchMode || editMode);
     editModeToggle.disabled = !editable;
     editModeToggle.setAttribute('aria-pressed', editingActive ? 'true' : 'false');
     editModeToggle.setAttribute('aria-label', editingActive ? 'Edit mode' : 'View mode');
@@ -2384,7 +2419,7 @@ Sharing a playbook with assistants is confusing."
     }
     renderIcons(editModeToggle);
     lockedToggle.checked = !editingActive;
-    lockedToggle.disabled = !editable;
+    lockedToggle.disabled = !editable || guestScratchMode;
   }
 
   function showEditModeLabel() {
@@ -2402,7 +2437,7 @@ Sharing a playbook with assistants is confusing."
     syncModeButtons();
     syncDefenseDisplayToggle();
     const editable = canUserEdit();
-    const editingActive = editable && editMode;
+    const editingActive = editable && (isGuestScratchMode({ currentUserId, sharedPlayActive }) || editMode);
     const disable = !editingActive;
     canEdit = editingActive;
     if (getEffectivePlayMode() === 'game') {
@@ -2793,10 +2828,11 @@ Sharing a playbook with assistants is confusing."
 
   function updateSaveButtonLabel() {
     savePlayButton.textContent = selectedSavedPlayId ? 'Update' : 'Save';
-    const canSave = canEdit && currentRole === 'coach' && !sharedPlayActive;
-    savePlayButton.disabled = !canSave;
-    saveMenuToggle.disabled = !canSave;
-    sharePlayButton.disabled = !canSave;
+    const canSaveRemote = canEdit && currentRole === 'coach' && !sharedPlayActive;
+    const canStartGuestSave = canEdit && isGuestScratchMode({ currentUserId, sharedPlayActive });
+    savePlayButton.disabled = !canSaveRemote && !canStartGuestSave;
+    saveMenuToggle.disabled = !canSaveRemote;
+    sharePlayButton.disabled = !canSaveRemote;
   }
 
   function getCurrentPlayName(): string {
@@ -4633,6 +4669,12 @@ Sharing a playbook with assistants is confusing."
   }
 
   savePlayButton.addEventListener('click', async () => {
+    if (!currentUserId) {
+      markPendingGuestSave();
+      setStatus('Sign in to save plays');
+      openAuthModal();
+      return;
+    }
     if (selectedSavedPlayId) {
       const entry = savedPlays.find((item) => item.id === selectedSavedPlayId);
       if (entry) {
@@ -6164,11 +6206,18 @@ Sharing a playbook with assistants is confusing."
   async function handleSession(
     session: { user: { id: string; email?: string | null; user_metadata?: { avatar_url?: string | null } } } | null
   ) {
+    const resumeGuestSave = !!session && !sharedPlayActive && consumePendingGuestSave();
     currentUserId = session?.user.id ?? null;
     const avatar =
       session?.user.user_metadata?.avatar_url ??
       session?.user.user_metadata?.picture ??
       null;
+    if (resumeGuestSave) {
+      playMode = 'design';
+      savePersistedPlayMode('design');
+      editMode = true;
+      saveLockedPreference(false);
+    }
     setAuthUI(!!session, session?.user.email, avatar);
     if (session) {
       sharedPlayModalClose?.();
@@ -6581,13 +6630,6 @@ Sharing a playbook with assistants is confusing."
     loadSharedPlayByToken(sharedPlayToken);
   }
   render();
-  try {
-    if (!localStorage.getItem(HELP_SEEN_KEY)) {
-      window.setTimeout(() => openHelpModal(), 400);
-    }
-  } catch {
-    // ignore persistence errors
-  }
 }
 
 function getNextLabel(team: Team, players: Player[]): string {

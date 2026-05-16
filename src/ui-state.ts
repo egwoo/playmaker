@@ -1,3 +1,13 @@
+export type PlayMode = 'design' | 'game';
+export type PlaybookRole = 'coach' | 'player';
+
+type PlayModeState = {
+  persistedPlayMode: PlayMode;
+  currentRole: PlaybookRole | null;
+  currentUserId: string | null;
+  sharedPlayActive: boolean;
+};
+
 export function resolveSelectedPlaybookId<T extends { id: string }>(
   playbooks: T[],
   currentSelectedPlaybookId: string | null,
@@ -13,4 +23,23 @@ export function resolveSelectedPlaybookId<T extends { id: string }>(
     }
   }
   return playbooks[0]?.id ?? null;
+}
+
+export function isGuestScratchMode(state: Pick<PlayModeState, 'currentUserId' | 'sharedPlayActive'>): boolean {
+  return !state.currentUserId && !state.sharedPlayActive;
+}
+
+export function resolveEffectivePlayMode(state: PlayModeState): PlayMode {
+  if (isGuestScratchMode(state)) {
+    return 'design';
+  }
+  return state.currentRole === 'coach' ? state.persistedPlayMode : 'game';
+}
+
+export function canEditPlayForState(state: PlayModeState): boolean {
+  return (
+    resolveEffectivePlayMode(state) === 'design' &&
+    !state.sharedPlayActive &&
+    (!state.currentUserId || state.currentRole === 'coach')
+  );
 }

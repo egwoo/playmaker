@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveSelectedPlaybookId } from './ui-state';
+import { canEditPlayForState, resolveEffectivePlayMode, resolveSelectedPlaybookId } from './ui-state';
 
 describe('resolveSelectedPlaybookId', () => {
   const playbooks = [
@@ -23,5 +23,75 @@ describe('resolveSelectedPlaybookId', () => {
 
   it('returns null when there are no playbooks', () => {
     expect(resolveSelectedPlaybookId([], 'alpha', 'alpha')).toBeNull();
+  });
+});
+
+describe('resolveEffectivePlayMode', () => {
+  it('puts anonymous scratch sessions into design mode even when the saved mode is plays', () => {
+    expect(
+      resolveEffectivePlayMode({
+        persistedPlayMode: 'game',
+        currentRole: null,
+        currentUserId: null,
+        sharedPlayActive: false
+      })
+    ).toBe('design');
+  });
+
+  it('keeps anonymous shared play links in plays mode', () => {
+    expect(
+      resolveEffectivePlayMode({
+        persistedPlayMode: 'design',
+        currentRole: null,
+        currentUserId: null,
+        sharedPlayActive: true
+      })
+    ).toBe('game');
+  });
+
+  it('uses the saved mode for coaches', () => {
+    expect(
+      resolveEffectivePlayMode({
+        persistedPlayMode: 'design',
+        currentRole: 'coach',
+        currentUserId: 'user-1',
+        sharedPlayActive: false
+      })
+    ).toBe('design');
+  });
+
+  it('keeps players in plays mode even if design was saved', () => {
+    expect(
+      resolveEffectivePlayMode({
+        persistedPlayMode: 'design',
+        currentRole: 'player',
+        currentUserId: 'user-1',
+        sharedPlayActive: false
+      })
+    ).toBe('game');
+  });
+});
+
+describe('canEditPlayForState', () => {
+  it('allows anonymous scratch sessions to edit', () => {
+    expect(
+      canEditPlayForState({
+        persistedPlayMode: 'game',
+        currentRole: null,
+        currentUserId: null,
+        sharedPlayActive: false
+      })
+    ).toBe(true);
+  });
+
+  it('does not allow anonymous shared play links to edit', () => {
+    expect(
+      canEditPlayForState({
+        persistedPlayMode: 'design',
+        currentRole: null,
+        currentUserId: null,
+        sharedPlayActive: true
+      })
+    ).toBe(false);
   });
 });
