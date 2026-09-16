@@ -710,6 +710,31 @@ body.high-contrast {
   background: #fffdf7;
 }
 
+.playbook-access {
+  margin-top: 20px;
+  max-height: 45vh;
+  overflow-y: auto;
+}
+
+.playbook-access h3 {
+  margin: 0 0 8px;
+}
+
+.access-member > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.access-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.access-actions p {
+  flex-basis: 100%;
+}
+
 @media (max-width: 720px) {
   .history-body {
     grid-template-columns: 1fr;

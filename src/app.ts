@@ -4634,38 +4634,15 @@ Sharing a playbook with assistants is confusing."
       return null;
     }
 
-    const { data: existingShare, error: existingError } = await supabase
-      .from('playbook_shares')
-      .select('token')
-      .eq('playbook_id', selectedPlaybookId)
-      .eq('role', role)
-      .maybeSingle();
-    if (existingError) {
-      console.error('Failed to load playbook share', existingError);
-      setStatus('Unable to share playbook');
-      return null;
-    }
-    if (existingShare?.token) {
-      return buildShareUrl(existingShare.token, 'playbook');
-    }
-
-    const token = generateShareToken();
-    const { data, error } = await supabase
-      .from('playbook_shares')
-      .insert({
-        playbook_id: selectedPlaybookId,
-        role,
-        token,
-        created_by: currentUserId
-      })
-      .select('token')
-      .single();
+    const { data, error } = await supabase.rpc('get_or_create_playbook_share', {
+      pid: selectedPlaybookId, share_role: role
+    });
     if (error || !data) {
       console.error('Failed to create playbook share', error);
       setStatus('Unable to share playbook');
       return null;
     }
-    return buildShareUrl(data.token, 'playbook');
+    return buildShareUrl(data, 'playbook');
   }
 
   savePlayButton.addEventListener('click', async () => {
@@ -5861,9 +5838,10 @@ Sharing a playbook with assistants is confusing."
   }
 
   function openPlaybookShareModal(getLink: (role: 'player' | 'coach') => Promise<string | null>) {
-    if (document.querySelector('.auth-modal')) {
+    if (document.querySelector('.auth-modal') || !selectedPlaybookId || currentRole !== 'coach') {
       return;
     }
+    const playbookId = selectedPlaybookId;
     const usesNativeShare = shouldUseNativeShareSheet();
     const viewerActionLabel = usesNativeShare ? 'Share viewer link' : 'Copy viewer link';
     const collaboratorActionLabel = usesNativeShare ? 'Share collaborator link' : 'Copy collaborator link';
@@ -5897,6 +5875,12 @@ Sharing a playbook with assistants is confusing."
             <button type="button" class="secondary" data-share-collab>${collaboratorActionLabel}</button>
           </div>
         </div>
+        <section class="playbook-access" aria-label="People with access">
+          <h3>People with access</h3>
+          <p class="auth-modal-subtitle">People who have joined this playbook. Links you sent but haven’t been accepted won’t appear here.</p>
+          <p data-access-status role="status" aria-live="polite" tabindex="-1"></p>
+          <div class="share-link-list" data-access-members></div>
+        </section>
       </div>
     `;
     document.body.append(overlay);
@@ -5925,6 +5909,121 @@ Sharing a playbook with assistants is confusing."
 
     const viewButton = overlay.querySelector('[data-share-view]') as HTMLButtonElement | null;
     const collabButton = overlay.querySelector('[data-share-collab]') as HTMLButtonElement | null;
+
+    type Member = { user_id: string; email: string | null; role: 'player' | 'coach'; is_owner: boolean };
+    const membersList = overlay.querySelector('[data-access-members]') as HTMLDivElement;
+    const accessStatus = overlay.querySelector('[data-access-status]') as HTMLParagraphElement;
+    let members: Member[] = [];
+    let removing = false;
+    let confirming: string | null = null;
+
+    const renderMembers = () => {
+      membersList.replaceChildren();
+      for (const member of members) {
+        const row = document.createElement('div');
+        row.className = 'share-link-row access-member';
+        const identity = document.createElement('div');
+        const name = document.createElement('strong');
+        name.textContent = member.email || member.user_id;
+        const role = document.createElement('p');
+        role.className = 'auth-modal-subtitle';
+        role.textContent = member.is_owner ? 'Owner' : member.role === 'coach' ? 'Collaborator' : 'Viewer';
+        if (member.user_id === currentUserId) role.textContent += ' (you)';
+        identity.append(name, role);
+        row.append(identity);
+        if (!member.is_owner && member.user_id !== currentUserId) {
+          const controls = document.createElement('div');
+          controls.className = 'access-actions';
+          const remove = document.createElement('button');
+          remove.type = 'button';
+          remove.className = 'secondary';
+          remove.dataset.memberId = member.user_id;
+          remove.disabled = removing;
+          remove.textContent = confirming === member.user_id ? 'Confirm removal' : 'Remove access';
+          remove.setAttribute('aria-label', `${remove.textContent} for ${member.email || member.user_id}`);
+          remove.addEventListener('click', async () => {
+            if (removing) return;
+            if (confirming !== member.user_id) {
+              confirming = member.user_id;
+              renderMembers();
+              membersList.querySelector<HTMLButtonElement>(`[data-member-id="${member.user_id}"]`)?.focus();
+              return;
+            }
+            removing = true;
+            if (viewButton) viewButton.disabled = true;
+            if (collabButton) collabButton.disabled = true;
+            accessStatus.textContent = 'Removing access…';
+            renderMembers();
+            let failed = false;
+            try {
+              const { error } = await supabase.rpc('remove_playbook_member', {
+                pid: playbookId, member_user_id: member.user_id
+              });
+              if (error) throw error;
+              members = members.filter((item) => item.user_id !== member.user_id);
+              confirming = null;
+              accessStatus.textContent = 'Access removed. Both share links have been replaced. Copy new links above; existing members keep their access.';
+            } catch {
+              failed = true;
+              confirming = null;
+              accessStatus.textContent = 'Unable to confirm removal. Checking current access…';
+            } finally {
+              removing = false;
+              if (viewButton) viewButton.disabled = false;
+              if (collabButton) collabButton.disabled = false;
+              if (failed) await loadMembers(false);
+              else renderMembers();
+              if (overlay.isConnected) accessStatus.focus();
+            }
+          });
+          controls.append(remove);
+          if (confirming === member.user_id) {
+            const warning = document.createElement('p');
+            warning.className = 'auth-modal-subtitle';
+            warning.id = `remove-warning-${member.user_id}`;
+            remove.setAttribute('aria-describedby', warning.id);
+            warning.textContent = 'Remove this person and replace both share links? Old links will stop working for everyone. Existing members keep access.';
+            const cancel = document.createElement('button');
+            cancel.type = 'button';
+            cancel.className = 'secondary';
+            cancel.textContent = 'Cancel';
+            cancel.disabled = removing;
+            cancel.addEventListener('click', () => {
+              confirming = null;
+              renderMembers();
+              membersList.querySelector<HTMLButtonElement>(`[data-member-id="${member.user_id}"]`)?.focus();
+            });
+            controls.prepend(warning);
+            controls.append(cancel);
+          }
+          row.append(controls);
+        }
+        membersList.append(row);
+      }
+    };
+
+    const loadMembers = async (showLoading = true) => {
+      if (showLoading) accessStatus.textContent = 'Loading members…';
+      try {
+        const { data, error } = await supabase.rpc('list_playbook_members', { pid: playbookId });
+        if (error) throw error;
+        members = data ?? [];
+        accessStatus.textContent = showLoading
+          ? (members.length ? '' : 'No members found.')
+          : 'Could not confirm removal. The member list is now up to date.';
+        renderMembers();
+      } catch {
+        membersList.replaceChildren();
+        accessStatus.textContent = 'Unable to load people with access.';
+        const retry = document.createElement('button');
+        retry.type = 'button';
+        retry.className = 'secondary';
+        retry.textContent = 'Retry';
+        retry.addEventListener('click', () => { void loadMembers(); });
+        membersList.append(retry);
+      }
+    };
+    void loadMembers();
 
     viewButton?.addEventListener('click', async () => {
       const link = await getLink('player');
