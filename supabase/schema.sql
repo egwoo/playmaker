@@ -301,7 +301,20 @@ set row_security = off
 as $$
 declare
   share_row record;
+  target_playbook_id uuid;
 begin
+  if auth.uid() is null then
+    raise exception 'Sign in to accept a playbook invitation' using errcode = '42501';
+  end if;
+
+  select s.playbook_id into target_playbook_id
+  from public.playbook_shares s where s.token = share_token;
+  if target_playbook_id is null then
+    return;
+  end if;
+
+  -- Serialize joining with removal, then recheck the token after any wait.
+  perform 1 from public.playbooks p where p.id = target_playbook_id for update;
   select * into share_row
   from public.playbook_shares
   where token = share_token
@@ -325,6 +338,92 @@ begin
            (select name from public.playbooks p where p.id = share_row.playbook_id);
 end;
 $$;
+
+create or replace function public.get_or_create_playbook_share(pid uuid, share_role text)
+returns text
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+declare
+  share_token text;
+begin
+  -- All link creation must serialize with removal, including a previously absent role.
+  perform 1 from public.playbooks p where p.id = pid for update;
+  if not public.is_playbook_coach(pid) then
+    raise exception 'Only coaches can share playbooks' using errcode = '42501';
+  end if;
+  if share_role is null or share_role not in ('coach', 'player') then
+    raise exception 'Invalid playbook share role' using errcode = '22023';
+  end if;
+  insert into public.playbook_shares (playbook_id, token, role, created_by)
+    values (pid, gen_random_uuid()::text, share_role, auth.uid())
+    on conflict (playbook_id, role) do nothing;
+  select s.token into share_token from public.playbook_shares s
+    where s.playbook_id = pid and s.role = share_role;
+  return share_token;
+end;
+$$;
+
+create or replace function public.list_playbook_members(pid uuid)
+returns table (user_id uuid, email text, role text, is_owner boolean, joined_at timestamptz)
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+begin
+  if not public.is_playbook_coach(pid) then
+    raise exception 'Only coaches can manage playbook access' using errcode = '42501';
+  end if;
+  return query
+    select m.user_id, u.email::text, m.role, p.owner_id = m.user_id, m.created_at
+    from public.playbook_members m
+    join public.playbooks p on p.id = m.playbook_id
+    join auth.users u on u.id = m.user_id
+    where m.playbook_id = pid
+    order by (p.owner_id = m.user_id) desc, m.created_at, m.user_id;
+end;
+$$;
+
+create or replace function public.remove_playbook_member(pid uuid, member_user_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+declare
+  playbook_owner_id uuid;
+begin
+  select p.owner_id into playbook_owner_id
+    from public.playbooks p where p.id = pid for update;
+  -- Check authorization after obtaining the lock in case this coach was removed.
+  if not public.is_playbook_coach(pid) then
+    raise exception 'Only coaches can manage playbook access' using errcode = '42501';
+  end if;
+  if member_user_id = playbook_owner_id or member_user_id = auth.uid() then
+    raise exception 'You cannot remove the owner or yourself' using errcode = '42501';
+  end if;
+
+  delete from public.playbook_members m
+    where m.playbook_id = pid and m.user_id = member_user_id;
+  if not found then
+    raise exception 'This person no longer has access' using errcode = 'P0002';
+  end if;
+  -- Rotate both roles so no previously distributed link can restore access.
+  update public.playbook_shares s set token = gen_random_uuid()::text
+    where s.playbook_id = pid;
+end;
+$$;
+
+revoke all on function public.get_or_create_playbook_share(uuid, text) from public;
+grant execute on function public.get_or_create_playbook_share(uuid, text) to authenticated;
+revoke all on function public.list_playbook_members(uuid) from public;
+revoke all on function public.remove_playbook_member(uuid, uuid) from public;
+grant execute on function public.list_playbook_members(uuid) to authenticated;
+grant execute on function public.remove_playbook_member(uuid, uuid) to authenticated;
 
 create or replace function public.prune_play_versions(pid uuid)
 returns void
@@ -376,26 +475,17 @@ create policy "members_read" on public.playbook_members
 for select using (public.is_playbook_member(playbook_id));
 
 drop policy if exists "members_insert" on public.playbook_members;
-create policy "members_insert" on public.playbook_members
-for insert with check (
-  public.is_playbook_coach(playbook_id)
-  or exists (
-    select 1
-    from public.playbooks p
-    where p.id = playbook_id
-      and p.owner_id = auth.uid()
-  )
-);
-
 drop policy if exists "members_update" on public.playbook_members;
-create policy "members_update" on public.playbook_members
-for update using (public.is_playbook_coach(playbook_id));
+-- Joining and membership changes go through RPCs to serialize with removal.
 
 drop policy if exists "members_delete" on public.playbook_members;
 create policy "members_delete" on public.playbook_members
 for delete using (
-  public.is_playbook_coach(playbook_id)
-  or user_id = auth.uid()
+  user_id = auth.uid()
+  and not exists (
+    select 1 from public.playbooks p
+    where p.id = playbook_id and p.owner_id = auth.uid()
+  )
 );
 
 drop policy if exists "plays_read" on public.plays;
@@ -435,16 +525,9 @@ create policy "playbook_shares_read" on public.playbook_shares
 for select using (public.is_playbook_coach(playbook_id));
 
 drop policy if exists "playbook_shares_write" on public.playbook_shares;
-create policy "playbook_shares_write" on public.playbook_shares
-for insert with check (public.is_playbook_coach(playbook_id));
-
 drop policy if exists "playbook_shares_update" on public.playbook_shares;
-create policy "playbook_shares_update" on public.playbook_shares
-for update using (public.is_playbook_coach(playbook_id));
-
 drop policy if exists "playbook_shares_delete" on public.playbook_shares;
-create policy "playbook_shares_delete" on public.playbook_shares
-for delete using (public.is_playbook_coach(playbook_id));
+-- Link mutations must acquire the same lock as removal via the RPCs above.
 
 drop policy if exists "play_versions_read" on public.play_versions;
 create policy "play_versions_read" on public.play_versions
