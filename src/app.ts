@@ -18,6 +18,7 @@ import { createRenderer } from './renderer';
 import { loadDraftPlay, saveDraftPlay } from './storage';
 import { renderIcons } from './icons';
 import { supabase } from './supabase';
+import { copyPlayToPlaybook, snapshotPlayForCopy, type PlayCopySource } from './play-copy';
 import {
   canEditPlayForState,
   isGuestScratchMode,
@@ -168,6 +169,7 @@ export function initApp() {
   const saveMenu = document.getElementById('save-menu');
   const saveAsNewButton = document.getElementById('save-as-new') as HTMLButtonElement | null;
   const sharePlayButton = document.getElementById('share-play') as HTMLButtonElement | null;
+  const copyPlayButton = document.getElementById('copy-play') as HTMLButtonElement | null;
   const helpTrigger = document.getElementById('help-trigger') as HTMLButtonElement | null;
   const helpMenu = document.getElementById('help-menu');
   const helpMenuOpen = document.getElementById('help-menu-open') as HTMLButtonElement | null;
@@ -279,6 +281,7 @@ export function initApp() {
     !saveMenu ||
     !saveAsNewButton ||
     !sharePlayButton ||
+    !copyPlayButton ||
     !helpTrigger ||
     !helpMenu ||
     !helpMenuOpen ||
@@ -432,6 +435,50 @@ export function initApp() {
   let lastTouchEndX = 0;
   let lastTouchEndY = 0;
   const contextMenuClosers: Array<(except?: HTMLElement) => void> = [];
+  const gamePlayMenu = document.createElement('div');
+  gamePlayMenu.className = 'split-menu context-menu is-hidden';
+  gamePlayMenu.setAttribute('role', 'menu');
+  const gameCopyButton = document.createElement('button');
+  gameCopyButton.type = 'button';
+  gameCopyButton.className = 'split-menu-item';
+  gameCopyButton.setAttribute('role', 'menuitem');
+  gameCopyButton.textContent = 'Copy to playbook…';
+  gamePlayMenu.append(gameCopyButton);
+  let gamePlayMenuToggle: HTMLButtonElement | null = null;
+  let gamePlayMenuSourceId: string | null = null;
+  contextMenuClosers.push(closeGamePlayMenu);
+
+  function closeGamePlayMenu(except?: HTMLElement) {
+    if (except === gamePlayMenu) {
+      return;
+    }
+    gamePlayMenu.classList.add('is-hidden');
+    gamePlayMenuToggle?.setAttribute('aria-expanded', 'false');
+    gamePlayMenuToggle = null;
+    gamePlayMenuSourceId = null;
+  }
+
+  document.addEventListener('click', (event) => {
+    const target = event.target as Node | null;
+    if (target && !gamePlayMenu.contains(target) && !gamePlayMenuToggle?.contains(target)) {
+      closeGamePlayMenu();
+    }
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && gamePlayMenuToggle) {
+      const toggle = gamePlayMenuToggle;
+      closeGamePlayMenu();
+      toggle.focus();
+    }
+  });
+  gameCopyButton.addEventListener('click', () => {
+    const entry = savedPlays.find((item) => item.id === gamePlayMenuSourceId);
+    const returnFocus = gamePlayMenuToggle;
+    closeGamePlayMenu();
+    if (entry) {
+      openCopyPlayModal(entry, returnFocus);
+    }
+  });
   const debugEnabled = new URLSearchParams(window.location.search).has('debug');
   let debugOverlay: HTMLDivElement | null = null;
 
@@ -1820,6 +1867,8 @@ Sharing a playbook with assistants is confusing."
   }
 
   function renderGamePlayList() {
+    closeGamePlayMenu();
+    gamePlayMenu.remove();
     gamePlayList.replaceChildren();
     playGridButton.disabled = !currentUserId || !selectedPlaybookId || savedPlays.length === 0;
     playGridButton.classList.toggle('is-active', isPlayGridViewActive());
@@ -1935,6 +1984,33 @@ Sharing a playbook with assistants is confusing."
       }
 
       row.append(button);
+      if (canReorder) {
+        const menuWrapper = document.createElement('div');
+        menuWrapper.className = 'menu-wrapper game-play-menu-wrapper';
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'secondary icon-button';
+        toggle.setAttribute('aria-label', `Options for ${entry.name}`);
+        toggle.setAttribute('aria-haspopup', 'menu');
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.innerHTML = '<span data-lucide="more-vertical" aria-hidden="true"></span>';
+        toggle.addEventListener('click', (event) => {
+          event.stopPropagation();
+          const wasOpen = gamePlayMenuToggle === toggle;
+          closeAllContextMenus();
+          closeSaveMenu();
+          if (!wasOpen) {
+            menuWrapper.append(gamePlayMenu);
+            gamePlayMenuToggle = toggle;
+            gamePlayMenuSourceId = entry.id;
+            gamePlayMenu.classList.remove('is-hidden');
+            toggle.setAttribute('aria-expanded', 'true');
+            gameCopyButton.focus();
+          }
+        });
+        menuWrapper.append(toggle);
+        row.append(menuWrapper);
+      }
       gamePlayList.append(row);
     }
     renderIcons(gamePlayList);
@@ -2453,7 +2529,7 @@ Sharing a playbook with assistants is confusing."
     newPlayButton.disabled = disable;
     savePlayButton.disabled = disable;
     saveMenuToggle.disabled = disable;
-    playMenuToggle.disabled = disable || !selectedSavedPlayId;
+    playMenuToggle.disabled = currentRole !== 'coach' || sharedPlayActive || !selectedSavedPlayId;
     renamePlayButton.disabled = disable || !selectedSavedPlayId;
     deletePlayButton.disabled = disable || !selectedSavedPlayId;
     const hasPlaybook = !!selectedPlaybookId;
@@ -2698,7 +2774,7 @@ Sharing a playbook with assistants is confusing."
     currentTags = [];
     setPlayGridFilters(loadPlayGridFiltersPreference(playbookId));
     syncTagState();
-    const restorePlayGridView = playMode === 'game' && loadPlayGridViewPreference(playbookId) && savedPlays.length > 0;
+    const restorePlayGridView = !sharedPlayActive && playMode === 'game' && loadPlayGridViewPreference(playbookId) && savedPlays.length > 0;
     if (restorePlayGridView) {
       setPlayGridView(true);
       renderSavedPlaysSelect();
@@ -2707,7 +2783,7 @@ Sharing a playbook with assistants is confusing."
       return;
     }
     const lastSelected = getLastSelectedPlay(playbookId);
-    if (lastSelected && savedPlays.some((entry) => entry.id === lastSelected)) {
+    if (!sharedPlayActive && lastSelected && savedPlays.some((entry) => entry.id === lastSelected)) {
       selectSavedPlayById(lastSelected);
       return;
     }
@@ -2833,6 +2909,7 @@ Sharing a playbook with assistants is confusing."
     savePlayButton.disabled = !canSaveRemote && !canStartGuestSave;
     saveMenuToggle.disabled = !canSaveRemote;
     sharePlayButton.disabled = !canSaveRemote;
+    copyPlayButton!.disabled = !currentUserId || currentRole !== 'coach' || !selectedSavedPlayId || sharedPlayActive;
   }
 
   function getCurrentPlayName(): string {
@@ -4751,6 +4828,14 @@ Sharing a playbook with assistants is confusing."
     closeSaveMenu();
   });
 
+  copyPlayButton.addEventListener('click', () => {
+    closePlayMenu();
+    const entry = savedPlays.find((item) => item.id === selectedSavedPlayId);
+    if (entry) {
+      openCopyPlayModal(entry, playMenuToggle);
+    }
+  });
+
   sharePlayButton.addEventListener('click', async () => {
     closePlayMenu();
     await copyShareLink();
@@ -5763,6 +5848,194 @@ Sharing a playbook with assistants is confusing."
     renderList();
   }
 
+  async function openCopiedPlaybook(playbookId: string, playId: string) {
+    const destination = playbooks.find((book) => book.id === playbookId);
+    if (!currentUserId || !destination) {
+      setStatus('Sign in to open this playbook');
+      return;
+    }
+    selectedPlaybookId = destination.id;
+    saveLastSelectedPlaybook(destination.id);
+    currentRole = destination.role;
+    selectedSavedPlayId = null;
+    savedPlays = [];
+    setLastSelectedPlay(destination.id, playId);
+    setPlayGridView(false);
+    renderPlaybookSelect();
+    syncEditorMode();
+    await loadPlaysForPlaybook(destination.id);
+  }
+
+  function openCopyPlayModal(entry: RemotePlay, returnFocus: HTMLElement | null = null) {
+    if (document.querySelector('.auth-modal') || !currentUserId || currentRole !== 'coach' || sharedPlayActive) {
+      return;
+    }
+    const userId = currentUserId;
+    const isCurrentPlay = entry.id === selectedSavedPlayId;
+    const source: PlayCopySource = snapshotPlayForCopy({
+      name: entry.name,
+      play: isCurrentPlay ? play : entry.play,
+      notes: isCurrentPlay ? currentNotes : entry.notes,
+      tags: (isCurrentPlay ? currentTags : entry.tags).map((name) => {
+        const tag = getTagDefinition(name);
+        return { name: tag.name, color: tag.color };
+      })
+    });
+    const destinations = playbooks.filter((book) => book.role === 'coach' && book.id !== selectedPlaybookId);
+    const overlay = document.createElement('div');
+    overlay.className = 'auth-modal';
+    overlay.innerHTML = `
+      <div class="auth-modal-card" role="dialog" aria-modal="true" aria-labelledby="copy-play-title" aria-describedby="copy-play-description">
+        <div class="auth-modal-header">
+          <div>
+            <p class="auth-modal-title" id="copy-play-title">Copy to playbook</p>
+            <p class="auth-modal-subtitle" id="copy-play-description">Copy this play, including its notes and tags.</p>
+          </div>
+          <button type="button" class="icon-button" data-copy-close aria-label="Close copy dialog">
+            <span data-lucide="x" aria-hidden="true"></span>
+          </button>
+        </div>
+        <form class="auth-email-row" data-copy-form>
+          <label class="field-label">
+            Destination playbook
+            <select data-copy-playbook required></select>
+          </label>
+          <label class="field-label">
+            Play name
+            <input type="text" data-copy-name placeholder="Play name" required />
+          </label>
+          <p class="copy-play-error is-hidden" data-copy-error role="alert"></p>
+          <div class="copy-play-actions">
+            <button type="button" class="secondary" data-copy-cancel>Cancel</button>
+            <button type="submit" class="primary" data-copy-submit>Copy</button>
+          </div>
+        </form>
+        <div class="copy-play-actions is-hidden" data-copy-result>
+          <button type="button" class="secondary" data-copy-done>Done</button>
+          <button type="button" class="primary" data-copy-open>Open playbook</button>
+        </div>
+      </div>
+    `;
+    const form = overlay.querySelector<HTMLFormElement>('[data-copy-form]')!;
+    const destinationSelect = overlay.querySelector<HTMLSelectElement>('[data-copy-playbook]')!;
+    const nameInput = overlay.querySelector<HTMLInputElement>('[data-copy-name]')!;
+    const submitButton = overlay.querySelector<HTMLButtonElement>('[data-copy-submit]')!;
+    const closeButton = overlay.querySelector<HTMLButtonElement>('[data-copy-close]')!;
+    const cancelButton = overlay.querySelector<HTMLButtonElement>('[data-copy-cancel]')!;
+    const openButton = overlay.querySelector<HTMLButtonElement>('[data-copy-open]')!;
+    const errorText = overlay.querySelector<HTMLElement>('[data-copy-error]')!;
+    const title = overlay.querySelector<HTMLElement>('#copy-play-title')!;
+    const description = overlay.querySelector<HTMLElement>('#copy-play-description')!;
+    let isSaving = false;
+    let copiedPlay: { playbookId: string; playId: string } | null = null;
+
+    destinations.forEach((book) => {
+      const label = Array.from(playbookSelect!.options).find((option) => option.value === book.id)?.textContent;
+      destinationSelect.append(new Option(label ?? book.name, book.id));
+    });
+    if (destinations.length === 0) {
+      destinationSelect.append(new Option('No other editable playbooks', ''));
+      destinationSelect.disabled = true;
+      submitButton.disabled = true;
+      description.textContent = 'Create another playbook or join one as a coach to copy this play.';
+    }
+    nameInput.value = source.name;
+    nameInput.addEventListener('input', () => nameInput.setCustomValidity(''));
+    document.body.append(overlay);
+    renderIcons(overlay);
+    destinationSelect.disabled ? closeButton.focus() : destinationSelect.focus();
+
+    const close = () => {
+      if (isSaving) {
+        return;
+      }
+      overlay.remove();
+      document.removeEventListener('keydown', onKey);
+      if (returnFocus?.isConnected) {
+        returnFocus.focus();
+      }
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        close();
+      } else if (event.key === 'Tab') {
+        const controls = Array.from(overlay.querySelectorAll<HTMLElement>('button, input, select'))
+          .filter((control) => !control.hasAttribute('disabled') && control.getClientRects().length > 0);
+        const first = controls[0];
+        const last = controls[controls.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) {
+        close();
+      }
+    });
+    closeButton.addEventListener('click', close);
+    cancelButton.addEventListener('click', close);
+    overlay.querySelector('[data-copy-done]')!.addEventListener('click', close);
+    openButton.addEventListener('click', () => {
+      if (copiedPlay) {
+        close();
+        void openCopiedPlaybook(copiedPlay.playbookId, copiedPlay.playId);
+      }
+    });
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (isSaving || copiedPlay) {
+        return;
+      }
+      const name = nameInput.value.trim();
+      if (!name) {
+        nameInput.setCustomValidity('Enter a play name');
+        nameInput.reportValidity();
+        return;
+      }
+      const destination = destinations.find((book) => book.id === destinationSelect.value);
+      if (!destination || currentUserId !== userId) {
+        errorText.textContent = 'Select a playbook you can edit while signed in.';
+        errorText.classList.remove('is-hidden');
+        return;
+      }
+      isSaving = true;
+      [submitButton, closeButton, cancelButton, destinationSelect, nameInput].forEach((control) => {
+        control.disabled = true;
+      });
+      submitButton.textContent = 'Copying…';
+      errorText.classList.add('is-hidden');
+      try {
+        const copied = await copyPlayToPlaybook(supabase, source, destination.id, name, userId);
+        copiedPlay = { playbookId: destination.id, playId: copied.id };
+        void recordPlayVersion(copied.id, copied.name, source.play).catch((error) => {
+          console.error('Failed to record copied play version', error);
+        });
+        title.textContent = 'Play copied';
+        description.textContent = `Copied to “${destination.name}”.`;
+        form.classList.add('is-hidden');
+        overlay.querySelector('[data-copy-result]')!.classList.remove('is-hidden');
+        openButton.focus();
+      } catch (error) {
+        console.error('Failed to copy play', error);
+        errorText.textContent = 'Unable to copy this play. Please try again.';
+        errorText.classList.remove('is-hidden');
+      } finally {
+        isSaving = false;
+        [submitButton, closeButton, cancelButton, destinationSelect, nameInput].forEach((control) => {
+          control.disabled = false;
+        });
+        submitButton.textContent = 'Copy';
+      }
+    });
+  }
+
   function openSharedSaveModal(defaultName: string): Promise<{ playbookId: string; name: string } | null> {
     if (document.querySelector('.auth-modal')) {
       return Promise.resolve(null);
@@ -5829,7 +6102,9 @@ Sharing a playbook with assistants is confusing."
           option.textContent = book.name;
           playbookSelectEl.append(option);
         });
-        playbookSelectEl.value = selectedPlaybookId ?? editablePlaybooks[0].id;
+        playbookSelectEl.value = editablePlaybooks.some((book) => book.id === selectedPlaybookId)
+          ? selectedPlaybookId!
+          : editablePlaybooks[0].id;
       }
 
       if (nameInput) {
@@ -6337,25 +6612,40 @@ Sharing a playbook with assistants is confusing."
       openAuthModal();
       return;
     }
-    const name = sharedPlayName ?? getCurrentPlayName();
-    const result = await openSharedSaveModal(name);
+    const userId = currentUserId;
+    const source = snapshotPlayForCopy({
+      name: sharedPlayName ?? getCurrentPlayName(),
+      play,
+      notes: currentNotes,
+      tags: currentTags.map((name) => {
+        const tag = getTagDefinition(name);
+        return { name: tag.name, color: tag.color };
+      })
+    });
+    const result = await openSharedSaveModal(source.name);
     if (!result) {
       return;
     }
-    selectedPlaybookId = result.playbookId;
-    saveLastSelectedPlaybook(selectedPlaybookId);
-    const current = playbooks.find((item) => item.id === selectedPlaybookId);
-    currentRole = current?.role ?? null;
-    renderPlaybookSelect();
-    await loadPlaysForPlaybook(selectedPlaybookId);
-    await savePlayAsNew(result.name);
-    clearShareParam('share');
-    sharedPlayActive = false;
-    sharedPlayToken = null;
-    sharedPlayModalDismissed = false;
-    sharedPlayModalClose?.();
-    syncEditorMode();
-    updateSharedPlayUI();
+    sharedPlayAction.disabled = true;
+    try {
+      const copied = await copyPlayToPlaybook(supabase, source, result.playbookId, result.name, userId);
+      void recordPlayVersion(copied.id, copied.name, source.play).catch((error) => {
+        console.error('Failed to record shared play version', error);
+      });
+      clearShareParam('share');
+      sharedPlayActive = false;
+      sharedPlayToken = null;
+      sharedPlayModalDismissed = false;
+      sharedPlayModalClose?.();
+      await openCopiedPlaybook(result.playbookId, copied.id);
+      updateSharedPlayUI();
+      setStatus('Saved new play');
+    } catch (error) {
+      console.error('Failed to save shared play', error);
+      setStatus('Unable to save shared play');
+    } finally {
+      sharedPlayAction.disabled = false;
+    }
   });
 
   sharedPlaybookAction.addEventListener('click', async () => {

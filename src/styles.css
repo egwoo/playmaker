@@ -1026,6 +1026,36 @@ input.toggle:checked::after {
 
 .game-play-row {
   display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.game-play-row > .game-play-item {
+  flex: 1;
+  min-width: 0;
+}
+
+.game-play-menu-wrapper {
+  flex: 0 0 auto;
+}
+
+.game-play-menu-wrapper > .icon-button {
+  min-height: 44px;
+}
+
+.copy-play-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.copy-play-actions > button {
+  flex: 1;
+}
+
+.copy-play-error {
+  margin: 0;
+  color: #a33220;
 }
 
 .game-play-row.is-dragging {

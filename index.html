@@ -208,6 +208,12 @@
                       Sign in to access
                     </button>
                   </div>
+                  <div class="share-banner is-hidden" id="shared-play-banner">
+                    <div class="share-banner-text" id="shared-play-text">Shared play link.</div>
+                    <button type="button" id="shared-play-action" class="secondary">
+                      Sign in to save this play
+                    </button>
+                  </div>
                   <div class="panel-block">
                     <div class="segmented" role="group" aria-label="Mode selection">
                       <button type="button" class="segmented-button active" data-mode="game">
@@ -231,6 +237,9 @@
                         <span data-lucide="more-vertical" aria-hidden="true"></span>
                       </button>
                       <div class="split-menu context-menu is-hidden" id="play-menu" role="menu">
+                        <button type="button" id="copy-play" class="split-menu-item" role="menuitem">
+                          Copy to playbook…
+                        </button>
                         <button type="button" id="share-play" class="split-menu-item" role="menuitem">
                           Share
                         </button>
@@ -245,12 +254,6 @@
                         </button>
                       </div>
                     </div>
-                  </div>
-                  <div class="share-banner is-hidden" id="shared-play-banner">
-                    <div class="share-banner-text" id="shared-play-text">Shared play link.</div>
-                    <button type="button" id="shared-play-action" class="secondary">
-                      Sign in to save this play
-                    </button>
                   </div>
                   <label class="toggle-row" id="locked-toggle-row">
                     <span>Locked</span>
