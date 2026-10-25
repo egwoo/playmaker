@@ -100,7 +100,7 @@ export function createStarterPlay(): Play {
         route: [
           { to: fieldPoint(11, 4), speed: 7 },
           { to: fieldPoint(5, 1.5), speed: 7 },
-          { to: fieldPoint(4, -12), speed: 7 }
+          { to: fieldPoint(4, -1), speed: 7 }
         ]
       },
       {
