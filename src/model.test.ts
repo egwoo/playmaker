@@ -181,3 +181,49 @@ describe('serializePlay / deserializePlay', () => {
     ).toBeNull();
   });
 });
+
+describe('route defenders', () => {
+  const routeDefender: Player = {
+    id: 'd1',
+    label: 'D1',
+    team: 'defense',
+    start: { x: 0, y: 0.5 },
+    startDelay: -1,
+    assignment: { type: 'route' },
+    route: [{ to: { x: 1, y: 0.5 }, speed: FIELD_WIDTH_YARDS / 2 }]
+  };
+
+  it('moves along its route, including before the snap', () => {
+    expect(getPlayerPositionAtTime(routeDefender, -1)).toEqual({ x: 0, y: 0.5 });
+    expect(getPlayerPositionAtTime(routeDefender, 0)).toEqual({ x: 0.5, y: 0.5 });
+    expect(getPlayerPositionAtTime(routeDefender, 3)).toEqual({ x: 1, y: 0.5 });
+  });
+
+  it('counts toward the play duration', () => {
+    expect(getPlayDuration({ players: [routeDefender] })).toBe(1);
+  });
+
+  it('keeps the path when serialized', () => {
+    const play: Play = { players: [routeDefender] };
+    expect(deserializePlay(serializePlay(play))).toEqual(play);
+  });
+
+  it('drops leftover paths on man and zone defenders', () => {
+    const parsed = deserializePlay(
+      JSON.stringify({
+        players: [
+          {
+            id: 'd2',
+            label: 'D2',
+            team: 'defense',
+            start: { x: 0.5, y: 0.4 },
+            assignment: { type: 'zone', radiusX: 10, radiusY: 5, speed: 6 },
+            route: [{ to: { x: 0.6, y: 0.4 }, speed: 6 }]
+          }
+        ]
+      })
+    );
+    expect(parsed?.players[0].route).toBeUndefined();
+    expect(getPlayDuration(parsed!)).toBe(0);
+  });
+});

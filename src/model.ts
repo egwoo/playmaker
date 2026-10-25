@@ -21,7 +21,6 @@ export interface RouteAction {
   targetId: string;
 }
 
-export type DefenseAssignmentType = 'man';
 
 export interface ManAssignment {
   type: 'man';
@@ -36,7 +35,12 @@ export interface ZoneAssignment {
   speed: number;
 }
 
-export type DefenseAssignment = ManAssignment | ZoneAssignment;
+// The defender runs its own waypoints (player.route) instead of reacting to the offense.
+export interface RouteAssignment {
+  type: 'route';
+}
+
+export type DefenseAssignment = ManAssignment | ZoneAssignment | RouteAssignment;
 
 export interface Player {
   id: string;
@@ -140,8 +144,12 @@ export function getPlayDuration(play: Play): number {
   }, 0);
 }
 
+export function followsRoute(player: Player): boolean {
+  return player.team === 'offense' || player.assignment?.type === 'route';
+}
+
 export function getPlayerPositionAtTime(player: Player, timeSeconds: number): Vec2 {
-  if (player.team === 'defense') {
+  if (!followsRoute(player)) {
     return { ...player.start };
   }
   const startDelay = player.startDelay ?? 0;
@@ -280,11 +288,19 @@ function parsePlayer(value: unknown): Player | null {
     return null;
   }
 
+  let assignment: DefenseAssignment | undefined;
+  if (team === 'defense' && 'assignment' in value && value.assignment !== undefined) {
+    if (!isDefenseAssignment(value.assignment)) {
+      return null;
+    }
+    assignment = value.assignment;
+  }
+
   let route: RouteLeg[] | undefined;
   let routeStyle: RouteLineStyle | undefined;
   let startDelay: number | undefined;
   let startAction: RouteAction | undefined;
-  if (team === 'offense') {
+  if (team === 'offense' || assignment?.type === 'route') {
     if ('routeStyle' in value && value.routeStyle !== undefined) {
       if (!isRouteLineStyle(value.routeStyle)) {
         return null;
@@ -304,7 +320,7 @@ function parsePlayer(value: unknown): Player | null {
       route = value.route;
     }
 
-    if ('startAction' in value && value.startAction !== undefined) {
+    if (team === 'offense' && 'startAction' in value && value.startAction !== undefined) {
       if (!isRouteAction(value.startAction)) {
         return null;
       }
@@ -312,19 +328,11 @@ function parsePlayer(value: unknown): Player | null {
     }
   }
 
-  let assignment: DefenseAssignment | undefined;
-  if (team === 'defense' && 'assignment' in value && value.assignment !== undefined) {
-    if (!isDefenseAssignment(value.assignment)) {
-      return null;
-    }
-    assignment = value.assignment;
-  }
-
   return { id, label, team, start, startDelay, route, routeStyle, startAction, assignment };
 }
 
 export function getRouteDuration(player: Player): number {
-  if (player.team === 'defense') {
+  if (!followsRoute(player)) {
     return 0;
   }
   const startDelay = player.startDelay ?? 0;
@@ -377,7 +385,7 @@ function isDefenseAssignment(value: unknown): value is DefenseAssignment {
   if (type === 'zone') {
     return isZoneAssignment(value);
   }
-  return false;
+  return type === 'route';
 }
 
 function isManAssignment(value: Record<string, unknown>): value is ManAssignment {

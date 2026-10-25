@@ -139,12 +139,12 @@ export function getTipCopy(id: TipId, playerLabel: string): TipCopy {
     case 'defense':
       return {
         title: 'Place defenders',
-        body: 'Tap the field to add a defender, then tap them to choose man or zone coverage.'
+        body: 'Tap the field to add a defender, then tap them to choose their coverage.'
       };
     case 'coverage':
       return {
         title: 'Coverage',
-        body: 'Man follows one receiver. Zone guards an area — drag the zone’s edges on the field to resize it.'
+        body: 'Man follows one receiver. Zone guards an area you can resize on the field. Route runs a path you tap out.'
       };
     case 'waypoint-details':
       return {

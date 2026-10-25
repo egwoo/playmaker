@@ -4,6 +4,7 @@ import {
   createEmptyPlay,
   createStarterPlay,
   deserializePlay,
+  followsRoute,
   getLegDuration,
   getPlayDuration,
   getPlayerPositionAtTime,
@@ -683,7 +684,7 @@ export function initApp() {
   function getDefenseDisplayLabel(mode: DefenseDisplayMode): string {
     switch (mode) {
       case 'hide-zones':
-        return 'Hide zones';
+        return 'Hide coverage';
       case 'hide-defense':
         return 'Hide defense';
       default:
@@ -1030,11 +1031,11 @@ export function initApp() {
     renamePlayerButton.disabled = !canEdit;
     playerMenuToggle.disabled = !canEdit;
     setSectionHidden(playerActions, false);
-    setSectionHidden(routeStyleRow, player.team === 'defense');
+    setSectionHidden(routeStyleRow, !followsRoute(player));
     routeStyleSelect.value = player.routeStyle ?? 'solid';
     routeStyleSelect.disabled = !canEdit;
-    setSectionHidden(waypointSection, player.team === 'defense');
-    if (player.team === 'offense') {
+    setSectionHidden(waypointSection, !followsRoute(player));
+    if (followsRoute(player)) {
       renderWaypointList(player);
     } else {
       waypointList.replaceChildren();
@@ -3276,7 +3277,10 @@ Sharing a playbook with assistants is confusing."
     const typeZone = document.createElement('option');
     typeZone.value = 'zone';
     typeZone.textContent = 'Zone';
-    coverageTypeSelect.append(typeZone);
+    const typeRoute = document.createElement('option');
+    typeRoute.value = 'route';
+    typeRoute.textContent = 'Route';
+    coverageTypeSelect.append(typeZone, typeRoute);
 
     const hasOffense = play.players.some((candidate) => candidate.team === 'offense');
     if (!hasOffense) {
@@ -3463,7 +3467,7 @@ Sharing a playbook with assistants is confusing."
       }
       applyMutation(() => {
         const target = getSelectedPlayer();
-        if (!target || target.team !== 'offense') {
+        if (!target || !followsRoute(target)) {
           return;
         }
         target.startDelay = nextDelay;
@@ -3502,7 +3506,12 @@ Sharing a playbook with assistants is confusing."
 
     const waypoint0Content = document.createElement('div');
     waypoint0Content.className = 'waypoint-content';
-    waypoint0Content.append(waypoint0DelayField, waypoint0ActionField);
+    // Defenders never carry the ball, so their waypoints have no pass/handoff action.
+    const canPassBall = player.team === 'offense';
+    waypoint0Content.append(waypoint0DelayField);
+    if (canPassBall) {
+      waypoint0Content.append(waypoint0ActionField);
+    }
     waypoint0Row.append(waypoint0Label, waypoint0Content);
 
     const waypoint0DefaultOpen = (player.startDelay ?? 0) !== 0 || !!player.startAction;
@@ -3680,7 +3689,10 @@ Sharing a playbook with assistants is confusing."
 
       const waypointContent = document.createElement('div');
       waypointContent.className = 'waypoint-content';
-      waypointContent.append(delayField, actionField);
+      waypointContent.append(delayField);
+      if (canPassBall) {
+        waypointContent.append(actionField);
+      }
       waypointRow.append(waypointLabel, waypointContent);
       const waypointIndex = index + 1;
       const waypointDefaultOpen = (leg.delay ?? 0) !== 0 || !!leg.action || !!leg.routeStyle;
@@ -3732,9 +3744,9 @@ Sharing a playbook with assistants is confusing."
   }
 
   function getPlaybackStartTimeForPlay(targetPlay: Play): number {
-    const offense = targetPlay.players.filter((player) => player.team === 'offense');
+    const movers = targetPlay.players.filter(followsRoute);
     let minStart = 0;
-    for (const player of offense) {
+    for (const player of movers) {
       const delay = player.startDelay ?? 0;
       if (delay < minStart) {
         minStart = delay;
@@ -3916,7 +3928,7 @@ Sharing a playbook with assistants is confusing."
   }
 
   function addWaypointAt(player: Player, point: { x: number; y: number }) {
-    if (player.team !== 'offense') {
+    if (!followsRoute(player)) {
       return;
     }
     const route = player.route ?? [];
@@ -4281,7 +4293,7 @@ Sharing a playbook with assistants is confusing."
     }
 
     const selectedForWaypoint = getSelectedPlayer();
-    if (canEdit && selectedForWaypoint?.team === 'offense') {
+    if (canEdit && selectedForWaypoint && followsRoute(selectedForWaypoint)) {
       const waypointIndex = renderer.hitTestWaypoint(point, selectedPlayerId, play);
       if (waypointIndex !== null) {
         startWaypointDrag(event.pointerId, waypointIndex);
@@ -4311,7 +4323,7 @@ Sharing a playbook with assistants is confusing."
 
     setPlayTime(0);
     const selectedPlayer = getSelectedPlayer();
-    if (selectedPlayer && selectedPlayer.team === 'offense') {
+    if (selectedPlayer && followsRoute(selectedPlayer)) {
       applyMutation(() => {
         addWaypointAt(selectedPlayer, world);
       });
@@ -4477,7 +4489,7 @@ Sharing a playbook with assistants is confusing."
     const routeStyle = parseRouteLineStyle(routeStyleSelect.value) ?? 'solid';
     applyMutation(() => {
       const target = getSelectedPlayer();
-      if (!target || target.team !== 'offense') {
+      if (!target || !followsRoute(target)) {
         return;
       }
       target.routeStyle = routeStyle === 'solid' ? undefined : routeStyle;
@@ -4494,6 +4506,16 @@ Sharing a playbook with assistants is confusing."
       if (!target) {
         return;
       }
+      if (type === 'route') {
+        target.assignment = { type: 'route' };
+        target.route = target.route ?? [];
+        target.startDelay = target.startDelay ?? 0;
+        return;
+      }
+      // Man and zone defenders react to the offense, so drop any drawn path.
+      target.route = undefined;
+      target.startDelay = undefined;
+      target.routeStyle = undefined;
       if (type === 'man') {
         const candidates = play.players.filter((player) => player.team === 'offense');
         const targetId = candidates[0]?.id;

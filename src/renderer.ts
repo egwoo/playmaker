@@ -4,6 +4,7 @@ import {
   FIELD_LENGTH_YARDS,
   FIELD_WIDTH_YARDS,
   LINE_OF_SCRIMMAGE_YARDS_FROM_TOP,
+  followsRoute,
   type Play,
   type RouteLineStyle,
   type Team,
@@ -185,7 +186,11 @@ export function createRenderer(canvas: HTMLCanvasElement) {
 
   function drawRoutes(ctx: CanvasRenderingContext2D, state: RenderState) {
     for (const player of state.play.players) {
-      if (player.team === 'defense') {
+      if (!followsRoute(player)) {
+        continue;
+      }
+      // Defender routes are coverage drawings, so they hide along with zones.
+      if (state.defenseDisplayMode !== 'show' && player.team === 'defense') {
         continue;
       }
       const route = player.route ?? [];

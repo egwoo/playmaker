@@ -35,7 +35,7 @@ describe('getPlayerPositionWithDefense', () => {
     expect(positionAtOne.y).toBeCloseTo(0, 2);
 
     const positionAtFive = getPlayerPositionWithDefense(play, defender, 5, { stepSeconds: 0.1 });
-    const maxTravel = (defender.assignment?.speed ?? 0) * 5;
+    const maxTravel = (defender.assignment?.type === 'man' ? defender.assignment.speed : 0) * 5;
     const expectedX = Math.min(1 - 1 / FIELD_WIDTH_YARDS, maxTravel / FIELD_WIDTH_YARDS);
     expect(positionAtFive.x).toBeCloseTo(expectedX, 2);
   });
@@ -175,5 +175,28 @@ describe('getPlayerPositionWithDefense', () => {
     const play: Play = { players: [defender] };
     const position = getPlayerPositionWithDefense(play, defender, 5, { stepSeconds: 0.1 });
     expect(position).toEqual({ x: 0.2, y: 0.4 });
+  });
+  it('follows a drawn route without reacting to the offense', () => {
+    const offense: Player = {
+      id: 'o1',
+      label: 'O1',
+      team: 'offense',
+      start: { x: 0.5, y: 0.5 }
+    };
+    const defender: Player = {
+      id: 'd1',
+      label: 'D1',
+      team: 'defense',
+      start: { x: 0.4, y: 0.5 },
+      assignment: { type: 'route' },
+      route: [{ to: { x: 0.6, y: 0.5 }, speed: 10 }]
+    };
+    const play: Play = { players: [offense, defender] };
+
+    // Runs straight through the receiver's spot even with a separation buffer.
+    const midway = getPlayerPositionWithDefense(play, defender, 0.5, { minSeparationYards: 2 });
+    expect(midway.x).toBeCloseTo(0.5, 6);
+    expect(midway.y).toBeCloseTo(0.5, 6);
+    expect(getPlayerPositionWithDefense(play, defender, 2)).toEqual({ x: 0.6, y: 0.5 });
   });
 });

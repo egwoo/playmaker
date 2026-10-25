@@ -34,6 +34,10 @@ export function getPlayerPositionWithDefense(
     return player.start;
   }
 
+  if (player.assignment.type === 'route') {
+    return getPlayerPositionAtTime(player, timeSeconds);
+  }
+
   if (player.assignment.type === 'man') {
     return getManCoveragePosition(play, player, timeSeconds, options);
   }
