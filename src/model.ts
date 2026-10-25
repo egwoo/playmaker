@@ -65,6 +65,74 @@ export function createEmptyPlay(): Play {
   return { players: [] };
 }
 
+// Shotgun snap with a slant/wheel combo on the left and a go route on the right.
+// The center is listed first so it starts with the ball.
+export function createStarterPlay(): Play {
+  return {
+    players: [
+      {
+        id: 'starter-c',
+        label: 'C',
+        team: 'offense',
+        start: fieldPoint(25, 1),
+        startAction: { type: 'handoff', targetId: 'starter-qb' },
+        route: [{ to: fieldPoint(25, -4), speed: 6 }]
+      },
+      {
+        id: 'starter-qb',
+        label: 'QB',
+        team: 'offense',
+        start: fieldPoint(25, 5),
+        route: [
+          {
+            to: fieldPoint(25, 6),
+            speed: 4,
+            delay: 0.5,
+            action: { type: 'pass', targetId: 'starter-x' }
+          }
+        ]
+      },
+      {
+        id: 'starter-rb',
+        label: 'RB',
+        team: 'offense',
+        start: fieldPoint(21, 5),
+        route: [
+          { to: fieldPoint(11, 4), speed: 7 },
+          { to: fieldPoint(5, 1.5), speed: 7 },
+          { to: fieldPoint(4, -12), speed: 7 }
+        ]
+      },
+      {
+        id: 'starter-x',
+        label: 'X',
+        team: 'offense',
+        start: fieldPoint(8, 1),
+        route: [
+          { to: fieldPoint(8, -2), speed: 7 },
+          { to: fieldPoint(20, -12), speed: 7 }
+        ]
+      },
+      {
+        id: 'starter-z',
+        label: 'Z',
+        team: 'offense',
+        start: fieldPoint(42, 1),
+        route: [{ to: fieldPoint(42, -18), speed: 7 }]
+      }
+    ]
+  };
+}
+
+// Converts yards from the left sideline and yards behind the line of scrimmage
+// (negative is downfield) into normalized field coordinates.
+function fieldPoint(xYards: number, yardsBehindLine: number): Vec2 {
+  return {
+    x: xYards / FIELD_WIDTH_YARDS,
+    y: (LINE_OF_SCRIMMAGE_YARDS_FROM_TOP + yardsBehindLine) / FIELD_LENGTH_YARDS
+  };
+}
+
 export function getPlayDuration(play: Play): number {
   return play.players.reduce((max, player) => {
     const duration = getRouteDuration(player);

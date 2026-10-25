@@ -2,9 +2,11 @@ import {
   FIELD_LENGTH_YARDS,
   FIELD_WIDTH_YARDS,
   createEmptyPlay,
+  createStarterPlay,
   deserializePlay,
   getLegDuration,
   getPlayDuration,
+  getPlayerPositionAtTime,
   serializePlay,
   type Play,
   type Player,
@@ -17,6 +19,25 @@ import { DEFAULT_BALL_SPEED_YPS, getBallEndTime, getBallState } from './ball';
 import { createRenderer } from './renderer';
 import { loadDraftPlay, saveDraftPlay } from './storage';
 import { renderIcons } from './icons';
+import { createCoachMark, type CoachMarkContent, type CoachMarkRect, type CoachMarkTarget } from './coach-mark';
+import {
+  createOnboardingState,
+  dismissHint,
+  endTour,
+  getActiveTip,
+  getTipCopy,
+  isTourStep,
+  loadStoredOnboarding,
+  reduceOnboarding,
+  saveStoredOnboarding,
+  setTipsEnabled,
+  startTour,
+  TOUR_STEPS,
+  type OnboardingContext,
+  type OnboardingEvent,
+  type OnboardingState,
+  type TipId
+} from './onboarding';
 import { supabase } from './supabase';
 import { copyPlayToPlaybook, snapshotPlayForCopy, type PlayCopySource } from './play-copy';
 import {
@@ -34,7 +55,6 @@ const DEFAULT_DEFENSE_SPEED = 6;
 const DEFAULT_ZONE_RADIUS_X = 10;
 const DEFAULT_ZONE_RADIUS_Y = 5;
 const MIN_ZONE_RADIUS = 1;
-const HELP_SEEN_KEY = 'playmaker.help.seen.v1';
 const LAST_SELECTED_PLAY_KEY = 'playmaker.lastSelectedPlay.v1';
 const LAST_SELECTED_PLAYBOOK_KEY = 'playmaker.lastSelectedPlaybook.v1';
 const LOCKED_STATE_KEY = 'playmaker.locked.v1';
@@ -175,6 +195,7 @@ export function initApp() {
   const helpMenuOpen = document.getElementById('help-menu-open') as HTMLButtonElement | null;
   const helpMenuFeedback = document.getElementById('help-menu-feedback') as HTMLButtonElement | null;
   const helpMenuContrast = document.getElementById('help-menu-contrast') as HTMLInputElement | null;
+  const helpMenuTips = document.getElementById('help-menu-tips') as HTMLInputElement | null;
   const authTrigger = document.getElementById('auth-trigger') as HTMLButtonElement | null;
   const authAvatar = document.getElementById('auth-avatar') as HTMLButtonElement | null;
   const authAvatarImg = document.getElementById('auth-avatar-img') as HTMLImageElement | null;
@@ -287,6 +308,7 @@ export function initApp() {
     !helpMenuOpen ||
     !helpMenuFeedback ||
     !helpMenuContrast ||
+    !helpMenuTips ||
     !authTrigger ||
     !authAvatar ||
     !authAvatarImg ||
@@ -387,7 +409,19 @@ export function initApp() {
   let sharedPlaybookAccepted = false;
   let sharedPlaybookModalDismissed = false;
   let sharedPlaybookModalClose: (() => void) | null = null;
-  let play = sharedPlayToken ? createEmptyPlay() : savedPlay ?? createEmptyPlay();
+  let play = sharedPlayToken ? createEmptyPlay() : savedPlay ?? createStarterPlay();
+  const storedOnboarding = loadStoredOnboarding();
+  const firstVisit = !storedOnboarding && !savedPlay;
+  let onboarding = createOnboardingState(storedOnboarding, { returningUser: !!savedPlay });
+  saveStoredOnboarding(onboarding);
+  const coachMark = createCoachMark({
+    onPrimary: handleCoachMarkPrimary,
+    onSecondary: handleCoachMarkSecondary
+  });
+  let coachMarkTip: TipId | null = null;
+  let coachMarkLabel = '';
+  let coachMarkFrame: number | null = null;
+  let lastOnboardingPlayMode: PlayMode | null = null;
   let savedPlays: RemotePlay[] = [];
   let selectedSavedPlayId: string | null = null;
   let showPlayGridView = false;
@@ -769,6 +803,9 @@ export function initApp() {
     window.setTimeout(() => {
       syncResize();
     }, 300);
+    if (active !== wasFullscreen) {
+      sendOnboardingEvent({ type: 'fullscreen-changed', active });
+    }
   }
 
   function setStatus(message: string) {
@@ -956,6 +993,7 @@ export function initApp() {
     }
     updateSelectedPanel();
     render();
+    sendOnboardingEvent({ type: 'player-selected', team: getSelectedPlayer()?.team ?? null });
   }
 
   function updateSelectedPanel() {
@@ -2549,6 +2587,7 @@ Sharing a playbook with assistants is confusing."
     updateSaveButtonLabel();
     renderPlayTagsPanel();
     updateSelectedPanel();
+    syncOnboardingWithEditor();
   }
 
   async function loadPlaybooks() {
@@ -2919,8 +2958,8 @@ Sharing a playbook with assistants is confusing."
     return savedPlays.find((entry) => entry.id === selectedSavedPlayId)?.name ?? 'New play';
   }
 
-  function resetPlayState() {
-    play = createEmptyPlay();
+  function resetPlayState(nextPlay: Play = createEmptyPlay()) {
+    play = nextPlay;
     selectedPlayerId = null;
     playTime = 0;
     historyPast = [];
@@ -3808,6 +3847,7 @@ Sharing a playbook with assistants is confusing."
     lastTimestamp = 0;
     setPlayToggleState('pause');
     requestAnimationFrame(tickPlayback);
+    sendOnboardingEvent({ type: 'playback-started' });
   }
 
   function setPlayToggleState(state: 'play' | 'pause') {
@@ -3872,6 +3912,7 @@ Sharing a playbook with assistants is confusing."
 
     play.players.push(player);
     setStatus(`Added ${label}`);
+    sendOnboardingEvent({ type: 'player-added', team: player.team });
   }
 
   function addWaypointAt(player: Player, point: { x: number; y: number }) {
@@ -3886,6 +3927,7 @@ Sharing a playbook with assistants is confusing."
     route.push(leg);
     player.route = route;
     setStatus(`Added waypoint for ${player.label}`);
+    sendOnboardingEvent({ type: 'waypoint-added' });
   }
 
   function startPlayerDrag(pointerId: number, playerId: string, canvasPoint: Vec2) {
@@ -4746,6 +4788,7 @@ Sharing a playbook with assistants is confusing."
   }
 
   savePlayButton.addEventListener('click', async () => {
+    sendOnboardingEvent({ type: 'save-clicked' });
     if (!currentUserId) {
       markPendingGuestSave();
       setStatus('Sign in to save plays');
@@ -4773,8 +4816,8 @@ Sharing a playbook with assistants is confusing."
     await updateSelectedPlay(name);
   });
 
-  newPlayButton.addEventListener('click', () => {
-    resetPlayState();
+  function startNewPlay(nextPlay: Play) {
+    resetPlayState(nextPlay);
     selectedSavedPlayId = null;
     setLastSelectedPlay(selectedPlaybookId, null);
     setPlayGridView(false);
@@ -4783,8 +4826,25 @@ Sharing a playbook with assistants is confusing."
     syncEditorMode();
     renderSavedPlaysSelect();
     scrubberTouched = false;
-    setStatus('Started a new play');
     updateSharedPlayUI();
+  }
+
+  newPlayButton.addEventListener('click', () => {
+    startNewPlay(createEmptyPlay());
+    setStatus('Started a new play');
+    sendOnboardingEvent({ type: 'play-cleared' });
+  });
+
+  waypointList.addEventListener('focusin', (event) => {
+    const target = event.target as HTMLElement | null;
+    if (!canEdit || !target?.matches('.waypoint-delay')) {
+      return;
+    }
+    // Only Waypoint 0's delay can go negative for pre-snap motion.
+    if (target.closest('.waypoint-row') !== waypointList.querySelector('.waypoint-row.is-waypoint')) {
+      return;
+    }
+    sendOnboardingEvent({ type: 'start-delay-focused' });
   });
 
   playGridButton.addEventListener('click', () => {
@@ -4991,6 +5051,7 @@ Sharing a playbook with assistants is confusing."
       setActiveTeam(team);
       updateSelectedPanel();
       render();
+      sendOnboardingEvent({ type: 'team-changed', team });
     });
   }
 
@@ -5109,398 +5170,246 @@ Sharing a playbook with assistants is confusing."
     });
   }
 
-  function openHelpModal() {
-    if (document.querySelector('.auth-modal')) {
+  function getOnboardingContext(): OnboardingContext {
+    return { selectedTeam: getSelectedPlayer()?.team ?? null };
+  }
+
+  function sendOnboardingEvent(event: OnboardingEvent) {
+    setOnboardingState(reduceOnboarding(onboarding, event, getOnboardingContext()));
+  }
+
+  function setOnboardingState(next: OnboardingState) {
+    onboarding = next;
+    saveStoredOnboarding(next);
+    helpMenuTips!.checked = next.tipsEnabled;
+    syncCoachMark();
+  }
+
+  function syncOnboardingWithEditor() {
+    // The tour edits the play, so it ends once editing isn't possible (signed-in viewer, locked, Plays mode).
+    if (onboarding.tourStep !== null && !canEdit && !fullscreenActive) {
+      setOnboardingState(endTour(onboarding));
+    }
+    const mode = getEffectivePlayMode();
+    if (mode === lastOnboardingPlayMode) {
       return;
     }
+    const isInitialMode = lastOnboardingPlayMode === null;
+    lastOnboardingPlayMode = mode;
+    if (!isInitialMode) {
+      sendOnboardingEvent({ type: 'mode-changed', mode });
+    }
+  }
 
-    const steps = [
-      {
-        title: 'Welcome to Playmaker',
-        body: ['Start making plays by tapping on the field to add players.']
-      },
-      {
-        title: 'Add routes & actions',
-        body: [
-          'Select a player, then tap the field to add waypoints.',
-          'Set delays, speeds, and actions like handoffs or passes.'
-        ]
-      },
-      {
-        title: 'Run your play',
-        body: ['Press Play to watch it move and scrub the timeline to review.']
-      },
-      {
-        title: 'Share with your team',
-        body: ['Share a play or playbook so others can view or collaborate.']
-      },
-      {
-        title: 'Advanced timing',
-        body: [
-          'Run pre-snap motion by setting Waypoint 0 Delay to a negative number.',
-          'Use waypoint timings to sync player movements and actions.'
-        ]
-      }
-    ];
-
-    const overlay = document.createElement('div');
-    overlay.className = 'auth-modal';
-    overlay.innerHTML = `
-      <div class="auth-modal-card help-modal-card" role="dialog" aria-modal="true" aria-label="Help">
-        <div class="help-modal-close">
-          <button type="button" class="icon-button" data-help-close aria-label="Close">
-            <span data-lucide="x" aria-hidden="true"></span>
-          </button>
-        </div>
-        <div class="help-carousel">
-          <div class="help-slides">
-            ${steps
-              .map((step, index) => {
-                const visual =
-                  index === 0
-                    ? 'hike'
-                    : index === 1
-                      ? 'waypoints'
-                      : index === 2
-                        ? 'run'
-                        : index === 3
-                          ? 'share'
-                          : 'motion';
-                const visualMarkup =
-                  visual === 'run'
-                    ? `
-                <div class="help-mini-controls">
-                  <span class="help-mini-play">
-                    <span class="help-mini-play-icon"></span>
-                  </span>
-                  <div class="help-mini-scrubber">
-                    <span class="help-mini-scrubber-dot"></span>
-                  </div>
-                </div>
-                <div class="help-visual help-visual-canvas" data-help-visual="${visual}"></div>
-              `
-                    : visual === 'share'
-                    ? `
-                <div class="help-visual help-visual-share" data-help-visual="${visual}">
-                  <div class="help-share-wrapper">
-                    <div class="help-share-toolbar">
-                      <div class="help-share-group">
-                        <div class="help-share-dropdown">My Playbook</div>
-                        <div class="help-share-dots">
-                          <span></span><span></span><span></span>
-                        </div>
-                        <div class="help-share-menu">
-                          <div class="help-share-item help-share-item-share">Share</div>
-                          <div class="help-share-item">Rename</div>
-                          <div class="help-share-item">Delete</div>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="help-share-cursor"></div>
-                  </div>
-                </div>
-              `
-                      : `
-                <div class="help-visual help-visual-canvas" data-help-visual="${visual}"></div>
-              `;
-                return `
-              <div class="help-slide${index === 0 ? ' is-active' : ''}" data-help-slide="${index}">
-                <p class="help-slide-title">${step.title}</p>
-                ${step.body.map((line) => `<p class="help-slide-text">${line}</p>`).join('')}
-                ${visualMarkup}
-              </div>
-            `;
-              })
-              .join('')}
-          </div>
-          <div class="help-footer">
-            <div class="help-dots" role="tablist">
-              ${steps
-                .map(
-                  (_step, index) => `
-                <button type="button" class="help-dot${index === 0 ? ' is-active' : ''}" data-help-dot="${index}" aria-label="Step ${index + 1}"></button>
-              `
-                )
-                .join('')}
-            </div>
-            <div class="help-actions">
-              <button type="button" class="secondary" data-help-prev>Back</button>
-              <button type="button" class="primary" data-help-next>Next</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-    document.body.append(overlay);
-    renderIcons(overlay);
-    const cleanupAnimations: Array<() => void> = [];
-
-    const close = () => {
-      overlay.remove();
-      document.removeEventListener('keydown', onKey);
-      cleanupAnimations.forEach((cleanup) => cleanup());
-      try {
-        localStorage.setItem(HELP_SEEN_KEY, '1');
-      } catch {
-        // ignore persistence errors
-      }
-    };
-
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        close();
-      }
-    };
-    document.addEventListener('keydown', onKey);
-
-    overlay.addEventListener('click', (event) => {
-      if (event.target === overlay) {
-        close();
-      }
-    });
-
-    const closeButton = overlay.querySelector('[data-help-close]') as HTMLButtonElement | null;
-    const prevButton = overlay.querySelector('[data-help-prev]') as HTMLButtonElement | null;
-    const nextButton = overlay.querySelector('[data-help-next]') as HTMLButtonElement | null;
-    const slides = Array.from(overlay.querySelectorAll<HTMLElement>('.help-slide'));
-    const dots = Array.from(overlay.querySelectorAll<HTMLButtonElement>('.help-dot'));
-
-    if (!prevButton || !nextButton) {
+  function replayTour() {
+    if (currentUserId && currentRole !== 'coach') {
+      setStatus('Open a playbook you coach to take the tour');
       return;
     }
+    if (fullscreenActive) {
+      setFullscreen(false);
+    }
+    if (getEffectivePlayMode() !== 'design') {
+      setPlayMode('design');
+    }
+    if (!editMode) {
+      editMode = true;
+      saveLockedPreference(false);
+    }
+    const previous = clonePlay(play);
+    startNewPlay(createStarterPlay());
+    if (previous.players.length > 0) {
+      // Keep the replaced play one Undo away.
+      pushHistory(previous);
+    }
+    setStatus('Loaded the starter play');
+    setOnboardingState(startTour(onboarding, getOnboardingContext()));
+  }
 
-    const setupHelpVisuals = () => {
-      const visuals = Array.from(
-        overlay.querySelectorAll<HTMLElement>('[data-help-visual]')
-      );
+  function handleCoachMarkPrimary() {
+    setOnboardingState(onboarding.tourStep !== null ? endTour(onboarding) : dismissHint(onboarding));
+  }
 
-      const createHikePlay = (): Play => {
-        const centerId = 'help-center';
-        const qbId = 'help-qb';
-        const wrId = 'help-wr';
-        return {
-          players: [
-            {
-              id: centerId,
-              label: 'C',
-              team: 'offense',
-              start: { x: 0.5, y: 0.68 },
-              startAction: { type: 'handoff', targetId: qbId }
-            },
-            {
-              id: qbId,
-              label: 'QB',
-              team: 'offense',
-              start: { x: 0.5, y: 0.78 },
-              route: [
-                {
-                  to: { x: 0.48, y: 0.82 },
-                  speed: 6,
-                  delay: 0.6,
-                  action: { type: 'pass', targetId: wrId }
-                }
-              ]
-            },
-            {
-              id: wrId,
-              label: 'WR',
-              team: 'offense',
-              start: { x: 0.7, y: 0.62 },
-              route: [
-                {
-                  to: { x: 0.55, y: 0.46 },
-                  speed: 7
-                }
-              ]
-            }
-          ]
-        };
-      };
+  function handleCoachMarkSecondary() {
+    if (onboarding.tourStep !== null) {
+      setOnboardingState(endTour(onboarding));
+      setStatus('Replay the tour anytime from the help menu');
+      return;
+    }
+    setOnboardingState(setTipsEnabled(onboarding, false));
+    setStatus('Tips off');
+  }
 
-      const createMotionPlay = (): Play => ({
-        players: [
-          {
-            id: 'motion-qb',
-            label: 'QB',
-            team: 'offense',
-            start: { x: 0.5, y: 0.78 }
-          },
-          {
-            id: 'motion-wr',
-            label: 'WR',
-            team: 'offense',
-            start: { x: 0.2, y: 0.66 },
-            startDelay: -1,
-            route: [
-              {
-                to: { x: 0.42, y: 0.9 },
-                speed: 6
-              },
-              {
-                to: { x: 0.78, y: 0.9 },
-                speed: 6
-              }
-            ]
-          }
-        ]
-      });
-
-      const createWaypointSteps = (): Play[] => {
-        const playerA = {
-          id: 'waypoint-a',
-          label: 'O',
-          team: 'offense' as const,
-          start: { x: 0.4, y: 0.7 }
-        };
-        const playerB = {
-          id: 'waypoint-b',
-          label: 'O',
-          team: 'offense' as const,
-          start: { x: 0.65, y: 0.7 }
-        };
-        const baseLeg = {
-          to: { x: 0.52, y: 0.82 },
-          speed: 8
-        };
-        return [
-          { players: [playerA] },
-          { players: [playerA, playerB] },
-          {
-            players: [
-              {
-                ...playerA,
-                route: [baseLeg]
-              },
-              playerB
-            ]
-          },
-          {
-            players: [
-              {
-                ...playerA,
-                route: [
-                  {
-                    ...baseLeg,
-                    action: { type: 'handoff', targetId: playerB.id }
-                  }
-                ]
-              },
-              playerB
-            ]
-          }
-        ];
-      };
-
-      const hikePlay = createHikePlay();
-      const motionPlay = createMotionPlay();
-      const waypointSteps = createWaypointSteps();
-      const waypointLegDuration = getLegDuration(
-        waypointSteps[2]?.players[0]?.start ?? { x: 0.4, y: 0.7 },
-        (waypointSteps[2]?.players[0] as Player | undefined)?.route?.[0] ?? {
-          to: { x: 0.52, y: 0.82 },
-          speed: 8
-        }
-      );
-      const handoffPreviewDuration = Math.max(0.6, waypointLegDuration + 0.35);
-
-      visuals.forEach((visual) => {
-        const type = visual.dataset.helpVisual;
-        if (!type || type === 'share') {
-          return;
-        }
-        const canvas = document.createElement('canvas');
-        visual.append(canvas);
-        const renderer = createRenderer(canvas);
-
-        const handleResize = () => {
-          renderer.resize();
-        };
-        handleResize();
-        window.addEventListener('resize', handleResize);
-
-        let frameId = 0;
-        const start = performance.now();
-        const loop = (now: number) => {
-          renderer.resize();
-          const elapsed = (now - start) / 1000;
-          let playToRender: Play = hikePlay;
-          let playTime = elapsed % 4.5;
-          let showMarkers = false;
-
-          if (type === 'motion') {
-            playToRender = motionPlay;
-            const duration = 4.2;
-            playTime = -1 + (elapsed % duration);
-          } else if (type === 'waypoints') {
-            const stepDuration = Math.max(1.4, handoffPreviewDuration + 0.2);
-            const step = Math.floor((elapsed % (stepDuration * 4)) / stepDuration);
-            const localTime = (elapsed % stepDuration) / stepDuration;
-            playToRender = waypointSteps[step] ?? waypointSteps[0];
-            showMarkers = step >= 2;
-            playTime = step === 3 ? localTime * handoffPreviewDuration : 0;
-          }
-
-          const ballState = getBallState(playToRender, playTime, DEFAULT_BALL_SPEED_YPS);
-          renderer.render({
-            play: playToRender,
-            playTime,
-            selectedPlayerId: null,
-            ball: ballState,
-            showWaypointMarkers: showMarkers,
-            defenseDisplayMode: 'show',
-            highContrast: highContrastMode
-          });
-          frameId = window.requestAnimationFrame(loop);
-        };
-
-        frameId = window.requestAnimationFrame(loop);
-
-        cleanupAnimations.push(() => {
-          window.cancelAnimationFrame(frameId);
-          window.removeEventListener('resize', handleResize);
-        });
-      });
-    };
-
-    setupHelpVisuals();
-
-    let activeIndex = 0;
-
-    const setSlide = (index: number) => {
-      activeIndex = Math.min(Math.max(index, 0), slides.length - 1);
-      slides.forEach((slide, idx) => {
-        slide.classList.toggle('is-active', idx === activeIndex);
-      });
-      dots.forEach((dot, idx) => {
-        dot.classList.toggle('is-active', idx === activeIndex);
-      });
-      prevButton.disabled = activeIndex === 0;
-      nextButton.textContent = activeIndex === slides.length - 1 ? 'Done' : 'Next';
-    };
-
-    prevButton.addEventListener('click', () => {
-      setSlide(activeIndex - 1);
-    });
-
-    nextButton.addEventListener('click', () => {
-      if (activeIndex === slides.length - 1) {
-        close();
-        return;
+  function syncCoachMark() {
+    const tip = getActiveTip(onboarding);
+    const label = tip ? getTipPlayerLabel(tip) : '';
+    if (tip === coachMarkTip && label === coachMarkLabel) {
+      return;
+    }
+    const tipChanged = tip !== coachMarkTip;
+    coachMarkTip = tip;
+    coachMarkLabel = label;
+    if (!tip) {
+      coachMark.hide();
+      if (coachMarkFrame !== null) {
+        cancelAnimationFrame(coachMarkFrame);
+        coachMarkFrame = null;
       }
-      setSlide(activeIndex + 1);
-    });
+      return;
+    }
+    coachMark.show(getCoachMarkContent(tip, label));
+    if (tipChanged) {
+      revealCoachMarkAnchor(tip);
+    }
+    if (coachMarkFrame === null) {
+      coachMarkFrame = requestAnimationFrame(updateCoachMarkFrame);
+    }
+  }
 
-    dots.forEach((dot) => {
-      dot.addEventListener('click', () => {
-        const value = Number(dot.dataset.helpDot ?? 0);
-        if (!Number.isNaN(value)) {
-          setSlide(value);
-        }
-      });
-    });
+  // Anchors move with layout, scrolling and playback, so the tip follows them every frame while shown.
+  function updateCoachMarkFrame() {
+    coachMarkFrame = null;
+    if (!coachMarkTip) {
+      return;
+    }
+    coachMark.place(getCoachMarkTarget(coachMarkTip), !isCoachMarkBlocked(coachMarkTip));
+    coachMarkFrame = requestAnimationFrame(updateCoachMarkFrame);
+  }
 
-    closeButton?.addEventListener('click', close);
-    setSlide(0);
+  function isCoachMarkBlocked(tip: TipId): boolean {
+    return isPlaying || !!document.querySelector('.auth-modal') || (fullscreenActive && tip !== 'fullscreen');
+  }
+
+  function getCoachMarkContent(tip: TipId, label: string): CoachMarkContent {
+    const copy = getTipCopy(tip, label);
+    if (!isTourStep(tip)) {
+      return { ...copy, primaryLabel: 'Got it', secondaryLabel: 'Turn off tips' };
+    }
+    const index = TOUR_STEPS.findIndex((step) => step.id === tip);
+    const isLast = index === TOUR_STEPS.length - 1;
+    return {
+      ...copy,
+      stepLabel: `${index + 1} of ${TOUR_STEPS.length}`,
+      primaryLabel: isLast ? 'Done' : undefined,
+      secondaryLabel: isLast ? undefined : 'Skip tour'
+    };
+  }
+
+  function getTipPlayerLabel(tip: TipId): string {
+    if (tip === 'select') {
+      return getTourPlayer()?.label ?? 'a player';
+    }
+    if (tip === 'waypoint') {
+      return getSelectedPlayer()?.label ?? 'they';
+    }
+    return '';
+  }
+
+  function getTourPlayer(): Player | null {
+    return (
+      play.players.find((player) => player.id === 'starter-c') ??
+      play.players.find((player) => player.team === 'offense') ??
+      null
+    );
+  }
+
+  function getCoachMarkElement(tip: TipId): HTMLElement | null {
+    switch (tip) {
+      case 'run':
+      case 'rerun':
+        return playToggle;
+      case 'save':
+        return savePlayButton;
+      case 'coverage':
+        return coverageTypeSelect;
+      case 'waypoint-details':
+        return waypointList;
+      case 'motion':
+        return waypointList!.querySelector<HTMLElement>('.waypoint-row.is-waypoint .waypoint-delay');
+      case 'game-mode':
+        return gamePlayList;
+      default:
+        return canvas;
+    }
+  }
+
+  function getCoachMarkTarget(tip: TipId): CoachMarkTarget {
+    const tourPlayer = tip === 'select' ? getTourPlayer() : null;
+    if (tourPlayer) {
+      return { rect: getPlayerViewportRect(tourPlayer), ring: 'circle' };
+    }
+    const rect = getViewportRect(getVisibleCoachMarkElement(tip));
+    switch (tip) {
+      case 'waypoint':
+        return { rect, ghost: getWaypointSuggestion() };
+      case 'run':
+      case 'rerun':
+      case 'save':
+      case 'coverage':
+      case 'waypoint-details':
+      case 'motion':
+      case 'game-mode':
+        return { rect, ring: 'rounded' };
+      default:
+        return { rect };
+    }
+  }
+
+  // Panel controls can sit inside the collapsed playbook panel on phones; point at its header instead.
+  function getVisibleCoachMarkElement(tip: TipId): HTMLElement | null {
+    const element = getCoachMarkElement(tip);
+    const collapsed = element?.closest('details:not([open])');
+    return collapsed?.querySelector<HTMLElement>(':scope > summary') ?? element;
+  }
+
+  function revealCoachMarkAnchor(tip: TipId) {
+    const element = getVisibleCoachMarkElement(tip);
+    if (!element || fullscreenActive) {
+      return;
+    }
+    const rect = element.getBoundingClientRect();
+    if (rect.top < 0 || rect.bottom > window.innerHeight) {
+      element.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+  }
+
+  function getViewportRect(element: HTMLElement | null): CoachMarkRect | null {
+    if (!element) {
+      return null;
+    }
+    const rect = element.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) {
+      return null;
+    }
+    return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+  }
+
+  function getPlayerViewportRect(player: Player): CoachMarkRect {
+    const canvasRect = canvas!.getBoundingClientRect();
+    const point = renderer.worldToCanvas(getPlayerPositionAtTime(player, playTime));
+    const radius = renderer.getPlayerRadius();
+    return {
+      left: canvasRect.left + point.x - radius,
+      top: canvasRect.top + point.y - radius,
+      width: radius * 2,
+      height: radius * 2
+    };
+  }
+
+  // Suggests an open spot a few yards on from the selected player's route.
+  function getWaypointSuggestion(): { x: number; y: number } | null {
+    const player = getSelectedPlayer();
+    if (!player || player.team !== 'offense') {
+      return null;
+    }
+    const end = player.route?.[player.route.length - 1]?.to ?? player.start;
+    const endX = end.x * FIELD_WIDTH_YARDS;
+    const direction = endX <= FIELD_WIDTH_YARDS / 2 ? 1 : -1;
+    const x = Math.min(Math.max(endX + direction * 8, 3), FIELD_WIDTH_YARDS - 3);
+    const y = Math.max(end.y * FIELD_LENGTH_YARDS - 5, 2);
+    const point = renderer.worldToCanvas({ x: x / FIELD_WIDTH_YARDS, y: y / FIELD_LENGTH_YARDS });
+    const canvasRect = canvas!.getBoundingClientRect();
+    return { x: canvasRect.left + point.x, y: canvasRect.top + point.y };
   }
 
   function openNameModal(options: {
@@ -6539,7 +6448,12 @@ Sharing a playbook with assistants is confusing."
 
   helpMenuOpen.addEventListener('click', () => {
     closeHelpMenu();
-    openHelpModal();
+    replayTour();
+  });
+  helpMenuTips.addEventListener('change', () => {
+    closeHelpMenu();
+    setOnboardingState(setTipsEnabled(onboarding, helpMenuTips.checked));
+    setStatus(helpMenuTips.checked ? 'Tips on' : 'Tips off');
   });
   helpMenuFeedback.addEventListener('click', () => {
     closeHelpMenu();
@@ -6920,6 +6834,14 @@ Sharing a playbook with assistants is confusing."
     loadSharedPlayByToken(sharedPlayToken);
   }
   render();
+  helpMenuTips.checked = onboarding.tipsEnabled;
+  if (firstVisit && !sharedPlayToken && !sharedPlaybookToken) {
+    window.setTimeout(() => {
+      if (!onboarding.tourDone && onboarding.tourStep === null && canEdit) {
+        setOnboardingState(startTour(onboarding, getOnboardingContext()));
+      }
+    }, 700);
+  }
 }
 
 function getNextLabel(team: Team, players: Player[]): string {

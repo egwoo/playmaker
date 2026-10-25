@@ -573,6 +573,8 @@ export function createRenderer(canvas: HTMLCanvasElement) {
     resize,
     render,
     canvasToWorld,
+    worldToCanvas,
+    getPlayerRadius,
     hitTest,
     hitTestWaypoint,
     hitTestZoneHandle,

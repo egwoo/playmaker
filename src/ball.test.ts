@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { getBallEndTime, getBallState } from './ball';
-import { FIELD_WIDTH_YARDS, type Play, type Player } from './model';
+import { DEFAULT_BALL_SPEED_YPS, getBallEndTime, getBallState } from './ball';
+import { createStarterPlay, FIELD_WIDTH_YARDS, getRouteDuration, type Play, type Player } from './model';
 
 describe('getBallState', () => {
   it('starts with the first offensive player', () => {
@@ -107,5 +107,24 @@ describe('getBallState', () => {
     const ballSpeed = 10; // 10 yd/s for a 30 yd throw.
     const endTime = getBallEndTime(play, ballSpeed);
     expect(endTime).toBeCloseTo(5, 2);
+  });
+});
+
+describe('starter play', () => {
+  it('snaps to the QB and completes the pass to the slant receiver', () => {
+    const play = createStarterPlay();
+    const endTime = getBallEndTime(play, DEFAULT_BALL_SPEED_YPS);
+
+    expect(getBallState(play, 0, DEFAULT_BALL_SPEED_YPS).carrierId).toBe('starter-c');
+    expect(getBallState(play, 0.5, DEFAULT_BALL_SPEED_YPS).carrierId).toBe('starter-qb');
+    const final = getBallState(play, endTime + 0.01, DEFAULT_BALL_SPEED_YPS);
+    expect(final.carrierId).toBe('starter-x');
+    expect(final.inAir).toBe(false);
+  });
+
+  it('catches the slant before the route ends', () => {
+    const play = createStarterPlay();
+    const slant = play.players.find((player) => player.id === 'starter-x')!;
+    expect(getBallEndTime(play, DEFAULT_BALL_SPEED_YPS)).toBeLessThan(getRouteDuration(slant));
   });
 });
